@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useBoardStore } from '../../store/useBoardStore';
+import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { 
   Kanban, 
   Users, 
@@ -10,15 +11,23 @@ import {
   ChevronDown, 
   ShieldCheck, 
   UserCheck, 
-  RefreshCw 
+  RefreshCw,
+  LayoutGrid,
+  Columns3
 } from 'lucide-react';
 import { NotificationModal } from '../notifications/NotificationModal';
 import { TeamModal } from '../team/TeamModal';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 
-export const BoardHeader: React.FC = () => {
+interface Props {
+  currentView: 'overview' | 'board';
+  onToggleView: (view: 'overview' | 'board') => void;
+}
+
+export const BoardHeader: React.FC<Props> = ({ currentView, onToggleView }) => {
   const { currentUser, users, setCurrentUser, isDarkMode, toggleDarkMode } = useAuthStore();
   const { board, fetchBoard, isLoading } = useBoardStore();
+  const { currentWorkspace } = useWorkspaceStore();
 
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -27,13 +36,13 @@ export const BoardHeader: React.FC = () => {
   return (
     <>
       <header className="h-16 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-6 flex items-center justify-between z-20 shrink-0">
-        {/* Left Side: Brand + Workspace Switcher */}
-        <div className="flex items-center gap-4">
+        {/* Left Side: Brand + View Switcher + Workspace Switcher */}
+        <div className="flex items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shadow-sm shrink-0">
               <Kanban size={18} strokeWidth={2.2} />
             </div>
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-sm font-bold tracking-tight text-neutral-900 dark:text-white">
                   EFL-Workflow
@@ -47,10 +56,36 @@ export const BoardHeader: React.FC = () => {
 
           <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-800 hidden sm:block" />
 
-          {/* Workspace / Space Selector */}
-          <WorkspaceSwitcher />
+          {/* View Mode Toggle: Overview vs Board */}
+          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl border border-neutral-200/80 dark:border-neutral-700">
+            <button
+              onClick={() => onToggleView('overview')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                currentView === 'overview'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <LayoutGrid size={13} />
+              <span>ภาพรวม Spaces</span>
+            </button>
+            <button
+              onClick={() => onToggleView('board')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                currentView === 'board'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <Columns3 size={13} />
+              <span>หน้าบอร์ด</span>
+            </button>
+          </div>
 
-          {/* Refresh Board Button */}
+          {/* Workspace Switcher (visible in board view or compact) */}
+          {currentView === 'board' && <WorkspaceSwitcher />}
+
+          {/* Refresh Button */}
           <button
             onClick={() => fetchBoard()}
             disabled={isLoading}

@@ -4,7 +4,6 @@ import { PrismaClient, WorkspaceRole } from '@prisma/client';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Helper to broadcast socket events
 const emitRealtime = (req: any, event: string, data: any) => {
   const io = req.app.get('io');
   if (io) {
@@ -12,7 +11,7 @@ const emitRealtime = (req: any, event: string, data: any) => {
   }
 };
 
-// List all workspaces for a user (or all accessible workspaces)
+// List all workspaces with detailed stats for the Overview Dashboard
 router.get('/', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -34,7 +33,19 @@ router.get('/', async (req, res) => {
           include: { user: true }
         },
         boards: {
-          select: { id: true, title: true }
+          include: {
+            columns: {
+              orderBy: { position: 'asc' },
+              include: {
+                cards: {
+                  include: {
+                    assignees: { include: { user: true } },
+                    labels: { include: { label: true } }
+                  }
+                }
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: 'asc' }
@@ -46,7 +57,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create new Workspace with auto-generated Default Board & 4 Workflow Columns
+// Create new Workspace
 router.post('/', async (req, res) => {
   try {
     const { name, description, icon, color, ownerId } = req.body;
@@ -84,7 +95,20 @@ router.post('/', async (req, res) => {
       include: {
         owner: true,
         members: { include: { user: true } },
-        boards: { select: { id: true, title: true } }
+        boards: {
+          include: {
+            columns: {
+              include: {
+                cards: {
+                  include: {
+                    assignees: { include: { user: true } },
+                    labels: { include: { label: true } }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     });
 
@@ -95,43 +119,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get single workspace with details
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const workspace = await prisma.workspace.findUnique({
-      where: { id },
-      include: {
-        owner: true,
-        members: { include: { user: true } },
-        boards: {
-          include: {
-            columns: {
-              orderBy: { position: 'asc' },
-              include: {
-                cards: {
-                  orderBy: { position: 'asc' },
-                  include: {
-                    assignees: { include: { user: true } },
-                    labels: { include: { label: true } },
-                    _count: { select: { comments: true, attachments: true } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
-    res.json(workspace);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Invite / Add member to workspace
+// Invite member
 router.post('/:id/invite', async (req, res) => {
   try {
     const { id } = req.params;
@@ -165,7 +153,7 @@ router.post('/:id/invite', async (req, res) => {
   }
 });
 
-// Remove member from workspace
+// Remove member
 router.delete('/:id/members/:userId', async (req, res) => {
   try {
     const { id, userId } = req.params;

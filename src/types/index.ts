@@ -19,19 +19,6 @@ export interface WorkspaceMember {
   user: User;
 }
 
-export interface Workspace {
-  id: string;
-  name: string;
-  description?: string;
-  icon?: string;
-  color?: string;
-  ownerId: string;
-  owner?: User;
-  members: WorkspaceMember[];
-  boards?: { id: string; title: string }[];
-  createdAt: string;
-}
-
 export interface Label {
   id: string;
   name: string;
@@ -101,6 +88,19 @@ export interface Board {
   title: string;
   description?: string;
   columns: Column[];
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  ownerId: string;
+  owner?: User;
+  members: WorkspaceMember[];
+  boards?: Board[];
+  createdAt: string;
 }
 
 export interface NotificationLog {

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Workspace } from '../types';
 import { useBoardStore } from './useBoardStore';
+import { useAuthStore } from './useAuthStore';
 
 interface WorkspaceState {
   currentWorkspace: Workspace | null;
@@ -21,14 +22,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setCurrentWorkspace: (workspace) => {
     set({ currentWorkspace: workspace });
-    // Automatically re-fetch board for this workspace
     useBoardStore.getState().fetchBoard(workspace.id);
   },
 
   fetchWorkspaces: async (userId?: string) => {
     try {
       set({ isLoading: true });
-      const url = userId ? `/api/workspaces?userId=${userId}` : '/api/workspaces';
+      const currentUserId = userId || useAuthStore.getState().currentUser?.id;
+      const url = currentUserId ? `/api/workspaces?userId=${currentUserId}` : '/api/workspaces';
+      
       const res = await fetch(url);
       if (res.ok) {
         const data: Workspace[] = await res.json();
@@ -78,7 +80,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         body: JSON.stringify({ userId, role })
       });
       if (res.ok) {
-        await get().fetchWorkspaces();
+        const activeUid = useAuthStore.getState().currentUser?.id;
+        await get().fetchWorkspaces(activeUid);
         return true;
       }
     } catch (err) {
@@ -93,7 +96,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         method: 'DELETE'
       });
       if (res.ok) {
-        await get().fetchWorkspaces();
+        const activeUid = useAuthStore.getState().currentUser?.id;
+        await get().fetchWorkspaces(activeUid);
         return true;
       }
     } catch (err) {

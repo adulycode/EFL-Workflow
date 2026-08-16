@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { User } from '../types';
+import { useWorkspaceStore } from './useWorkspaceStore';
 
 interface AuthState {
   currentUser: User | null;
@@ -19,8 +20,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isDarkMode: false,
   isLoading: false,
 
-  setCurrentUser: (user) => set({ currentUser: user }),
+  setCurrentUser: (user) => {
+    set({ currentUser: user });
+    // When switching user, strictly fetch only workspaces that this user owns or is invited to
+    useWorkspaceStore.getState().fetchWorkspaces(user.id);
+  },
+
   setUsers: (users) => set({ users }),
+
   toggleDarkMode: () => {
     const next = !get().isDarkMode;
     set({ isDarkMode: next });
@@ -37,11 +44,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await fetch('/api/auth/users');
       if (res.ok) {
         const users = await res.json();
+        const initialUser = get().currentUser || users[0] || null;
         set({
           users,
-          currentUser: get().currentUser || users[0] || null,
+          currentUser: initialUser,
           isLoading: false
         });
+        if (initialUser) {
+          useWorkspaceStore.getState().fetchWorkspaces(initialUser.id);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);

@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  name         String
+  avatarUrl    String?
+  role         Role           @default(MEMBER)
+  lineUserId   String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  boards       Board[]        @relation("BoardCreator")
+  cardsCreated Card[]         @relation("CardCreator")
+  assignedCards CardAssignee[]
+  comments     Comment[]
+  activities   ActivityLog[]
+  notifications NotificationLog[]
+}
+
+model Board {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  createdById String?
+  createdBy   User?     @relation("BoardCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  columns     Column[]
+}
+
+model Column {
+  id        String   @id @default(uuid())
+  boardId   String
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title     String
+  position  Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  cards     Card[]
+}
+
+model Card {
+  id          String         @id @default(uuid())
+  columnId    String
+  column      Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  title       String
+  description String?        @db.Text
+  position    Float          @default(0)
+  priority    Priority       @default(MEDIUM)
+  dueDate     DateTime?
+  createdById String?
+  createdBy   User?          @relation("CardCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  assignees   CardAssignee[]
+  labels      CardLabel[]
+  comments    Comment[]
+  activities  ActivityLog[]
+  attachments Attachment[]
+}
+
+model CardAssignee {
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([cardId, userId])
+}
+
+model Label {
+  id        String      @id @default(uuid())
+  name      String
+  colorBg   String
+  colorText String
+  cards     CardLabel[]
+}
+
+model CardLabel {
+  cardId  String
+  card    Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionType String   // 'MOVED_COLUMN', 'ASSIGNED_USER', 'UPDATED_DUE_DATE', 'ADDED_COMMENT', 'CREATED_CARD'
+  details    Json     @default("{}")
+  createdAt  DateTime @default(now())
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileSize  Int      @default(0)
+  fileType  String?
+  createdAt DateTime @default(now())
+}
+
+model NotificationLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   String   // 'EMAIL', 'LINE', 'IN_APP'
+  title     String
+  message   String
+  status    String   // 'SENT', 'FAILED', 'QUEUED'
+  details   Json     @default("{}")
+  createdAt DateTime @default(now())
+}

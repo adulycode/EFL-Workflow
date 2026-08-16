@@ -5,7 +5,6 @@ import { sendNotification } from '../services/notificationService';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Helper to broadcast socket events
 const emitRealtime = (req: any, event: string, data: any) => {
   const io = req.app.get('io');
   if (io) {
@@ -164,6 +163,42 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// Toggle Archive / Restore Card
+router.post('/:id/archive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isArchived, userId } = req.body;
+
+    const targetStatus = isArchived !== undefined ? Boolean(isArchived) : true;
+
+    const updated = await prisma.card.update({
+      where: { id },
+      data: { isArchived: targetStatus },
+      include: {
+        column: true,
+        assignees: { include: { user: true } },
+        labels: { include: { label: true } }
+      }
+    });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId,
+          actionType: targetStatus ? 'ARCHIVED_CARD' : 'RESTORED_CARD',
+          details: { title: updated.title }
+        }
+      });
+    }
+
+    emitRealtime(req, 'card:archived', { cardId: id, isArchived: targetStatus, updated });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Move Card
 router.post('/:id/move', async (req, res) => {
   try {
@@ -271,7 +306,7 @@ router.get('/:id/details', async (req, res) => {
   }
 });
 
-// Add Comment (with Image Attachment Support)
+// Add Comment
 router.post('/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;

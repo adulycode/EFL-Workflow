@@ -11,6 +11,7 @@ interface FilterState {
 interface BoardState {
   board: Board | null;
   labels: Label[];
+  archivedCards: Card[];
   activeCard: Card | null;
   selectedCardId: string | null;
   filters: FilterState;
@@ -21,6 +22,7 @@ interface BoardState {
   setSelectedCardId: (id: string | null) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   fetchBoard: (workspaceId?: string) => Promise<void>;
+  fetchArchivedCards: () => Promise<void>;
 
   // Column Operations
   createColumn: (boardId: string, title: string) => Promise<void>;
@@ -32,12 +34,15 @@ interface BoardState {
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
   updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[] }) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
+  archiveCard: (cardId: string) => Promise<void>;
+  restoreCard: (cardId: string) => Promise<void>;
   addComment: (cardId: string, content: string, imageUrl?: string) => Promise<void>;
 }
 
 export const useBoardStore = create<BoardState>((set, get) => ({
   board: null,
   labels: [],
+  archivedCards: [],
   activeCard: null,
   selectedCardId: null,
   filters: {
@@ -64,10 +69,27 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         set({ board: data.board, labels: data.labels, isLoading: false });
+        if (data.board) {
+          get().fetchArchivedCards();
+        }
       }
     } catch (err) {
       console.error('Failed to fetch board:', err);
       set({ isLoading: false });
+    }
+  },
+
+  fetchArchivedCards: async () => {
+    const board = get().board;
+    if (!board) return;
+    try {
+      const res = await fetch(`/api/boards/${board.id}/archived`);
+      if (res.ok) {
+        const data = await res.json();
+        set({ archivedCards: data });
+      }
+    } catch (err) {
+      console.error('Failed to fetch archived cards:', err);
     }
   },
 
@@ -196,9 +218,43 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       if (res.ok) {
         set({ selectedCardId: null });
         get().fetchBoard();
+        get().fetchArchivedCards();
       }
     } catch (err) {
       console.error('Failed to delete card:', err);
+    }
+  },
+
+  archiveCard: async (cardId) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: true })
+      });
+      if (res.ok) {
+        set({ selectedCardId: null });
+        get().fetchBoard();
+        get().fetchArchivedCards();
+      }
+    } catch (err) {
+      console.error('Failed to archive card:', err);
+    }
+  },
+
+  restoreCard: async (cardId) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: false })
+      });
+      if (res.ok) {
+        get().fetchBoard();
+        get().fetchArchivedCards();
+      }
+    } catch (err) {
+      console.error('Failed to restore card:', err);
     }
   },
 

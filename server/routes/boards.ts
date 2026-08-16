@@ -31,6 +31,7 @@ router.get('/', async (req, res) => {
           orderBy: { position: 'asc' },
           include: {
             cards: {
+              where: { isArchived: false },
               orderBy: { position: 'asc' },
               include: {
                 assignees: {
@@ -69,6 +70,7 @@ router.get('/', async (req, res) => {
           columns: {
             include: {
               cards: {
+                where: { isArchived: false },
                 include: {
                   assignees: { include: { user: true } },
                   labels: { include: { label: true } },
@@ -84,6 +86,30 @@ router.get('/', async (req, res) => {
     const labels = await prisma.label.findMany();
 
     res.json({ board, labels });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get Archived Cards for a board
+router.get('/:id/archived', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const cards = await prisma.card.findMany({
+      where: {
+        column: { boardId: id },
+        isArchived: true
+      },
+      include: {
+        column: true,
+        assignees: { include: { user: true } },
+        labels: { include: { label: true } }
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    res.json(cards);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -141,7 +167,6 @@ router.delete('/columns/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Delete cards inside column first
     await prisma.card.deleteMany({ where: { columnId: id } });
     await prisma.column.delete({ where: { id } });
 

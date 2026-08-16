@@ -1,19 +1,13 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  MEMBER
+generator client {
+  provider = "prisma-client-js"
 }
 
-enum WorkspaceRole {
-  OWNER
+enum Role {
   ADMIN
   MEMBER
 }
@@ -25,6 +19,12 @@ enum Priority {
   URGENT
 }
 
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 model User {
   id               String            @id @default(uuid())
   email            String            @unique
@@ -32,35 +32,34 @@ model User {
   avatarUrl        String?
   role             Role              @default(MEMBER)
   lineUserId       String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  
-  workspacesOwned  Workspace[]       @relation("WorkspaceOwner")
-  workspaceMembers WorkspaceMember[]
-  boards           Board[]           @relation("BoardCreator")
-  cardsCreated     Card[]            @relation("CardCreator")
   assignedCards    CardAssignee[]
   comments         Comment[]
-  activities       ActivityLog[]
-  notifications    NotificationLog[]
+  activityLogs     ActivityLog[]
+  createdCards     Card[]            @relation("CreatedByUser")
+  createdBoards    Board[]           @relation("BoardCreatedByUser")
+  notificationLogs NotificationLog[]
+  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model Workspace {
   id          String            @id @default(uuid())
   name        String
   description String?
-  icon        String?           @default("💼")
+  icon        String?           @default("📁")
   color       String?           @default("#16a34a")
   ownerId     String
   owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  
   members     WorkspaceMember[]
   boards      Board[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
 model WorkspaceMember {
+  id          String        @id @default(uuid())
   workspaceId String
   workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   userId      String
@@ -68,21 +67,20 @@ model WorkspaceMember {
   role        WorkspaceRole @default(MEMBER)
   joinedAt    DateTime      @default(now())
 
-  @@id([workspaceId, userId])
+  @@unique([workspaceId, userId])
 }
 
 model Board {
-  id          String    @id @default(uuid())
+  id          String      @id @default(uuid())
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title       String
   description String?
   createdById String?
-  createdBy   User?     @relation("BoardCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  createdBy   User?       @relation("BoardCreatedByUser", fields: [createdById], references: [id])
   columns     Column[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Column {
@@ -90,11 +88,10 @@ model Column {
   boardId   String
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   title     String
-  position  Float    @default(0)
+  position  Float
+  cards     Card[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  cards     Card[]
 }
 
 model Card {
@@ -102,30 +99,20 @@ model Card {
   columnId    String
   column      Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
   title       String
-  description String?        @db.Text
-  position    Float          @default(0)
+  description String?
+  position    Float
   priority    Priority       @default(MEDIUM)
   dueDate     DateTime?
+  isArchived  Boolean        @default(false)
   createdById String?
-  createdBy   User?          @relation("CardCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  
+  createdBy   User?          @relation("CreatedByUser", fields: [createdById], references: [id])
   assignees   CardAssignee[]
   labels      CardLabel[]
   comments    Comment[]
   activities  ActivityLog[]
   attachments Attachment[]
-}
-
-model CardAssignee {
-  cardId     String
-  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
-
-  @@id([cardId, userId])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 
 model Label {
@@ -145,14 +132,23 @@ model CardLabel {
   @@id([cardId, labelId])
 }
 
+model CardAssignee {
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
+}
+
 model Comment {
   id        String   @id @default(uuid())
   cardId    String
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content   String   @db.Text
-  imageUrl  String?  @db.Text
+  content   String
+  imageUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -164,7 +160,7 @@ model ActivityLog {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   actionType String
-  details    Json     @default("{}")
+  details    Json
   createdAt  DateTime @default(now())
 }
 
@@ -173,9 +169,9 @@ model Attachment {
   cardId    String
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   fileName  String
-  fileUrl   String   @db.Text
-  fileSize  Int      @default(0)
-  fileType  String?
+  fileUrl   String
+  fileType  String
+  fileSize  Int
   createdAt DateTime @default(now())
 }
 
@@ -187,6 +183,6 @@ model NotificationLog {
   title     String
   message   String
   status    String
-  details   Json     @default("{}")
+  details   Json?
   createdAt DateTime @default(now())
 }

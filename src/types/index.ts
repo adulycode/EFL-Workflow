@@ -64,6 +64,8 @@ export interface Card {
   position: number;
   priority: Priority;
   dueDate?: string;
+  isArchived?: boolean;
+  column?: { id: string; title: string };
   createdById?: string;
   assignees: CardAssignee[];
   labels: CardLabel[];

@@ -8,6 +8,7 @@ import {
   Tag, 
   Users, 
   Trash2, 
+  Archive,
   MessageSquare, 
   Activity, 
   Clock, 
@@ -18,7 +19,7 @@ import {
 import { format } from 'date-fns';
 
 export const CardDetailModal: React.FC = () => {
-  const { selectedCardId, setSelectedCardId, updateCard, deleteCard, addComment, labels } = useBoardStore();
+  const { selectedCardId, setSelectedCardId, updateCard, deleteCard, archiveCard, addComment, labels } = useBoardStore();
   const { users, currentUser } = useAuthStore();
 
   const [cardDetails, setCardDetails] = useState<any>(null);
@@ -85,7 +86,7 @@ export const CardDetailModal: React.FC = () => {
     fetchDetails();
   };
 
-  // Image Upload / Attachment Handler
+  // Image Upload Handler
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -123,6 +124,12 @@ export const CardDetailModal: React.FC = () => {
     setAttachedImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     fetchDetails();
+  };
+
+  const handleArchive = async () => {
+    if (window.confirm(`Archive task "${cardDetails.title}"? You can restore it anytime from Archived Items.`)) {
+      await archiveCard(selectedCardId);
+    }
   };
 
   return (
@@ -288,7 +295,6 @@ export const CardDetailModal: React.FC = () => {
                             </p>
                           )}
 
-                          {/* Attached Image Render with Lightbox Zoom */}
                           {c.imageUrl && (
                             <div className="pl-7 pt-1">
                               <div className="relative group inline-block">
@@ -313,7 +319,6 @@ export const CardDetailModal: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  /* Activity Log Feed */
                   <div className="space-y-2 max-h-56 overflow-y-auto">
                     {cardDetails.activities?.map((act: any) => (
                       <div key={act.id} className="flex items-start gap-2.5 text-xs text-neutral-500 py-1.5 border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
@@ -374,7 +379,7 @@ export const CardDetailModal: React.FC = () => {
                 />
               </div>
 
-              {/* Assignees (Team of 20) */}
+              {/* Assignees */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1">
                   <Users size={13} /> Assignees
@@ -429,14 +434,26 @@ export const CardDetailModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Delete Card Button */}
-              <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800">
+              {/* Actions: Archive & Delete */}
+              <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
                 <button
                   type="button"
-                  onClick={() => deleteCard(selectedCardId)}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-lg transition-colors font-medium"
+                  onClick={handleArchive}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-200/70 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 p-2 rounded-xl transition-colors font-semibold"
                 >
-                  <Trash2 size={14} /> Delete Card
+                  <Archive size={14} /> Archive Card (ย้ายเข้าคลัง)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to permanently delete this card?')) {
+                      deleteCard(selectedCardId);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors font-medium"
+                >
+                  <Trash2 size={14} /> Delete Permanently
                 </button>
               </div>
             </div>

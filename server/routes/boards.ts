@@ -4,6 +4,13 @@ import { PrismaClient } from '@prisma/client';
 const router = Router();
 const prisma = new PrismaClient();
 
+const emitRealtime = (req: any, event: string, data: any) => {
+  const io = req.app.get('io');
+  if (io) {
+    io.emit(event, data);
+  }
+};
+
 // Get board data by workspaceId or first available board
 router.get('/', async (req, res) => {
   try {
@@ -86,6 +93,10 @@ router.get('/', async (req, res) => {
 router.post('/columns', async (req, res) => {
   try {
     const { boardId, title } = req.body;
+    if (!boardId || !title) {
+      return res.status(400).json({ error: 'boardId and title are required' });
+    }
+
     const lastCol = await prisma.column.findFirst({
       where: { boardId },
       orderBy: { position: 'desc' }
@@ -93,10 +104,49 @@ router.post('/columns', async (req, res) => {
     const position = lastCol ? lastCol.position + 1000 : 1000;
 
     const column = await prisma.column.create({
-      data: { boardId, title, position }
+      data: { boardId, title: title.trim(), position },
+      include: { cards: true }
     });
 
+    emitRealtime(req, 'column:created', column);
     res.json(column);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update / Rename Column
+router.patch('/columns/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, position } = req.body;
+
+    const column = await prisma.column.update({
+      where: { id },
+      data: {
+        title: title !== undefined ? title.trim() : undefined,
+        position: position !== undefined ? position : undefined
+      }
+    });
+
+    emitRealtime(req, 'column:updated', column);
+    res.json(column);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Column
+router.delete('/columns/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Delete cards inside column first
+    await prisma.card.deleteMany({ where: { columnId: id } });
+    await prisma.column.delete({ where: { id } });
+
+    emitRealtime(req, 'column:deleted', { columnId: id });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -22,6 +22,11 @@ interface BoardState {
   setFilters: (filters: Partial<FilterState>) => void;
   fetchBoard: (workspaceId?: string) => Promise<void>;
 
+  // Column Operations
+  createColumn: (boardId: string, title: string) => Promise<void>;
+  updateColumn: (columnId: string, title: string) => Promise<void>;
+  deleteColumn: (columnId: string) => Promise<void>;
+
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
@@ -63,6 +68,50 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     } catch (err) {
       console.error('Failed to fetch board:', err);
       set({ isLoading: false });
+    }
+  },
+
+  // Column Actions
+  createColumn: async (boardId: string, title: string) => {
+    try {
+      const res = await fetch('/api/boards/columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardId, title })
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to create column:', err);
+    }
+  },
+
+  updateColumn: async (columnId: string, title: string) => {
+    try {
+      const res = await fetch(`/api/boards/columns/${columnId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to update column:', err);
+    }
+  },
+
+  deleteColumn: async (columnId: string) => {
+    try {
+      const res = await fetch(`/api/boards/columns/${columnId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to delete column:', err);
     }
   },
 

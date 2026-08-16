@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Priority } from '@prisma/client';
+import { PrismaClient, Role, Priority, WorkspaceRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -34,9 +34,9 @@ const LABELS = [
 ];
 
 async function main() {
-  console.log('Seeding EFL-Workflow database...');
+  console.log('Seeding EFL-Workflow database with Multi-Workspace support...');
 
-  // 1. Create Users
+  // 1. Create 20 Team Users
   const users = [];
   for (const u of TEAM_MEMBERS) {
     const user = await prisma.user.upsert({
@@ -59,19 +59,87 @@ async function main() {
     }
   }
 
-  // 3. Create Default Board
-  let board = await prisma.board.findFirst();
+  // 3. Create Default Workspace: "EFL Core Organization" (Owned by Aduly Admin)
+  let mainWorkspace = await prisma.workspace.findFirst({ where: { name: 'EFL Core Organization' } });
+  if (!mainWorkspace) {
+    mainWorkspace = await prisma.workspace.create({
+      data: {
+        name: 'EFL Core Organization',
+        description: 'Primary organization workspace for company-wide cross-functional projects.',
+        icon: '🏢',
+        color: '#16a34a',
+        ownerId: users[0].id,
+        members: {
+          create: users.map((u, index) => ({
+            userId: u.id,
+            role: index === 0 ? WorkspaceRole.OWNER : (u.role === Role.ADMIN ? WorkspaceRole.ADMIN : WorkspaceRole.MEMBER)
+          }))
+        }
+      }
+    });
+  }
+
+  // Create Secondary Workspace: "UI/UX & Product Design Lab" (Owned by Kanya)
+  let designWorkspace = await prisma.workspace.findFirst({ where: { name: 'UI/UX & Product Design Lab' } });
+  if (!designWorkspace) {
+    designWorkspace = await prisma.workspace.create({
+      data: {
+        name: 'UI/UX & Product Design Lab',
+        description: 'Creative design hub for design systems, wireframes, prototypes, and user research.',
+        icon: '🎨',
+        color: '#9333ea',
+        ownerId: users[2].id, // Kanya
+        members: {
+          create: [
+            { userId: users[2].id, role: WorkspaceRole.OWNER },
+            { userId: users[0].id, role: WorkspaceRole.ADMIN },
+            { userId: users[3].id, role: WorkspaceRole.MEMBER },
+            { userId: users[1].id, role: WorkspaceRole.MEMBER }
+          ]
+        }
+      }
+    });
+  }
+
+  // 4. Create Main Board inside Workspace
+  let board = await prisma.board.findFirst({ where: { workspaceId: mainWorkspace.id } });
   if (!board) {
     board = await prisma.board.create({
       data: {
-        title: 'EFL Core Sprint & Workflow',
+        workspaceId: mainWorkspace.id,
+        title: 'EFL Sprint & Delivery Board',
         description: 'Main project tracking board for the EFL organization team.',
         createdById: users[0].id
       }
     });
   }
 
-  // 4. Create Columns
+  // Create Design Board in Design Workspace
+  let designBoard = await prisma.board.findFirst({ where: { workspaceId: designWorkspace.id } });
+  if (!designBoard) {
+    designBoard = await prisma.board.create({
+      data: {
+        workspaceId: designWorkspace.id,
+        title: 'Design System & Component Library',
+        description: 'Design tokens and component prototypes.',
+        createdById: users[2].id
+      }
+    });
+
+    // Create Columns for Design Board
+    const cols = ['Ideas & Inspo', 'In Figma', 'Review with Eng', 'Shipped'];
+    for (let i = 0; i < cols.length; i++) {
+      await prisma.column.create({
+        data: {
+          boardId: designBoard.id,
+          title: cols[i],
+          position: (i + 1) * 1000
+        }
+      });
+    }
+  }
+
+  // 5. Create Columns for Main Board
   const defaultColumns = ['To Do', 'In Progress', 'Review', 'Done'];
   const columns = [];
   for (let i = 0; i < defaultColumns.length; i++) {
@@ -89,108 +157,98 @@ async function main() {
     columns.push(col);
   }
 
-  // 5. Seed Initial Cards
-  const initialCards = [
-    {
-      colIndex: 0,
-      title: 'Design Dark Mode System & Tokens',
-      description: 'Implement curated dark theme following WCAG AA contrast rules and refined typography.',
-      priority: Priority.HIGH,
-      dueDate: new Date(Date.now() + 86400000 * 3),
-      assigneeIndexes: [2, 3],
-      labelIndexes: [2, 1]
-    },
-    {
-      colIndex: 0,
-      title: 'Setup Redis Caching for User Activity Feed',
-      description: 'Cache high-frequency activity query results to reduce DB load for 20 active team users.',
-      priority: Priority.MEDIUM,
-      dueDate: new Date(Date.now() + 86400000 * 5),
-      assigneeIndexes: [5, 6],
-      labelIndexes: [4]
-    },
-    {
-      colIndex: 1,
-      title: 'Integrate LINE Messaging API Flex Messages',
-      description: 'Build push notification templates for task assignments and Review/Done column triggers.',
-      priority: Priority.URGENT,
-      dueDate: new Date(Date.now() + 86400000 * 1),
-      assigneeIndexes: [0, 1],
-      labelIndexes: [1, 3]
-    },
-    {
-      colIndex: 1,
-      title: 'Refactor Drag and Drop with Fractional Indexing',
-      description: 'Ensure 0ms drag latency and zero-conflict reordering on simultaneous multi-user moves.',
-      priority: Priority.HIGH,
-      dueDate: new Date(Date.now() + 86400000 * 2),
-      assigneeIndexes: [3],
-      labelIndexes: [1]
-    },
-    {
-      colIndex: 2,
-      title: 'Resend Email Notification Integration',
-      description: 'Verify HTML transactional emails for task handoffs to QA and Management.',
-      priority: Priority.MEDIUM,
-      dueDate: new Date(Date.now() + 86400000 * 4),
-      assigneeIndexes: [4, 5],
-      labelIndexes: [1]
-    },
-    {
-      colIndex: 3,
-      title: 'Dockerize Full-Stack Application for Local Host',
-      description: 'Set up multi-stage Dockerfile and docker-compose.yml for isolated deployment.',
-      priority: Priority.HIGH,
-      dueDate: new Date(Date.now() - 86400000 * 1),
-      assigneeIndexes: [0, 6],
-      labelIndexes: [4]
-    }
-  ];
-
-  const existingCardsCount = await prisma.card.count();
+  // 6. Seed Cards with sample comments and attached image
+  const existingCardsCount = await prisma.card.count({ where: { column: { boardId: board.id } } });
   if (existingCardsCount === 0) {
-    for (let i = 0; i < initialCards.length; i++) {
-      const item = initialCards[i];
-      const card = await prisma.card.create({
-        data: {
-          columnId: columns[item.colIndex].id,
-          title: item.title,
-          description: item.description,
-          position: (i + 1) * 1000,
-          priority: item.priority,
-          dueDate: item.dueDate,
-          createdById: users[0].id,
-          assignees: {
-            create: item.assigneeIndexes.map((idx) => ({ userId: users[idx].id }))
-          },
-          labels: {
-            create: item.labelIndexes.map((idx) => ({ labelId: labels[idx].id }))
-          }
+    const card1 = await prisma.card.create({
+      data: {
+        columnId: columns[0].id,
+        title: 'Design Dark Mode System & Tokens',
+        description: 'Implement curated dark theme following WCAG AA contrast rules and refined typography.',
+        priority: Priority.HIGH,
+        dueDate: new Date(Date.now() + 86400000 * 3),
+        createdById: users[0].id,
+        assignees: {
+          create: [{ userId: users[2].id }, { userId: users[3].id }]
+        },
+        labels: {
+          create: [{ labelId: labels[2].id }, { labelId: labels[1].id }]
         }
-      });
+      }
+    });
 
-      // Add Sample Comment
-      await prisma.comment.create({
-        data: {
-          cardId: card.id,
-          userId: users[item.assigneeIndexes[0]].id,
-          content: 'Working on this task. Implementation is following the updated specs.'
-        }
-      });
+    // Add Comment with sample Image Attachment
+    await prisma.comment.create({
+      data: {
+        cardId: card1.id,
+        userId: users[2].id,
+        content: 'Here is the preliminary color contrast mockup for the dark palette:',
+        imageUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=800&auto=format&fit=crop&q=80'
+      }
+    });
 
-      // Add Sample Activity Log
-      await prisma.activityLog.create({
-        data: {
-          cardId: card.id,
-          userId: users[0].id,
-          actionType: 'CREATED_CARD',
-          details: { title: card.title }
+    const card2 = await prisma.card.create({
+      data: {
+        columnId: columns[1].id,
+        title: 'Integrate LINE Messaging API Flex Messages',
+        description: 'Build push notification templates for task assignments and Review/Done column triggers.',
+        priority: Priority.URGENT,
+        dueDate: new Date(Date.now() + 86400000 * 1),
+        createdById: users[0].id,
+        assignees: {
+          create: [{ userId: users[0].id }, { userId: users[1].id }]
+        },
+        labels: {
+          create: [{ labelId: labels[1].id }, { labelId: labels[3].id }]
         }
-      });
-    }
+      }
+    });
+
+    await prisma.comment.create({
+      data: {
+        cardId: card2.id,
+        userId: users[1].id,
+        content: 'Flex message layout is approved by team lead. Ready to test push dispatch.',
+        imageUrl: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80'
+      }
+    });
+
+    await prisma.card.create({
+      data: {
+        columnId: columns[2].id,
+        title: 'Resend Email Notification Integration',
+        description: 'Verify HTML transactional emails for task handoffs to QA and Management.',
+        priority: Priority.MEDIUM,
+        dueDate: new Date(Date.now() + 86400000 * 4),
+        createdById: users[0].id,
+        assignees: {
+          create: [{ userId: users[4].id }]
+        },
+        labels: {
+          create: [{ labelId: labels[1].id }]
+        }
+      }
+    });
+
+    await prisma.card.create({
+      data: {
+        columnId: columns[3].id,
+        title: 'Dockerize Full-Stack Application for Local Host',
+        description: 'Set up multi-stage Dockerfile and docker-compose.yml for isolated deployment.',
+        priority: Priority.HIGH,
+        dueDate: new Date(Date.now() - 86400000 * 1),
+        createdById: users[0].id,
+        assignees: {
+          create: [{ userId: users[0].id }, { userId: users[6].id }]
+        },
+        labels: {
+          create: [{ labelId: labels[4].id }]
+        }
+      }
+    });
   }
 
-  console.log('Seeding completed successfully! 20 Team Members and Kanban Board Ready.');
+  console.log('Seeding completed successfully! Multi-Workspaces, Boards & Image comments ready.');
 }
 
 main()

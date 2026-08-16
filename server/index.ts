@@ -6,6 +6,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 import authRouter from './routes/auth';
+import workspacesRouter from './routes/workspaces';
 import boardsRouter from './routes/boards';
 import cardsRouter from './routes/cards';
 import notificationsRouter from './routes/notifications';
@@ -26,10 +27,13 @@ const io = new Server(server, {
 app.set('io', io);
 
 app.use(cors());
-app.use(express.json());
+// Increased body limit to 15MB for image attachments
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // API Routes
 app.use('/api/auth', authRouter);
+app.use('/api/workspaces', workspacesRouter);
 app.use('/api/boards', boardsRouter);
 app.use('/api/cards', cardsRouter);
 app.use('/api/notifications', notificationsRouter);
@@ -64,6 +68,6 @@ server.listen(PORT, () => {
   console.log(`=========================================`);
   console.log(`🚀 EFL-Workflow Server Running on Port ${PORT}`);
   console.log(`📊 Local Web UI: http://localhost:${PORT}`);
-  console.log(`⚡ WebSocket Realtime Active`);
+  console.log(`⚡ Multi-Workspace & Image Engine Active`);
   console.log(`=========================================`);
 });

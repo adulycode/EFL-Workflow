@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { NotificationModal } from '../notifications/NotificationModal';
 import { TeamModal } from '../team/TeamModal';
+import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 
 export const BoardHeader: React.FC = () => {
   const { currentUser, users, setCurrentUser, isDarkMode, toggleDarkMode } = useAuthStore();
@@ -26,32 +27,35 @@ export const BoardHeader: React.FC = () => {
   return (
     <>
       <header className="h-16 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-6 flex items-center justify-between z-20 shrink-0">
-        {/* Brand & Board Title */}
+        {/* Left Side: Brand + Workspace Switcher */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shadow-sm">
+            <div className="h-9 w-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shadow-sm shrink-0">
               <Kanban size={18} strokeWidth={2.2} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="hidden md:block">
+              <div className="flex items-center gap-1.5">
                 <h1 className="text-sm font-bold tracking-tight text-neutral-900 dark:text-white">
                   EFL-Workflow
                 </h1>
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
                   Live
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate max-w-xs">
-                {board?.title || 'EFL Core Sprint & Workflow'}
-              </p>
             </div>
           </div>
 
+          <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-800 hidden sm:block" />
+
+          {/* Workspace / Space Selector */}
+          <WorkspaceSwitcher />
+
+          {/* Refresh Board Button */}
           <button
             onClick={() => fetchBoard()}
             disabled={isLoading}
             title="Refresh Board"
-            className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
           </button>
@@ -62,10 +66,10 @@ export const BoardHeader: React.FC = () => {
           {/* Team Members Button */}
           <button
             onClick={() => setShowTeamModal(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200/70 dark:hover:bg-neutral-700/60 px-3 py-1.5 rounded-lg transition-colors"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200/70 dark:hover:bg-neutral-700/60 px-3 py-1.5 rounded-lg transition-colors"
           >
             <Users size={14} />
-            <span>Team (20)</span>
+            <span>Org Team (20)</span>
           </button>
 
           {/* Notifications Log Trigger */}
@@ -87,11 +91,11 @@ export const BoardHeader: React.FC = () => {
             {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
           </button>
 
-          {/* Active User Switcher (Simulating 20 Member Collaboration) */}
+          {/* Active User Switcher */}
           <div className="relative">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all text-left"
+              className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all text-left"
             >
               <img
                 src={currentUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}`}
@@ -159,7 +163,6 @@ export const BoardHeader: React.FC = () => {
         </div>
       </header>
 
-      {/* Modals */}
       {showNotificationModal && (
         <NotificationModal onClose={() => setShowNotificationModal(false)} />
       )}

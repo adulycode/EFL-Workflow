@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { useBoardStore } from '../store/useBoardStore';
+import { useWorkspaceStore } from '../store/useWorkspaceStore';
 
 export const useSocketRealtime = () => {
   const fetchBoard = useBoardStore((s) => s.fetchBoard);
+  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
 
   useEffect(() => {
     const socket = io('/', {
@@ -20,8 +22,12 @@ export const useSocketRealtime = () => {
     socket.on('card:deleted', () => fetchBoard());
     socket.on('comment:added', () => fetchBoard());
 
+    socket.on('workspace:created', () => fetchWorkspaces());
+    socket.on('workspace:member_added', () => fetchWorkspaces());
+    socket.on('workspace:member_removed', () => fetchWorkspaces());
+
     return () => {
       socket.disconnect();
     };
-  }, [fetchBoard]);
+  }, [fetchBoard, fetchWorkspaces]);
 };

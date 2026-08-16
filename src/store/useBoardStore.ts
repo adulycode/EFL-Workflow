@@ -20,14 +20,14 @@ interface BoardState {
   setActiveCard: (card: Card | null) => void;
   setSelectedCardId: (id: string | null) => void;
   setFilters: (filters: Partial<FilterState>) => void;
-  fetchBoard: () => Promise<void>;
+  fetchBoard: (workspaceId?: string) => Promise<void>;
 
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
   updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[] }) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
-  addComment: (cardId: string, content: string) => Promise<void>;
+  addComment: (cardId: string, content: string, imageUrl?: string) => Promise<void>;
 }
 
 export const useBoardStore = create<BoardState>((set, get) => ({
@@ -48,10 +48,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setSelectedCardId: (id) => set({ selectedCardId: id }),
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
 
-  fetchBoard: async () => {
+  fetchBoard: async (workspaceId?: string) => {
     try {
       set({ isLoading: true });
-      const res = await fetch('/api/boards');
+      const currentBoard = get().board;
+      const targetWsId = workspaceId || currentBoard?.workspaceId;
+      const url = targetWsId ? `/api/boards?workspaceId=${targetWsId}` : '/api/boards';
+
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         set({ board: data.board, labels: data.labels, isLoading: false });
@@ -81,7 +85,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const currentBoard = get().board;
     if (!currentBoard) return;
 
-    // Optimistic UI state clone
     const clonedColumns = currentBoard.columns.map((col) => ({
       ...col,
       cards: [...col.cards]
@@ -98,7 +101,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     movedCard.columnId = destColId;
     destCol.cards.splice(newIndex, 0, movedCard);
 
-    // Calculate position
     const prevCard = destCol.cards[newIndex - 1];
     const nextCard = destCol.cards[newIndex + 1];
     let position = 1000;
@@ -110,10 +112,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     movedCard.position = position;
 
-    // Update store instantly
     set({ board: { ...currentBoard, columns: clonedColumns } });
 
-    // Sync to backend
     try {
       await fetch(`/api/cards/${cardId}/move`, {
         method: 'POST',
@@ -122,7 +122,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       });
     } catch (err) {
       console.error('Failed to persist move:', err);
-      // Rollback on error
       set({ board: currentBoard });
     }
   },
@@ -154,12 +153,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  addComment: async (cardId, content) => {
+  addComment: async (cardId, content, imageUrl) => {
     try {
       const res = await fetch(`/api/cards/${cardId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ content, imageUrl })
       });
       if (res.ok) {
         get().fetchBoard();

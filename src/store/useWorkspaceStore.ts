@@ -1,0 +1,104 @@
+import { create } from 'zustand';
+import { Workspace } from '../types';
+import { useBoardStore } from './useBoardStore';
+
+interface WorkspaceState {
+  currentWorkspace: Workspace | null;
+  workspaces: Workspace[];
+  isLoading: boolean;
+
+  setCurrentWorkspace: (workspace: Workspace) => void;
+  fetchWorkspaces: (userId?: string) => Promise<void>;
+  createWorkspace: (data: { name: string; description?: string; icon?: string; color?: string; ownerId: string }) => Promise<Workspace | null>;
+  inviteMember: (workspaceId: string, userId: string, role?: string) => Promise<boolean>;
+  removeMember: (workspaceId: string, userId: string) => Promise<boolean>;
+}
+
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  currentWorkspace: null,
+  workspaces: [],
+  isLoading: false,
+
+  setCurrentWorkspace: (workspace) => {
+    set({ currentWorkspace: workspace });
+    // Automatically re-fetch board for this workspace
+    useBoardStore.getState().fetchBoard(workspace.id);
+  },
+
+  fetchWorkspaces: async (userId?: string) => {
+    try {
+      set({ isLoading: true });
+      const url = userId ? `/api/workspaces?userId=${userId}` : '/api/workspaces';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data: Workspace[] = await res.json();
+        const active = get().currentWorkspace;
+        const matched = active ? data.find((w) => w.id === active.id) : data[0];
+
+        set({
+          workspaces: data,
+          currentWorkspace: matched || data[0] || null,
+          isLoading: false
+        });
+
+        if (matched || data[0]) {
+          useBoardStore.getState().fetchBoard((matched || data[0]).id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch workspaces:', err);
+      set({ isLoading: false });
+    }
+  },
+
+  createWorkspace: async (data) => {
+    try {
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const newSpace = await res.json();
+        await get().fetchWorkspaces(data.ownerId);
+        get().setCurrentWorkspace(newSpace);
+        return newSpace;
+      }
+    } catch (err) {
+      console.error('Failed to create workspace:', err);
+    }
+    return null;
+  },
+
+  inviteMember: async (workspaceId, userId, role = 'MEMBER') => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role })
+      });
+      if (res.ok) {
+        await get().fetchWorkspaces();
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to invite member:', err);
+    }
+    return false;
+  },
+
+  removeMember: async (workspaceId, userId) => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await get().fetchWorkspaces();
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to remove member:', err);
+    }
+    return false;
+  }
+}));

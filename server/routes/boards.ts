@@ -4,11 +4,22 @@ import { PrismaClient } from '@prisma/client';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get board data with columns, cards, assignees, and labels
+// Get board data by workspaceId or first available board
 router.get('/', async (req, res) => {
   try {
+    const { workspaceId, boardId } = req.query;
+
+    let whereClause: any = {};
+    if (boardId) {
+      whereClause.id = String(boardId);
+    } else if (workspaceId) {
+      whereClause.workspaceId = String(workspaceId);
+    }
+
     let board = await prisma.board.findFirst({
+      where: whereClause,
       include: {
+        workspace: true,
         columns: {
           orderBy: { position: 'asc' },
           include: {
@@ -30,6 +41,38 @@ router.get('/', async (req, res) => {
         }
       }
     });
+
+    // Fallback if no board found for workspace, create one
+    if (!board && workspaceId) {
+      board = await prisma.board.create({
+        data: {
+          workspaceId: String(workspaceId),
+          title: 'General Board',
+          columns: {
+            create: [
+              { title: 'To Do', position: 1000 },
+              { title: 'In Progress', position: 2000 },
+              { title: 'Review', position: 3000 },
+              { title: 'Done', position: 4000 }
+            ]
+          }
+        },
+        include: {
+          workspace: true,
+          columns: {
+            include: {
+              cards: {
+                include: {
+                  assignees: { include: { user: true } },
+                  labels: { include: { label: true } },
+                  _count: { select: { comments: true, attachments: true } }
+                }
+              }
+            }
+          }
+        }
+      });
+    }
 
     const labels = await prisma.label.findMany();
 

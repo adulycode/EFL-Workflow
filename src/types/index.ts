@@ -1,5 +1,6 @@
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type Role = 'ADMIN' | 'MEMBER';
+export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 export interface User {
   id: string;
@@ -8,6 +9,27 @@ export interface User {
   avatarUrl?: string;
   role: Role;
   lineUserId?: string;
+}
+
+export interface WorkspaceMember {
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceRole;
+  joinedAt: string;
+  user: User;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  ownerId: string;
+  owner?: User;
+  members: WorkspaceMember[];
+  boards?: { id: string; title: string }[];
+  createdAt: string;
 }
 
 export interface Label {
@@ -33,6 +55,7 @@ export interface Comment {
   userId: string;
   user: User;
   content: string;
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -73,6 +96,8 @@ export interface Column {
 
 export interface Board {
   id: string;
+  workspaceId: string;
+  workspace?: Workspace;
   title: string;
   description?: string;
   columns: Column[];

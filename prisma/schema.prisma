@@ -12,6 +12,12 @@ enum Role {
   MEMBER
 }
 
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 enum Priority {
   LOW
   MEDIUM
@@ -20,25 +26,55 @@ enum Priority {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  email        String         @unique
-  name         String
-  avatarUrl    String?
-  role         Role           @default(MEMBER)
-  lineUserId   String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id               String            @id @default(uuid())
+  email            String            @unique
+  name             String
+  avatarUrl        String?
+  role             Role              @default(MEMBER)
+  lineUserId       String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   
-  boards       Board[]        @relation("BoardCreator")
-  cardsCreated Card[]         @relation("CardCreator")
-  assignedCards CardAssignee[]
-  comments     Comment[]
-  activities   ActivityLog[]
-  notifications NotificationLog[]
+  workspacesOwned  Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  boards           Board[]           @relation("BoardCreator")
+  cardsCreated     Card[]            @relation("CardCreator")
+  assignedCards    CardAssignee[]
+  comments         Comment[]
+  activities       ActivityLog[]
+  notifications    NotificationLog[]
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  icon        String?           @default("💼")
+  color       String?           @default("#16a34a")
+  ownerId     String
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  members     WorkspaceMember[]
+  boards      Board[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  @@id([workspaceId, userId])
 }
 
 model Board {
   id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title       String
   description String?
   createdById String?
@@ -116,6 +152,7 @@ model Comment {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   String   @db.Text
+  imageUrl  String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -126,7 +163,7 @@ model ActivityLog {
   card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  actionType String   // 'MOVED_COLUMN', 'ASSIGNED_USER', 'UPDATED_DUE_DATE', 'ADDED_COMMENT', 'CREATED_CARD'
+  actionType String
   details    Json     @default("{}")
   createdAt  DateTime @default(now())
 }
@@ -136,7 +173,7 @@ model Attachment {
   cardId    String
   card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
   fileName  String
-  fileUrl   String
+  fileUrl   String   @db.Text
   fileSize  Int      @default(0)
   fileType  String?
   createdAt DateTime @default(now())
@@ -146,10 +183,10 @@ model NotificationLog {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel   String   // 'EMAIL', 'LINE', 'IN_APP'
+  channel   String
   title     String
   message   String
-  status    String   // 'SENT', 'FAILED', 'QUEUED'
+  status    String
   details   Json     @default("{}")
   createdAt DateTime @default(now())
 }

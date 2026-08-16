@@ -47,7 +47,6 @@ router.post('/', async (req, res) => {
       }
     });
 
-    // Record Activity
     if (userId) {
       await prisma.activityLog.create({
         data: {
@@ -59,7 +58,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Send notification if assigned upon creation
     if (card.assignees && card.assignees.length > 0) {
       for (const a of card.assignees) {
         if (a.user.id !== userId) {
@@ -83,7 +81,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update Card Details / Labels / Assignees
+// Update Card
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -96,7 +94,6 @@ router.patch('/:id', async (req, res) => {
 
     if (!existingCard) return res.status(404).json({ error: 'Card not found' });
 
-    // Handle Assignees update
     if (assigneeIds) {
       await prisma.cardAssignee.deleteMany({ where: { cardId: id } });
       if (assigneeIds.length > 0) {
@@ -104,7 +101,6 @@ router.patch('/:id', async (req, res) => {
           data: assigneeIds.map((uid: string) => ({ cardId: id, userId: uid }))
         });
 
-        // Trigger Notification for new assignees
         const newlyAssigned = assigneeIds.filter(
           (uid: string) => !existingCard.assignees.some((a) => a.userId === uid)
         );
@@ -126,7 +122,6 @@ router.patch('/:id', async (req, res) => {
       }
     }
 
-    // Handle Labels update
     if (labelIds) {
       await prisma.cardLabel.deleteMany({ where: { cardId: id } });
       if (labelIds.length > 0) {
@@ -169,7 +164,7 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// Move Card (Drag & Drop with Notification Check)
+// Move Card
 router.post('/:id/move', async (req, res) => {
   try {
     const { id } = req.params;
@@ -198,7 +193,6 @@ router.post('/:id/move', async (req, res) => {
       }
     });
 
-    // If column changed, log activity and send notifications
     if (isColumnChanged && targetColumn) {
       if (userId) {
         await prisma.activityLog.create({
@@ -214,7 +208,6 @@ router.post('/:id/move', async (req, res) => {
         });
       }
 
-      // Check notification triggers for Review or Done
       if (['Review', 'Done'].includes(targetColumn.title)) {
         for (const a of oldCard.assignees) {
           sendNotification({
@@ -249,7 +242,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Get Card Details with Comments & Activity Logs
+// Get Card Details
 router.get('/:id/details', async (req, res) => {
   try {
     const { id } = req.params;
@@ -278,14 +271,19 @@ router.get('/:id/details', async (req, res) => {
   }
 });
 
-// Add Comment
+// Add Comment (with Image Attachment Support)
 router.post('/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, content } = req.body;
+    const { userId, content, imageUrl } = req.body;
 
     const comment = await prisma.comment.create({
-      data: { cardId: id, userId, content },
+      data: {
+        cardId: id,
+        userId,
+        content: content || '',
+        imageUrl: imageUrl || null
+      },
       include: { user: true }
     });
 
@@ -294,7 +292,10 @@ router.post('/:id/comments', async (req, res) => {
         cardId: id,
         userId,
         actionType: 'ADDED_COMMENT',
-        details: { preview: content.slice(0, 50) }
+        details: {
+          preview: (content || '').slice(0, 50),
+          hasImage: Boolean(imageUrl)
+        }
       }
     });
 

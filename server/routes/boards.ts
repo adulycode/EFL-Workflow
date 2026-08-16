@@ -40,6 +40,9 @@ router.get('/', async (req, res) => {
                 labels: {
                   include: { label: true }
                 },
+                checklists: {
+                  include: { items: true }
+                },
                 _count: {
                   select: { comments: true, attachments: true }
                 }
@@ -74,6 +77,7 @@ router.get('/', async (req, res) => {
                 include: {
                   assignees: { include: { user: true } },
                   labels: { include: { label: true } },
+                  checklists: { include: { items: true } },
                   _count: { select: { comments: true, attachments: true } }
                 }
               }
@@ -104,7 +108,8 @@ router.get('/:id/archived', async (req, res) => {
       include: {
         column: true,
         assignees: { include: { user: true } },
-        labels: { include: { label: true } }
+        labels: { include: { label: true } },
+        checklists: { include: { items: true } }
       },
       orderBy: { updatedAt: 'desc' }
     });

@@ -42,6 +42,7 @@ router.post('/', async (req, res) => {
       include: {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
+        checklists: { include: { items: true } },
         _count: { select: { comments: true } }
       }
     });
@@ -141,6 +142,7 @@ router.patch('/:id', async (req, res) => {
       include: {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
+        checklists: { include: { items: true } },
         _count: { select: { comments: true } }
       }
     });
@@ -177,7 +179,8 @@ router.post('/:id/archive', async (req, res) => {
       include: {
         column: true,
         assignees: { include: { user: true } },
-        labels: { include: { label: true } }
+        labels: { include: { label: true } },
+        checklists: { include: { items: true } }
       }
     });
 
@@ -224,6 +227,7 @@ router.post('/:id/move', async (req, res) => {
       include: {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
+        checklists: { include: { items: true } },
         _count: { select: { comments: true } }
       }
     });
@@ -287,6 +291,12 @@ router.get('/:id/details', async (req, res) => {
         column: true,
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
+        checklists: {
+          include: {
+            items: { orderBy: { position: 'asc' } }
+          },
+          orderBy: { createdAt: 'asc' }
+        },
         comments: {
           include: { user: true },
           orderBy: { createdAt: 'desc' }
@@ -336,6 +346,119 @@ router.post('/:id/comments', async (req, res) => {
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });
     res.json(comment);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= CHECKLISTS CRUD =================
+
+// Create Checklist
+router.post('/:id/checklists', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, userId } = req.body;
+
+    const checklist = await prisma.checklist.create({
+      data: {
+        cardId: id,
+        title: (title || 'Checklist').trim()
+      },
+      include: { items: true }
+    });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId,
+          actionType: 'ADDED_CHECKLIST',
+          details: { title: checklist.title }
+        }
+      });
+    }
+
+    emitRealtime(req, 'checklist:created', { cardId: id, checklist });
+    res.json(checklist);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Checklist
+router.delete('/:id/checklists/:checklistId', async (req, res) => {
+  try {
+    const { id, checklistId } = req.params;
+
+    await prisma.checklistItem.deleteMany({ where: { checklistId } });
+    await prisma.checklist.delete({ where: { id: checklistId } });
+
+    emitRealtime(req, 'checklist:deleted', { cardId: id, checklistId });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add Item to Checklist
+router.post('/:id/checklists/:checklistId/items', async (req, res) => {
+  try {
+    const { id, checklistId } = req.params;
+    const { content } = req.body;
+
+    if (!content) return res.status(400).json({ error: 'content is required' });
+
+    const lastItem = await prisma.checklistItem.findFirst({
+      where: { checklistId },
+      orderBy: { position: 'desc' }
+    });
+    const position = lastItem ? lastItem.position + 1000 : 1000;
+
+    const item = await prisma.checklistItem.create({
+      data: {
+        checklistId,
+        content: content.trim(),
+        position
+      }
+    });
+
+    emitRealtime(req, 'checklist_item:created', { cardId: id, checklistId, item });
+    res.json(item);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Checklist Item (toggle checkbox or rename content)
+router.patch('/:id/checklists/:checklistId/items/:itemId', async (req, res) => {
+  try {
+    const { id, checklistId, itemId } = req.params;
+    const { isCompleted, content } = req.body;
+
+    const item = await prisma.checklistItem.update({
+      where: { id: itemId },
+      data: {
+        isCompleted: isCompleted !== undefined ? Boolean(isCompleted) : undefined,
+        content: content !== undefined ? content.trim() : undefined
+      }
+    });
+
+    emitRealtime(req, 'checklist_item:updated', { cardId: id, checklistId, item });
+    res.json(item);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Checklist Item
+router.delete('/:id/checklists/:checklistId/items/:itemId', async (req, res) => {
+  try {
+    const { id, checklistId, itemId } = req.params;
+
+    await prisma.checklistItem.delete({ where: { id: itemId } });
+
+    emitRealtime(req, 'checklist_item:deleted', { cardId: id, checklistId, itemId });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -36,6 +36,21 @@ export interface CardLabel {
   label: Label;
 }
 
+export interface ChecklistItem {
+  id: string;
+  checklistId: string;
+  content: string;
+  isCompleted: boolean;
+  position: number;
+}
+
+export interface Checklist {
+  id: string;
+  cardId: string;
+  title: string;
+  items: ChecklistItem[];
+}
+
 export interface Comment {
   id: string;
   cardId: string;
@@ -69,6 +84,7 @@ export interface Card {
   createdById?: string;
   assignees: CardAssignee[];
   labels: CardLabel[];
+  checklists?: Checklist[];
   _count?: {
     comments: number;
     attachments: number;
@@ -113,5 +129,6 @@ export interface NotificationLog {
   title: string;
   message: string;
   status: string;
+  details?: any;
   createdAt: string;
 }

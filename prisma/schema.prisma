@@ -111,8 +111,30 @@ model Card {
   comments    Comment[]
   activities  ActivityLog[]
   attachments Attachment[]
+  checklists  Checklist[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+}
+
+model Checklist {
+  id        String          @id @default(uuid())
+  cardId    String
+  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  title     String          @default("Checklist")
+  items     ChecklistItem[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model ChecklistItem {
+  id          String    @id @default(uuid())
+  checklistId String
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  content     String
+  isCompleted Boolean   @default(false)
+  position    Float     @default(1000)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Label {

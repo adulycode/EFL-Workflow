@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, Priority } from '../../types';
 import { useBoardStore } from '../../store/useBoardStore';
-import { Calendar, MessageSquare, AlertCircle, Paperclip } from 'lucide-react';
+import { Calendar, MessageSquare, AlertCircle, Paperclip, CheckSquare } from 'lucide-react';
 import { format, isPast } from 'date-fns';
 
 interface Props {
@@ -33,6 +33,11 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
 
   const isOverdue = card.dueDate && isPast(new Date(card.dueDate));
   const priority = PRIORITY_CONFIG[card.priority || 'MEDIUM'];
+
+  // Checklist calculations
+  const allChecklistItems = card.checklists?.flatMap((c) => c.items) || [];
+  const completedChecklistItems = allChecklistItems.filter((i) => i.isCompleted).length;
+  const totalChecklistItems = allChecklistItems.length;
 
   return (
     <div
@@ -78,7 +83,7 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
         </p>
       )}
 
-      {/* Card Footer (Due Date, Comments, Assignees) */}
+      {/* Card Footer (Due Date, Comments, Checklist Progress, Assignees) */}
       <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
         <div className="flex items-center gap-2.5">
           {card.dueDate && (
@@ -91,6 +96,20 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
             >
               {isOverdue ? <AlertCircle size={11} /> : <Calendar size={11} />}
               {format(new Date(card.dueDate), 'MMM d')}
+            </span>
+          )}
+
+          {/* Checklist Badge */}
+          {totalChecklistItems > 0 && (
+            <span
+              className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                completedChecklistItems === totalChecklistItems
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+              }`}
+            >
+              <CheckSquare size={10} />
+              <span>{completedChecklistItems}/{totalChecklistItems}</span>
             </span>
           )}
 

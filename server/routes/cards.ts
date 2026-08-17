@@ -15,7 +15,7 @@ const emitRealtime = (req: any, event: string, data: any) => {
 // Create Card
 router.post('/', async (req, res) => {
   try {
-    const { columnId, title, description, priority, dueDate, userId, assigneeIds, labelIds } = req.body;
+    const { columnId, title, description, priority, dueDate, coverColor, coverImage, userId, assigneeIds, labelIds } = req.body;
 
     const lastCard = await prisma.card.findFirst({
       where: { columnId },
@@ -30,6 +30,8 @@ router.post('/', async (req, res) => {
         description,
         priority: priority || Priority.MEDIUM,
         dueDate: dueDate ? new Date(dueDate) : null,
+        coverColor: coverColor || null,
+        coverImage: coverImage || null,
         createdById: userId,
         position,
         assignees: assigneeIds && assigneeIds.length > 0 ? {
@@ -43,7 +45,8 @@ router.post('/', async (req, res) => {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
         checklists: { include: { items: true } },
-        _count: { select: { comments: true } }
+        attachments: true,
+        _count: { select: { comments: true, attachments: true } }
       }
     });
 
@@ -85,7 +88,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, priority, dueDate, userId, assigneeIds, labelIds } = req.body;
+    const { title, description, priority, dueDate, coverColor, coverImage, userId, assigneeIds, labelIds } = req.body;
 
     const existingCard = await prisma.card.findUnique({
       where: { id },
@@ -94,7 +97,7 @@ router.patch('/:id', async (req, res) => {
 
     if (!existingCard) return res.status(404).json({ error: 'Card not found' });
 
-    if (assigneeIds) {
+    if (assigneeIds !== undefined) {
       await prisma.cardAssignee.deleteMany({ where: { cardId: id } });
       if (assigneeIds.length > 0) {
         await prisma.cardAssignee.createMany({
@@ -122,7 +125,7 @@ router.patch('/:id', async (req, res) => {
       }
     }
 
-    if (labelIds) {
+    if (labelIds !== undefined) {
       await prisma.cardLabel.deleteMany({ where: { cardId: id } });
       if (labelIds.length > 0) {
         await prisma.cardLabel.createMany({
@@ -137,13 +140,16 @@ router.patch('/:id', async (req, res) => {
         title,
         description,
         priority: priority ? (priority as Priority) : undefined,
-        dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined
+        dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined,
+        coverColor: coverColor !== undefined ? coverColor : undefined,
+        coverImage: coverImage !== undefined ? coverImage : undefined
       },
       include: {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
         checklists: { include: { items: true } },
-        _count: { select: { comments: true } }
+        attachments: true,
+        _count: { select: { comments: true, attachments: true } }
       }
     });
 
@@ -180,7 +186,8 @@ router.post('/:id/archive', async (req, res) => {
         column: true,
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
-        checklists: { include: { items: true } }
+        checklists: { include: { items: true } },
+        attachments: true
       }
     });
 
@@ -228,7 +235,8 @@ router.post('/:id/move', async (req, res) => {
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
         checklists: { include: { items: true } },
-        _count: { select: { comments: true } }
+        attachments: true,
+        _count: { select: { comments: true, attachments: true } }
       }
     });
 
@@ -305,7 +313,9 @@ router.get('/:id/details', async (req, res) => {
           include: { user: true },
           orderBy: { createdAt: 'desc' }
         },
-        attachments: true
+        attachments: {
+          orderBy: { createdAt: 'desc' }
+        }
       }
     });
 
@@ -346,6 +356,60 @@ router.post('/:id/comments', async (req, res) => {
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });
     res.json(comment);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= ATTACHMENTS CRUD =================
+
+// Add Attachment (Files, PDFs, Images, Documents)
+router.post('/:id/attachments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fileName, fileUrl, fileType, fileSize, userId } = req.body;
+
+    if (!fileName || !fileUrl) {
+      return res.status(400).json({ error: 'fileName and fileUrl are required' });
+    }
+
+    const attachment = await prisma.attachment.create({
+      data: {
+        cardId: id,
+        fileName,
+        fileUrl,
+        fileType: fileType || 'application/octet-stream',
+        fileSize: fileSize || 0
+      }
+    });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId,
+          actionType: 'ADDED_ATTACHMENT',
+          details: { fileName: attachment.fileName }
+        }
+      });
+    }
+
+    emitRealtime(req, 'attachment:created', { cardId: id, attachment });
+    res.json(attachment);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Attachment
+router.delete('/:id/attachments/:attachmentId', async (req, res) => {
+  try {
+    const { id, attachmentId } = req.params;
+
+    await prisma.attachment.delete({ where: { id: attachmentId } });
+
+    emitRealtime(req, 'attachment:deleted', { cardId: id, attachmentId });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

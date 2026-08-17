@@ -9,6 +9,8 @@ export interface User {
   avatarUrl?: string;
   role: Role;
   lineUserId?: string;
+  notifyEmail?: boolean;
+  notifyLine?: boolean;
 }
 
 export interface WorkspaceMember {
@@ -51,6 +53,16 @@ export interface Checklist {
   items: ChecklistItem[];
 }
 
+export interface Attachment {
+  id: string;
+  cardId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
 export interface Comment {
   id: string;
   cardId: string;
@@ -79,16 +91,21 @@ export interface Card {
   position: number;
   priority: Priority;
   dueDate?: string;
+  coverColor?: string;
+  coverImage?: string;
   isArchived?: boolean;
   column?: { id: string; title: string };
   createdById?: string;
   assignees: CardAssignee[];
   labels: CardLabel[];
   checklists?: Checklist[];
+  attachments?: Attachment[];
   _count?: {
     comments: number;
     attachments: number;
   };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Column {

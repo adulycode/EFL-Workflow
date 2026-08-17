@@ -16,13 +16,44 @@ import {
   Image as ImageIcon,
   Maximize2,
   CheckSquare,
-  Plus
+  Plus,
+  Paperclip,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  FileArchive,
+  Palette,
+  ExternalLink
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { LabelManagerModal } from './LabelManagerModal';
+
+const COVER_COLORS = [
+  '#ef4444', // Red
+  '#f97316', // Orange
+  '#f59e0b', // Amber
+  '#10b981', // Emerald
+  '#06b6d4', // Cyan
+  '#3b82f6', // Blue
+  '#6366f1', // Indigo
+  '#a855f7', // Purple
+  '#ec4899', // Pink
+  '#64748b'  // Slate
+];
 
 export const CardDetailModal: React.FC = () => {
-  const { selectedCardId, setSelectedCardId, updateCard, deleteCard, archiveCard, addComment, labels } = useBoardStore();
+  const { 
+    selectedCardId, 
+    setSelectedCardId, 
+    updateCard, 
+    deleteCard, 
+    archiveCard, 
+    addComment, 
+    addAttachment, 
+    deleteAttachment,
+    labels 
+  } = useBoardStore();
   const { users, currentUser } = useAuthStore();
 
   const [cardDetails, setCardDetails] = useState<any>(null);
@@ -30,23 +61,31 @@ export const CardDetailModal: React.FC = () => {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('MEDIUM');
   const [dueDate, setDueDate] = useState('');
+  const [coverColor, setCoverColor] = useState<string | null>(null);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'comments' | 'activity'>('comments');
+  const [activeTab, setActiveTab] = useState<'comments' | 'attachments' | 'activity'>('comments');
 
   // Confirmation Popups State
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showDeleteCardConfirm, setShowDeleteCardConfirm] = useState(false);
   const [checklistToDelete, setChecklistToDelete] = useState<string | null>(null);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
 
-  // Checklist state
+  // Modal Triggers
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
+  const [showLabelManager, setShowLabelManager] = useState(false);
+  const [showCoverMenu, setShowCoverMenu] = useState(false);
+
   const [newChecklistTitle, setNewChecklistTitle] = useState('Checklist');
   const [addingItemChecklistId, setAddingItemChecklistId] = useState<string | null>(null);
   const [newItemContent, setNewItemContent] = useState('');
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+  const coverImageInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDetails = async () => {
     if (!selectedCardId) return;
@@ -59,6 +98,8 @@ export const CardDetailModal: React.FC = () => {
         setDescription(data.description || '');
         setPriority(data.priority);
         setDueDate(data.dueDate ? format(new Date(data.dueDate), 'yyyy-MM-dd') : '');
+        setCoverColor(data.coverColor || null);
+        setCoverImage(data.coverImage || null);
       }
     } catch (err) {
       console.error('Failed to load card details:', err);
@@ -76,8 +117,32 @@ export const CardDetailModal: React.FC = () => {
       title,
       description,
       priority,
-      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined
+      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      coverColor: coverColor || undefined,
+      coverImage: coverImage || undefined
     });
+  };
+
+  const handleSetCoverColor = async (color: string | null) => {
+    setCoverColor(color);
+    setCoverImage(null);
+    await updateCard(selectedCardId, { coverColor: color || '', coverImage: '' });
+    setShowCoverMenu(false);
+  };
+
+  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const result = reader.result as string;
+      setCoverImage(result);
+      setCoverColor(null);
+      await updateCard(selectedCardId, { coverImage: result, coverColor: '' });
+      setShowCoverMenu(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleToggleAssignee = async (userId: string) => {
@@ -100,7 +165,7 @@ export const CardDetailModal: React.FC = () => {
     fetchDetails();
   };
 
-  // Image Upload Handler
+  // Image Upload Handler for Comments
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,6 +173,26 @@ export const CardDetailModal: React.FC = () => {
     const reader = new FileReader();
     reader.onload = () => {
       setAttachedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // File Upload Handler for Card Attachments
+  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const fileUrl = reader.result as string;
+      await addAttachment(selectedCardId, {
+        fileName: file.name,
+        fileUrl,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        userId: currentUser?.id
+      });
+      fetchDetails();
     };
     reader.readAsDataURL(file);
   };
@@ -136,7 +221,7 @@ export const CardDetailModal: React.FC = () => {
     await addComment(selectedCardId, commentText.trim(), attachedImage || undefined);
     setCommentText('');
     setAttachedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (commentFileInputRef.current) commentFileInputRef.current.value = '';
     fetchDetails();
   };
 
@@ -186,7 +271,6 @@ export const CardDetailModal: React.FC = () => {
     const chkId = checklistToDelete;
     setChecklistToDelete(null);
 
-    // Optimistic UI update immediately
     setCardDetails((prev: any) => ({
       ...prev,
       checklists: prev.checklists.filter((c: any) => c.id !== chkId)
@@ -235,7 +319,6 @@ export const CardDetailModal: React.FC = () => {
   const handleToggleChecklistItem = async (checklistId: string, itemId: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
 
-    // Optimistic UI update
     setCardDetails((prev: any) => ({
       ...prev,
       checklists: prev.checklists.map((c: any) => {
@@ -261,7 +344,6 @@ export const CardDetailModal: React.FC = () => {
   };
 
   const handleDeleteChecklistItem = async (checklistId: string, itemId: string) => {
-    // Optimistic UI update
     setCardDetails((prev: any) => ({
       ...prev,
       checklists: prev.checklists.map((c: any) => {
@@ -284,10 +366,61 @@ export const CardDetailModal: React.FC = () => {
     }
   };
 
+  const handleConfirmDeleteAttachment = async () => {
+    if (!attachmentToDelete) return;
+    const attId = attachmentToDelete;
+    setAttachmentToDelete(null);
+
+    await deleteAttachment(selectedCardId, attId);
+    fetchDetails();
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes('pdf')) return <FileText size={18} className="text-rose-500" />;
+    if (fileType.includes('sheet') || fileType.includes('csv') || fileType.includes('excel'))
+      return <FileSpreadsheet size={18} className="text-emerald-500" />;
+    if (fileType.includes('zip') || fileType.includes('tar') || fileType.includes('rar'))
+      return <FileArchive size={18} className="text-amber-500" />;
+    if (fileType.includes('image')) return <ImageIcon size={18} className="text-blue-500" />;
+    return <FileText size={18} className="text-neutral-500" />;
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          {/* Card Top Cover Banner in Modal */}
+          {coverImage ? (
+            <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <img src={coverImage} alt="Card Cover" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => handleSetCoverColor(null)}
+                className="absolute top-3 right-3 p-1.5 bg-black/60 text-white rounded-lg hover:bg-black/80 transition-colors text-xs font-semibold flex items-center gap-1"
+              >
+                <X size={13} /> Remove Cover
+              </button>
+            </div>
+          ) : coverColor ? (
+            <div style={{ backgroundColor: coverColor }} className="relative w-full h-8">
+              <button
+                type="button"
+                onClick={() => handleSetCoverColor(null)}
+                className="absolute top-1 right-2 text-white/80 hover:text-white text-[10px] font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          ) : null}
+
           {/* Modal Header */}
           <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between">
             <div className="flex-1 pr-4">
@@ -352,7 +485,6 @@ export const CardDetailModal: React.FC = () => {
                             <span className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
                               {percent}%
                             </span>
-                            {/* Prominent Delete Checklist Button */}
                             <button
                               type="button"
                               onClick={() => setChecklistToDelete(chk.id)}
@@ -461,7 +593,7 @@ export const CardDetailModal: React.FC = () => {
                 </div>
               )}
 
-              {/* Comments / Activity Tabs */}
+              {/* Tabs for Comments / Attachments / Activity */}
               <div>
                 <div className="flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-2 mb-4">
                   <button
@@ -476,6 +608,22 @@ export const CardDetailModal: React.FC = () => {
                     <MessageSquare size={14} />
                     Comments ({cardDetails.comments?.length || 0})
                     {activeTab === 'comments' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white rounded-full -mb-2" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('attachments')}
+                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
+                      activeTab === 'attachments'
+                        ? 'text-neutral-900 dark:text-white'
+                        : 'text-neutral-400 hover:text-neutral-600'
+                    }`}
+                  >
+                    <Paperclip size={14} />
+                    Files ({cardDetails.attachments?.length || 0})
+                    {activeTab === 'attachments' && (
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white rounded-full -mb-2" />
                     )}
                   </button>
@@ -497,7 +645,8 @@ export const CardDetailModal: React.FC = () => {
                   </button>
                 </div>
 
-                {activeTab === 'comments' ? (
+                {/* Tab 1: Comments */}
+                {activeTab === 'comments' && (
                   <div className="space-y-4">
                     {/* Post Comment Form */}
                     <form onSubmit={handlePostComment} className="space-y-2 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-2xl border border-neutral-200 dark:border-neutral-800">
@@ -512,7 +661,7 @@ export const CardDetailModal: React.FC = () => {
                         />
 
                         <input
-                          ref={fileInputRef}
+                          ref={commentFileInputRef}
                           type="file"
                           accept="image/*"
                           onChange={handleImageFileChange}
@@ -521,7 +670,7 @@ export const CardDetailModal: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => commentFileInputRef.current?.click()}
                           title="Attach Image"
                           className="p-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
                         >
@@ -600,7 +749,86 @@ export const CardDetailModal: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {/* Tab 2: Document Attachments */}
+                {activeTab === 'attachments' && (
+                  <div className="space-y-4">
+                    {/* Upload button */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-neutral-500">
+                        Upload documents, PDFs, spread sheets, or design assets.
+                      </p>
+                      <input
+                        ref={attachmentFileInputRef}
+                        type="file"
+                        onChange={handleAttachmentUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => attachmentFileInputRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity"
+                      >
+                        <Paperclip size={13} /> Upload File
+                      </button>
+                    </div>
+
+                    {/* Attachment List */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {cardDetails.attachments && cardDetails.attachments.length > 0 ? (
+                        cardDetails.attachments.map((att: any) => (
+                          <div
+                            key={att.id}
+                            className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
+                              <div className="p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                                {getFileIcon(att.fileType)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                                  {att.fileName}
+                                </h5>
+                                <p className="text-[10px] text-neutral-400">
+                                  {formatFileSize(att.fileSize)} • {format(new Date(att.createdAt), 'MMM d, yyyy')}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={att.fileUrl}
+                                download={att.fileName}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                                title="Download Attachment"
+                              >
+                                <Download size={15} />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setAttachmentToDelete(att.id)}
+                                className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                title="Delete Attachment"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-neutral-400 text-xs">
+                          No file attachments uploaded yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 3: Activity History */}
+                {activeTab === 'activity' && (
                   <div className="space-y-2 max-h-56 overflow-y-auto">
                     {cardDetails.activities?.map((act: any) => (
                       <div key={act.id} className="flex items-start gap-2.5 text-xs text-neutral-500 py-1.5 border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
@@ -610,6 +838,7 @@ export const CardDetailModal: React.FC = () => {
                           <span>{act.actionType.replace('_', ' ').toLowerCase()}</span>{' '}
                           {act.details?.toColumn && <span className="font-medium text-neutral-700 dark:text-neutral-300">to {act.details.toColumn}</span>}
                           {act.details?.title && <span className="font-medium text-neutral-700 dark:text-neutral-300">({act.details.title})</span>}
+                          {act.details?.fileName && <span className="font-medium text-neutral-700 dark:text-neutral-300">({act.details.fileName})</span>}
                           {act.details?.hasImage && <span className="text-emerald-600 font-medium">(with image)</span>}
                           <div className="text-[10px] text-neutral-400 mt-0.5">
                             {format(new Date(act.createdAt), 'MMM d, HH:mm')}
@@ -624,19 +853,97 @@ export const CardDetailModal: React.FC = () => {
 
             {/* Sidebar Properties */}
             <div className="space-y-5 bg-neutral-50 dark:bg-neutral-950/60 p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80">
+              {/* Card Cover Selector Button */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                  Card Cover
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowCoverMenu(!showCoverMenu)}
+                    className="w-full flex items-center justify-between p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Palette size={14} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>{coverImage ? 'Custom Image' : coverColor ? 'Color Strip' : 'No Cover'}</span>
+                    </div>
+                    {coverColor && <div style={{ backgroundColor: coverColor }} className="w-3.5 h-3.5 rounded-full" />}
+                  </button>
+
+                  {/* Cover Palette Dropdown */}
+                  {showCoverMenu && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2.5 animate-in fade-in zoom-in-95 duration-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Color Palette</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSetCoverColor(null)}
+                          className="text-[10px] text-rose-500 font-bold hover:underline"
+                        >
+                          Clear
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {COVER_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => handleSetCoverColor(c)}
+                            style={{ backgroundColor: c }}
+                            className={`h-6 rounded-lg transition-transform ${
+                              coverColor === c ? 'ring-2 ring-neutral-900 dark:ring-white scale-110' : 'hover:opacity-90'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                        <input
+                          ref={coverImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleCoverImageChange}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => coverImageInputRef.current?.click()}
+                          className="w-full py-1.5 px-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 flex items-center justify-center gap-1.5"
+                        >
+                          <ImageIcon size={12} /> Upload Image Cover
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Add to Card actions (Checklist) */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Add to Card
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowAddChecklistModal(true)}
-                  className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm transition-all"
-                >
-                  <CheckSquare size={14} className="text-emerald-600 dark:text-emerald-400" />
-                  <span>Add Checklist / To-Do</span>
-                </button>
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddChecklistModal(true)}
+                    className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm transition-all"
+                  >
+                    <CheckSquare size={14} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>Add Checklist / To-Do</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => attachmentFileInputRef.current?.click()}
+                    className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm transition-all"
+                  >
+                    <Paperclip size={14} className="text-blue-600 dark:text-blue-400" />
+                    <span>Attach Document / File</span>
+                  </button>
+                </div>
               </div>
 
               {/* Priority */}
@@ -704,11 +1011,21 @@ export const CardDetailModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Labels */}
+              {/* Labels with Manage Button */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1">
-                  <Tag size={13} /> Labels
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
+                    <Tag size={13} /> Labels
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowLabelManager(true)}
+                    className="text-[10px] text-purple-600 dark:text-purple-400 font-bold hover:underline"
+                  >
+                    + Manage
+                  </button>
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {labels.map((lbl) => {
                     const hasLabel = cardDetails.labels?.some((l: any) => l.labelId === lbl.id);
@@ -789,6 +1106,27 @@ export const CardDetailModal: React.FC = () => {
         cancelText="Cancel"
         onConfirm={handleConfirmDeleteChecklist}
         onCancel={() => setChecklistToDelete(null)}
+      />
+
+      {/* Confirmation Modal for Delete Attachment */}
+      <ConfirmModal
+        isOpen={Boolean(attachmentToDelete)}
+        type="danger"
+        title="Delete File Attachment"
+        message="Are you sure you want to delete this attachment? This cannot be undone."
+        confirmText="Delete File"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDeleteAttachment}
+        onCancel={() => setAttachmentToDelete(null)}
+      />
+
+      {/* Label Manager Modal */}
+      <LabelManagerModal
+        isOpen={showLabelManager}
+        onClose={() => {
+          setShowLabelManager(false);
+          fetchDetails();
+        }}
       />
 
       {/* Add Checklist Modal */}

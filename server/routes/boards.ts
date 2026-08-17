@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
                 checklists: {
                   include: { items: true }
                 },
+                attachments: true,
                 _count: {
                   select: { comments: true, attachments: true }
                 }
@@ -78,6 +79,7 @@ router.get('/', async (req, res) => {
                   assignees: { include: { user: true } },
                   labels: { include: { label: true } },
                   checklists: { include: { items: true } },
+                  attachments: true,
                   _count: { select: { comments: true, attachments: true } }
                 }
               }
@@ -87,7 +89,9 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const labels = await prisma.label.findMany();
+    const labels = await prisma.label.findMany({
+      orderBy: { name: 'asc' }
+    });
 
     res.json({ board, labels });
   } catch (err: any) {
@@ -109,7 +113,8 @@ router.get('/:id/archived', async (req, res) => {
         column: true,
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
-        checklists: { include: { items: true } }
+        checklists: { include: { items: true } },
+        attachments: true
       },
       orderBy: { updatedAt: 'desc' }
     });
@@ -176,6 +181,68 @@ router.delete('/columns/:id', async (req, res) => {
     await prisma.column.delete({ where: { id } });
 
     emitRealtime(req, 'column:deleted', { columnId: id });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= CUSTOM LABELS CRUD =================
+
+// Create Label
+router.post('/labels', async (req, res) => {
+  try {
+    const { name, colorBg, colorText } = req.body;
+    if (!name || !colorBg || !colorText) {
+      return res.status(400).json({ error: 'name, colorBg, and colorText are required' });
+    }
+
+    const label = await prisma.label.create({
+      data: {
+        name: name.trim(),
+        colorBg: colorBg.trim(),
+        colorText: colorText.trim()
+      }
+    });
+
+    emitRealtime(req, 'label:created', label);
+    res.json(label);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Label
+router.patch('/labels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, colorBg, colorText } = req.body;
+
+    const label = await prisma.label.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name.trim() : undefined,
+        colorBg: colorBg !== undefined ? colorBg.trim() : undefined,
+        colorText: colorText !== undefined ? colorText.trim() : undefined
+      }
+    });
+
+    emitRealtime(req, 'label:updated', label);
+    res.json(label);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Label
+router.delete('/labels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.cardLabel.deleteMany({ where: { labelId: id } });
+    await prisma.label.delete({ where: { id } });
+
+    emitRealtime(req, 'label:deleted', { labelId: id });
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -39,6 +39,8 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
   const completedChecklistItems = allChecklistItems.filter((i) => i.isCompleted).length;
   const totalChecklistItems = allChecklistItems.length;
 
+  const totalAttachments = (card.attachments?.length || 0) + (card._count?.attachments || 0);
+
   return (
     <div
       ref={setNodeRef}
@@ -46,99 +48,117 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
       {...attributes}
       {...listeners}
       onClick={() => !isDragging && setSelectedCardId(card.id)}
-      className={`group relative bg-white dark:bg-neutral-900 rounded-xl p-3.5 border border-neutral-200/90 dark:border-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing transition-all ${
+      className={`group relative bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/90 dark:border-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing transition-all overflow-hidden ${
         isOverlay ? 'rotate-1 scale-105 shadow-2xl ring-2 ring-neutral-900/10 dark:ring-white/10 z-50' : ''
       }`}
     >
-      {/* Top Labels & Priority */}
-      <div className="flex items-center justify-between gap-1.5 mb-2">
-        <div className="flex flex-wrap gap-1">
-          {card.labels?.map(({ label }) => (
-            <span
-              key={label.id}
-              style={{ backgroundColor: label.colorBg, color: label.colorText }}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded tracking-tight"
-            >
-              {label.name}
-            </span>
-          ))}
+      {/* Card Cover Banner (Image or Solid Color) */}
+      {card.coverImage ? (
+        <div className="w-full h-28 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+          <img
+            src={card.coverImage}
+            alt="Card cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      ) : card.coverColor ? (
+        <div
+          style={{ backgroundColor: card.coverColor }}
+          className="w-full h-3"
+        />
+      ) : null}
+
+      <div className="p-3.5 space-y-2">
+        {/* Top Labels & Priority */}
+        <div className="flex items-center justify-between gap-1.5 mb-1">
+          <div className="flex flex-wrap gap-1">
+            {card.labels?.map(({ label }) => (
+              <span
+                key={label.id}
+                style={{ backgroundColor: label.colorBg, color: label.colorText }}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded tracking-tight"
+              >
+                {label.name}
+              </span>
+            ))}
+          </div>
+
+          <span
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${priority.bg} ${priority.text}`}
+          >
+            {priority.label}
+          </span>
         </div>
 
-        <span
-          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${priority.bg} ${priority.text}`}
-        >
-          {priority.label}
-        </span>
-      </div>
+        {/* Card Title */}
+        <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2">
+          {card.title}
+        </h4>
 
-      {/* Card Title */}
-      <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2 mb-2">
-        {card.title}
-      </h4>
+        {/* Description Snippet */}
+        {card.description && (
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed">
+            {card.description}
+          </p>
+        )}
 
-      {/* Description Snippet */}
-      {card.description && (
-        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-2 mb-3 leading-relaxed">
-          {card.description}
-        </p>
-      )}
+        {/* Card Footer (Due Date, Checklist Progress, Comments, Attachments, Assignees) */}
+        <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
+          <div className="flex items-center gap-2">
+            {card.dueDate && (
+              <span
+                className={`flex items-center gap-1 font-medium ${
+                  isOverdue
+                    ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded'
+                    : 'text-neutral-500 dark:text-neutral-400'
+                }`}
+              >
+                {isOverdue ? <AlertCircle size={11} /> : <Calendar size={11} />}
+                {format(new Date(card.dueDate), 'MMM d')}
+              </span>
+            )}
 
-      {/* Card Footer (Due Date, Comments, Checklist Progress, Assignees) */}
-      <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
-        <div className="flex items-center gap-2.5">
-          {card.dueDate && (
-            <span
-              className={`flex items-center gap-1 font-medium ${
-                isOverdue
-                  ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded'
-                  : 'text-neutral-500 dark:text-neutral-400'
-              }`}
-            >
-              {isOverdue ? <AlertCircle size={11} /> : <Calendar size={11} />}
-              {format(new Date(card.dueDate), 'MMM d')}
-            </span>
-          )}
+            {/* Checklist Badge */}
+            {totalChecklistItems > 0 && (
+              <span
+                className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                  completedChecklistItems === totalChecklistItems
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+                }`}
+              >
+                <CheckSquare size={10} />
+                <span>{completedChecklistItems}/{totalChecklistItems}</span>
+              </span>
+            )}
 
-          {/* Checklist Badge */}
-          {totalChecklistItems > 0 && (
-            <span
-              className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                completedChecklistItems === totalChecklistItems
-                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
-              }`}
-            >
-              <CheckSquare size={10} />
-              <span>{completedChecklistItems}/{totalChecklistItems}</span>
-            </span>
-          )}
+            {Boolean(card._count?.comments) && (
+              <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
+                <MessageSquare size={11} />
+                {card._count?.comments}
+              </span>
+            )}
 
-          {Boolean(card._count?.comments) && (
-            <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
-              <MessageSquare size={11} />
-              {card._count?.comments}
-            </span>
-          )}
+            {totalAttachments > 0 && (
+              <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
+                <Paperclip size={11} />
+                {totalAttachments}
+              </span>
+            )}
+          </div>
 
-          {Boolean(card._count?.attachments) && (
-            <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
-              <Paperclip size={11} />
-              {card._count?.attachments}
-            </span>
-          )}
-        </div>
-
-        {/* Assignees Avatars */}
-        <div className="flex -space-x-1.5 overflow-hidden">
-          {card.assignees?.map(({ user }) => (
-            <img
-              key={user.id}
-              src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
-              alt={user.name}
-              title={user.name}
-              className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-neutral-900 object-cover"
-            />
-          ))}
+          {/* Assignees Avatars */}
+          <div className="flex -space-x-1.5 overflow-hidden">
+            {card.assignees?.map(({ user }) => (
+              <img
+                key={user.id}
+                src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
+                alt={user.name}
+                title={user.name}
+                className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-neutral-900 object-cover"
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -20,10 +20,17 @@ router.get('/users', async (req, res) => {
 router.patch('/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { lineUserId, name, role } = req.body;
+    const { lineUserId, name, role, avatarUrl, notifyEmail, notifyLine } = req.body;
     const updated = await prisma.user.update({
       where: { id },
-      data: { lineUserId, name, role }
+      data: {
+        lineUserId: lineUserId !== undefined ? lineUserId : undefined,
+        name: name !== undefined ? name : undefined,
+        role: role !== undefined ? role : undefined,
+        avatarUrl: avatarUrl !== undefined ? avatarUrl : undefined,
+        notifyEmail: notifyEmail !== undefined ? Boolean(notifyEmail) : undefined,
+        notifyLine: notifyLine !== undefined ? Boolean(notifyLine) : undefined
+      }
     });
     res.json(updated);
   } catch (err: any) {

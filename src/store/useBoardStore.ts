@@ -1,10 +1,15 @@
 import { create } from 'zustand';
 import { Board, Column, Card, Label, Priority } from '../types';
 
-interface FilterState {
+export type DueDateFilterStatus = 'ALL' | 'OVERDUE' | 'TODAY' | 'THIS_WEEK' | 'NO_DATE';
+export type ViewMode = 'board' | 'calendar' | 'overview';
+
+export interface FilterState {
   searchQuery: string;
   selectedLabelId: string | null;
   selectedPriority: Priority | 'ALL';
+  selectedAssigneeId: string | null;
+  selectedDueDateStatus: DueDateFilterStatus;
   onlyMyTasks: boolean;
 }
 
@@ -15,12 +20,15 @@ interface BoardState {
   activeCard: Card | null;
   selectedCardId: string | null;
   filters: FilterState;
+  viewMode: ViewMode;
   isLoading: boolean;
 
   setBoard: (board: Board) => void;
   setActiveCard: (card: Card | null) => void;
   setSelectedCardId: (id: string | null) => void;
+  setViewMode: (mode: ViewMode) => void;
   setFilters: (filters: Partial<FilterState>) => void;
+  resetFilters: () => void;
   fetchBoard: (workspaceId?: string) => Promise<void>;
   fetchArchivedCards: () => Promise<void>;
 
@@ -37,7 +45,25 @@ interface BoardState {
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;
   addComment: (cardId: string, content: string, imageUrl?: string) => Promise<void>;
+
+  // Attachment Operations
+  addAttachment: (cardId: string, data: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number; userId?: string }) => Promise<void>;
+  deleteAttachment: (cardId: string, attachmentId: string) => Promise<void>;
+
+  // Label Operations
+  createLabel: (name: string, colorBg: string, colorText: string) => Promise<void>;
+  updateLabel: (labelId: string, data: { name?: string; colorBg?: string; colorText?: string }) => Promise<void>;
+  deleteLabel: (labelId: string) => Promise<void>;
 }
+
+const DEFAULT_FILTERS: FilterState = {
+  searchQuery: '',
+  selectedLabelId: null,
+  selectedPriority: 'ALL',
+  selectedAssigneeId: null,
+  selectedDueDateStatus: 'ALL',
+  onlyMyTasks: false
+};
 
 export const useBoardStore = create<BoardState>((set, get) => ({
   board: null,
@@ -45,18 +71,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   archivedCards: [],
   activeCard: null,
   selectedCardId: null,
-  filters: {
-    searchQuery: '',
-    selectedLabelId: null,
-    selectedPriority: 'ALL',
-    onlyMyTasks: false
-  },
+  filters: DEFAULT_FILTERS,
+  viewMode: 'board',
   isLoading: false,
 
   setBoard: (board) => set({ board }),
   setActiveCard: (card) => set({ activeCard: card }),
   setSelectedCardId: (id) => set({ selectedCardId: id }),
+  setViewMode: (viewMode) => set({ viewMode }),
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
+  resetFilters: () => set({ filters: DEFAULT_FILTERS }),
 
   fetchBoard: async (workspaceId?: string) => {
     try {
@@ -270,6 +294,79 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to add comment:', err);
+    }
+  },
+
+  // Attachments Actions
+  addAttachment: async (cardId, data) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/attachments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to add attachment:', err);
+    }
+  },
+
+  deleteAttachment: async (cardId, attachmentId) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/attachments/${attachmentId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to delete attachment:', err);
+    }
+  },
+
+  // Labels Actions
+  createLabel: async (name, colorBg, colorText) => {
+    try {
+      const res = await fetch('/api/boards/labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, colorBg, colorText })
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to create label:', err);
+    }
+  },
+
+  updateLabel: async (labelId, data) => {
+    try {
+      const res = await fetch(`/api/boards/labels/${labelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to update label:', err);
+    }
+  },
+
+  deleteLabel: async (labelId) => {
+    try {
+      const res = await fetch(`/api/boards/labels/${labelId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to delete label:', err);
     }
   }
 }));

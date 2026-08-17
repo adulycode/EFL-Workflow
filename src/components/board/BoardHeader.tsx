@@ -11,7 +11,9 @@ import {
   Table as TableIcon,
   Download,
   Tag,
-  ExternalLink
+  ExternalLink,
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { UserSettingsModal } from '../settings/UserSettingsModal';
@@ -249,34 +251,25 @@ export const BoardHeader: React.FC = () => {
                   </a>
                 </div>
 
-                {/* Switch Active User Simulation */}
-                <div className="px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800">
-                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <Users size={11} /> Switch Member ({users.length})
-                  </p>
-                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                    {users.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          setCurrentUser(u);
-                          setShowUserDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-2 p-1.5 rounded-lg text-xs transition-colors ${
-                          u.id === currentUser?.id
-                            ? 'bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-900 dark:text-white'
-                            : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400'
-                        }`}
-                      >
-                        <img
-                          src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`}
-                          alt={u.name}
-                          className="w-5 h-5 rounded-full object-cover"
-                        />
-                        <span className="truncate text-left">{u.name}</span>
-                      </button>
-                    ))}
+                {/* Real SSO Account Info & Logout */}
+                <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-neutral-400">สิทธิ์การใช้งาน (Role):</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      {currentUser?.role || 'STAFF'}
+                    </span>
                   </div>
+
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      useAuthStore.getState().logout();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 font-bold text-xs transition-colors"
+                  >
+                    <LogOut size={13} />
+                    <span>ออกจากระบบ (Sign Out)</span>
+                  </button>
                 </div>
               </div>
             )}

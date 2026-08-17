@@ -19,13 +19,24 @@ interface AuthState {
   closeSettings: () => void;
   fetchUsers: () => Promise<void>;
   loginWithSsoToken: (token: string) => Promise<boolean>;
+  logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   updateUserRole: (userId: string, role: Role) => Promise<boolean>;
   inviteUser: (email: string, name: string, role: Role, jobTitle?: string) => Promise<boolean>;
 }
 
+// Read initial session from localStorage
+const getSavedUser = (): User | null => {
+  try {
+    const saved = localStorage.getItem('efl_sso_user');
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  currentUser: null,
+  currentUser: getSavedUser(),
   users: [],
   isDarkMode: false,
   language: 'th',
@@ -34,6 +45,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   settingsInitialTab: 'profile',
 
   setCurrentUser: (user) => {
+    try {
+      localStorage.setItem('efl_sso_user', JSON.stringify(user));
+    } catch (e) {
+      console.error('Failed to save user session:', e);
+    }
     set({ 
       currentUser: user,
       language: (user.language as 'th' | 'en') || 'th'
@@ -43,7 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } else if (user.theme === 'light') {
       get().toggleDarkMode(false);
     }
-    // When switching user, strictly fetch only workspaces that this user owns or is invited to
+    // Fetch only workspaces that this user owns or is invited to
     useWorkspaceStore.getState().fetchWorkspaces(user.id);
   },
 
@@ -70,15 +86,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await fetch('/api/users');
       if (res.ok) {
         const users = await res.json();
-        const initialUser = get().currentUser || users[0] || null;
+        const existingUser = get().currentUser;
+        
+        // If current user is in the database, refresh their latest info
+        if (existingUser) {
+          const refreshed = users.find((u: User) => u.id === existingUser.id || u.email === existingUser.email);
+          if (refreshed) {
+            get().setCurrentUser(refreshed);
+          }
+        }
+        
         set({
           users,
-          currentUser: initialUser,
           isLoading: false
         });
-        if (initialUser) {
-          useWorkspaceStore.getState().fetchWorkspaces(initialUser.id);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
@@ -111,6 +132,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false });
       return false;
     }
+  },
+
+  logout: () => {
+    try {
+      localStorage.removeItem('efl_sso_user');
+      localStorage.removeItem('efl_sso_token');
+    } catch (e) {
+      console.error('Failed to clear session:', e);
+    }
+    set({ currentUser: null });
   },
 
   updateProfile: async (data) => {

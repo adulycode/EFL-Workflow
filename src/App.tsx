@@ -7,12 +7,14 @@ import { TableView } from './components/table/TableView';
 import { CardDetailModal } from './components/board/CardDetailModal';
 import { WorkspaceOverview } from './components/workspace/WorkspaceOverview';
 import { SettingsModal } from './components/settings/SettingsModal';
+import { SsoLoginGate } from './components/auth/SsoLoginGate';
 import { useAuthStore } from './store/useAuthStore';
 import { useWorkspaceStore } from './store/useWorkspaceStore';
 import { useBoardStore } from './store/useBoardStore';
 import { useSocketRealtime } from './hooks/useSocketRealtime';
 
 export const App: React.FC = () => {
+  const currentUser = useAuthStore((s) => s.currentUser);
   const fetchUsers = useAuthStore((s) => s.fetchUsers);
   const loginWithSsoToken = useAuthStore((s) => s.loginWithSsoToken);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
@@ -37,11 +39,14 @@ export const App: React.FC = () => {
         fetchWorkspaces();
       });
     } else {
-      fetchUsers().then(() => {
-        fetchWorkspaces();
-      });
+      fetchUsers();
     }
   }, [fetchUsers, fetchWorkspaces, loginWithSsoToken]);
+
+  // If user is not authenticated via SSO, display the SSO Login Gate
+  if (!currentUser) {
+    return <SsoLoginGate />;
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans">

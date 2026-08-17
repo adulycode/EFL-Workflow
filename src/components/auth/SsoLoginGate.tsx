@@ -1,0 +1,185 @@
+import React, { useState } from 'react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { Shield, Sparkles, ArrowRight, ExternalLink, UserCheck, Lock } from 'lucide-react';
+
+export const SsoLoginGate: React.FC = () => {
+  const { loginWithSsoToken } = useAuthStore();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [manualToken, setManualToken] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const ssoPortalUrl = 'http://localhost:3050';
+  const appId = 'efl-workflow';
+
+  const handleGoToCentralSso = () => {
+    const redirectUri = encodeURIComponent(window.location.origin);
+    window.location.href = `${ssoPortalUrl}/login?appId=${appId}&redirect_uri=${redirectUri}`;
+  };
+
+  const handleManualTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualToken.trim()) return;
+
+    setIsLoggingIn(true);
+    setErrorMsg('');
+    const ok = await loginWithSsoToken(manualToken.trim());
+    setIsLoggingIn(false);
+
+    if (!ok) {
+      setErrorMsg('โทเคน SSO ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาลองใหม่อีกครั้ง');
+    }
+  };
+
+  // Quick Demo Handshake Generator for Dev / Standalone test
+  const handleQuickDemoLogin = async (demoRole: 'ADMIN' | 'STAFF' | 'VIEWER') => {
+    setIsLoggingIn(true);
+    try {
+      // In dev mode, generate simulated token via direct local API
+      const res = await fetch('/api/auth/google-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: demoRole === 'ADMIN' ? 'aduly@efl.org' : demoRole === 'STAFF' ? 'somchai@efl.org' : 'viewer@efl.org',
+          name: demoRole === 'ADMIN' ? 'Aduly Admin' : demoRole === 'STAFF' ? 'Somchai (Staff)' : 'Auditor (Viewer)',
+          avatarUrl: `https://api.dicebear.com/7.x/notionists/svg?seed=${demoRole}`
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        useAuthStore.getState().setCurrentUser(data.user);
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-screen flex items-center justify-center p-4 bg-gradient-to-br from-neutral-900 via-neutral-950 to-emerald-950 text-white font-sans relative overflow-hidden">
+      {/* Background Decorative Rings */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-md bg-neutral-900/90 backdrop-blur-xl rounded-3xl border border-neutral-800 p-8 shadow-2xl space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-200">
+        {/* Brand & App Info */}
+        <div className="text-center space-y-2.5">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-500/20 mb-2">
+            <span className="text-3xl">📋</span>
+          </div>
+          
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800/80 text-[11px] font-bold text-emerald-400">
+            <Sparkles size={12} />
+            <span>EFL Single Sign-On Security</span>
+          </div>
+
+          <h1 className="text-2xl font-black tracking-tight text-white">
+            EFL Workflow System
+          </h1>
+          <p className="text-xs text-neutral-400 leading-relaxed max-w-xs mx-auto">
+            ระบบบันทึกและบริหารจัดการงานสำหรับทีมพนักงาน (Staff Portal) เข้าสู่ระบบปลอดภัยผ่านศูนย์กลาง
+          </p>
+        </div>
+
+        {errorMsg && (
+          <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs text-center font-medium">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Primary Action: Go to Central SSO Portal */}
+        <div className="space-y-3 pt-2">
+          <button
+            type="button"
+            onClick={handleGoToCentralSso}
+            disabled={isLoggingIn}
+            className="w-full py-3.5 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+          >
+            <Lock size={16} className="text-neutral-950" />
+            <span>เข้าสู่ระบบด้วย EFL Central SSO</span>
+            <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <p className="text-[11px] text-neutral-500 text-center">
+            SSO Hub Portal: <span className="font-mono text-neutral-400">http://localhost:3050</span>
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="relative flex items-center justify-center">
+          <div className="w-full border-t border-neutral-800" />
+          <span className="bg-neutral-900 px-3 text-[10px] uppercase tracking-wider text-neutral-500 font-bold absolute">
+            หรือเลือกวิธีเข้าสู่ระบบ
+          </span>
+        </div>
+
+        {/* Quick Demo Login Option for Dev / Standalone Testing */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+            <UserCheck size={13} className="text-emerald-500" />
+            <span>ทดสอบเข้าสู่ระบบแบบด่วน (Quick Launch):</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickDemoLogin('STAFF')}
+              disabled={isLoggingIn}
+              className="p-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700 text-left transition-colors text-xs font-semibold flex items-center gap-2"
+            >
+              <span className="text-base">💼</span>
+              <div>
+                <p className="font-bold text-white leading-tight">Staff Member</p>
+                <p className="text-[10px] text-neutral-400 font-normal">บันทึกงานทั่วไป</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickDemoLogin('ADMIN')}
+              disabled={isLoggingIn}
+              className="p-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700 text-left transition-colors text-xs font-semibold flex items-center gap-2"
+            >
+              <span className="text-base">👑</span>
+              <div>
+                <p className="font-bold text-white leading-tight">Admin Lead</p>
+                <p className="text-[10px] text-neutral-400 font-normal">สิทธิ์ผู้ดูแลระบบ</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Manual Token Input Toggle */}
+        <div className="pt-1 text-center">
+          <button
+            type="button"
+            onClick={() => setShowManualInput(!showManualInput)}
+            className="text-[11px] text-neutral-500 hover:text-neutral-300 transition-colors underline"
+          >
+            {showManualInput ? 'ซ่อนช่องใส่โทเคน' : 'กรอก JWT SSO Token ด้วยตนเอง'}
+          </button>
+
+          {showManualInput && (
+            <form onSubmit={handleManualTokenSubmit} className="mt-3 space-y-2">
+              <textarea
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                placeholder="วาง JWT Token ที่ได้จาก Central SSO ที่นี่..."
+                rows={2}
+                className="w-full p-2.5 text-xs font-mono rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-200 focus:outline-none focus:border-emerald-500 resize-none"
+              />
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                {isLoggingIn ? 'กำลังตรวจสอบ...' : 'ยืนยันโทเคน SSO'}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

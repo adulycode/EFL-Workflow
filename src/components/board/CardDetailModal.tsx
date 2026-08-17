@@ -26,7 +26,8 @@ import {
   ExternalLink,
   Folder,
   Layers,
-  AtSign
+  AtSign,
+  Smile
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -44,6 +45,21 @@ const COVER_COLORS = [
   '#a855f7', // Purple
   '#ec4899', // Pink
   '#64748b'  // Slate
+];
+
+const EMOJI_CATEGORIES = [
+  {
+    name: 'Top Reactions',
+    emojis: ['👍', '❤️', '🔥', '🎉', '🚀', '👀', '💯', '👏', '🙏', '✨', '💡', '✅', '❌', '⚠️', '⭐', '🙌']
+  },
+  {
+    name: 'Smileys & Expressions',
+    emojis: ['😀', '😄', '😂', '🤣', '😊', '😍', '🥰', '😘', '😋', '😜', '🤩', '🥳', '😎', '🤓', '🤔', '🤫', '🤭', '😳', '🥺', '😭', '🤯', '😴', '💪', '🤝']
+  },
+  {
+    name: 'Work, Tasks & Status',
+    emojis: ['📌', '📍', '📝', '📋', '📊', '📈', '📉', '📅', '📆', '⏳', '⌛', '⏰', '🎯', '🛠️', '⚙️', '🔧', '📦', '🏷️', '🔒', '🔑', '💬', '📢', '🔔', '📁', '📄', '📎', '💻', '🔍', '🏆', '⚡']
+  }
 ];
 
 export const CardDetailModal: React.FC = () => {
@@ -72,6 +88,8 @@ export const CardDetailModal: React.FC = () => {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments' | 'activity'>('comments');
   const [showFileRefMenu, setShowFileRefMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedEmojiTab, setSelectedEmojiTab] = useState(0);
 
   // Confirmation Popups State
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -225,6 +243,24 @@ export const CardDetailModal: React.FC = () => {
     setTimeout(() => {
       commentInputRef.current?.focus();
     }, 100);
+  };
+
+  // Insert Emoji into Comment Box
+  const handleInsertEmoji = (emoji: string) => {
+    const textarea = commentInputRef.current;
+    if (!textarea) {
+      setCommentText((prev) => prev + emoji);
+      return;
+    }
+    const start = textarea.selectionStart ?? commentText.length;
+    const end = textarea.selectionEnd ?? commentText.length;
+    const newText = commentText.substring(0, start) + emoji + commentText.substring(end);
+    setCommentText(newText);
+    setTimeout(() => {
+      textarea.focus();
+      const cursor = start + emoji.length;
+      textarea.setSelectionRange(cursor, cursor);
+    }, 10);
   };
 
   // Clipboard Paste Image Handler
@@ -857,6 +893,58 @@ export const CardDetailModal: React.FC = () => {
                             onChange={handleImageFileChange}
                             className="hidden"
                           />
+
+                          {/* Emoji Picker Button & Popup */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowEmojiPicker(!showEmojiPicker);
+                                setShowFileRefMenu(false);
+                              }}
+                              title="Insert Emoji (ใส่อีโมจิ)"
+                              className="p-1.5 text-neutral-500 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
+                            >
+                              <Smile size={16} />
+                            </button>
+
+                            {/* Emoji Picker Floating Popup */}
+                            {showEmojiPicker && (
+                              <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                {/* Category Tabs */}
+                                <div className="flex border-b border-neutral-100 dark:border-neutral-800 pb-1.5 mb-2 gap-1 overflow-x-auto">
+                                  {EMOJI_CATEGORIES.map((cat, idx) => (
+                                    <button
+                                      key={cat.name}
+                                      type="button"
+                                      onClick={() => setSelectedEmojiTab(idx)}
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${
+                                        selectedEmojiTab === idx
+                                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                                          : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                                      }`}
+                                    >
+                                      {cat.name}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* Emoji Grid */}
+                                <div className="grid grid-cols-7 gap-1 max-h-44 overflow-y-auto p-0.5">
+                                  {EMOJI_CATEGORIES[selectedEmojiTab]?.emojis.map((emoji, eIdx) => (
+                                    <button
+                                      key={eIdx}
+                                      type="button"
+                                      onClick={() => handleInsertEmoji(emoji)}
+                                      className="h-8 w-8 text-base flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:scale-125 transition-transform"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
 
                           <button
                             type="button"

@@ -23,11 +23,14 @@ import {
   FileSpreadsheet,
   FileArchive,
   Palette,
-  ExternalLink
+  ExternalLink,
+  Folder,
+  Layers
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { LabelManagerModal } from './LabelManagerModal';
+import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 
 const COVER_COLORS = [
   '#ef4444', // Red
@@ -78,6 +81,7 @@ export const CardDetailModal: React.FC = () => {
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
   const [showCoverMenu, setShowCoverMenu] = useState(false);
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
 
   const [newChecklistTitle, setNewChecklistTitle] = useState('Checklist');
   const [addingItemChecklistId, setAddingItemChecklistId] = useState<string | null>(null);
@@ -195,6 +199,18 @@ export const CardDetailModal: React.FC = () => {
       fetchDetails();
     };
     reader.readAsDataURL(file);
+  };
+
+  // Google Drive Attachment Handler
+  const handleAttachGoogleDrive = async (data: { fileName: string; fileUrl: string; fileType: string; fileSize?: number }) => {
+    await addAttachment(selectedCardId, {
+      fileName: data.fileName,
+      fileUrl: data.fileUrl,
+      fileType: data.fileType,
+      fileSize: data.fileSize || 0,
+      userId: currentUser?.id
+    });
+    fetchDetails();
   };
 
   // Clipboard Paste Image Handler
@@ -376,14 +392,26 @@ export const CardDetailModal: React.FC = () => {
   };
 
   const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 B';
+    if (!bytes) return '';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const isGoogleDriveAttachment = (att: any) => {
+    return (
+      att.fileType?.startsWith('googledrive') ||
+      att.fileUrl?.includes('drive.google.com') ||
+      att.fileUrl?.includes('docs.google.com')
+    );
+  };
+
   const getFileIcon = (fileType: string) => {
+    if (fileType === 'googledrive/doc') return <FileText size={18} className="text-blue-500" />;
+    if (fileType === 'googledrive/sheet') return <FileSpreadsheet size={18} className="text-emerald-500" />;
+    if (fileType === 'googledrive/slide') return <Layers size={18} className="text-amber-500" />;
+    if (fileType === 'googledrive/folder') return <Folder size={18} className="text-yellow-500" />;
     if (fileType.includes('pdf')) return <FileText size={18} className="text-rose-500" />;
     if (fileType.includes('sheet') || fileType.includes('csv') || fileType.includes('excel'))
       return <FileSpreadsheet size={18} className="text-emerald-500" />;
@@ -751,73 +779,123 @@ export const CardDetailModal: React.FC = () => {
                   </div>
                 )}
 
-                {/* Tab 2: Document Attachments */}
+                {/* Tab 2: Document & Google Drive Attachments */}
                 {activeTab === 'attachments' && (
                   <div className="space-y-4">
-                    {/* Upload button */}
-                    <div className="flex items-center justify-between">
+                    {/* Upload / Google Drive buttons */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <p className="text-xs text-neutral-500">
-                        Upload documents, PDFs, spread sheets, or design assets.
+                        Upload files or link directly to Google Drive / Docs.
                       </p>
-                      <input
-                        ref={attachmentFileInputRef}
-                        type="file"
-                        onChange={handleAttachmentUpload}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => attachmentFileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity"
-                      >
-                        <Paperclip size={13} /> Upload File
-                      </button>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Google Drive Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setShowDrivePicker(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 87.3 78" fill="currentColor">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                          </svg>
+                          <span>Google Drive</span>
+                        </button>
+
+                        {/* Local File Upload */}
+                        <input
+                          ref={attachmentFileInputRef}
+                          type="file"
+                          onChange={handleAttachmentUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => attachmentFileInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity"
+                        >
+                          <Paperclip size={13} /> Upload File
+                        </button>
+                      </div>
                     </div>
 
                     {/* Attachment List */}
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {cardDetails.attachments && cardDetails.attachments.length > 0 ? (
-                        cardDetails.attachments.map((att: any) => (
-                          <div
-                            key={att.id}
-                            className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800"
-                          >
-                            <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
-                              <div className="p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                                {getFileIcon(att.fileType)}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                                  {att.fileName}
-                                </h5>
-                                <p className="text-[10px] text-neutral-400">
-                                  {formatFileSize(att.fileSize)} • {format(new Date(att.createdAt), 'MMM d, yyyy')}
-                                </p>
-                              </div>
-                            </div>
+                        cardDetails.attachments.map((att: any) => {
+                          const isDrive = isGoogleDriveAttachment(att);
 
-                            <div className="flex items-center gap-1 shrink-0">
-                              <a
-                                href={att.fileUrl}
-                                download={att.fileName}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                                title="Download Attachment"
-                              >
-                                <Download size={15} />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentToDelete(att.id)}
-                                className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                title="Delete Attachment"
-                              >
-                                <Trash2 size={15} />
-                              </button>
+                          return (
+                            <div
+                              key={att.id}
+                              className={`flex items-center justify-between p-3 rounded-xl border ${
+                                isDrive
+                                  ? 'bg-blue-50/40 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-900/40'
+                                  : 'bg-neutral-50 dark:bg-neutral-800/40 border-neutral-200 dark:border-neutral-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
+                                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-sm">
+                                  {getFileIcon(att.fileType)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                                      {att.fileName}
+                                    </h5>
+                                    {isDrive && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                                        Google Drive
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-neutral-400">
+                                    {att.fileSize > 0 ? `${formatFileSize(att.fileSize)} • ` : ''}
+                                    {format(new Date(att.createdAt), 'MMM d, yyyy')}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isDrive ? (
+                                  <a
+                                    href={att.fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-white dark:bg-neutral-800 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+                                  >
+                                    <ExternalLink size={12} />
+                                    <span>Open</span>
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={att.fileUrl}
+                                    download={att.fileName}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                                    title="Download Attachment"
+                                  >
+                                    <Download size={15} />
+                                  </a>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setAttachmentToDelete(att.id)}
+                                  className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  title="Delete Attachment"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="text-center py-8 text-neutral-400 text-xs">
                           No file attachments uploaded yet.
@@ -920,7 +998,7 @@ export const CardDetailModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Add to Card actions (Checklist) */}
+              {/* Add to Card actions */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Add to Card
@@ -937,11 +1015,27 @@ export const CardDetailModal: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => setShowDrivePicker(true)}
+                    className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-blue-600 dark:text-blue-400 shadow-sm transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78" fill="currentColor">
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                    </svg>
+                    <span>Attach from Google Drive</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => attachmentFileInputRef.current?.click()}
                     className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm transition-all"
                   >
-                    <Paperclip size={14} className="text-blue-600 dark:text-blue-400" />
-                    <span>Attach Document / File</span>
+                    <Paperclip size={14} className="text-neutral-500" />
+                    <span>Upload Local File</span>
                   </button>
                 </div>
               </div>
@@ -1127,6 +1221,13 @@ export const CardDetailModal: React.FC = () => {
           setShowLabelManager(false);
           fetchDetails();
         }}
+      />
+
+      {/* Google Drive Picker Modal */}
+      <GoogleDrivePickerModal
+        isOpen={showDrivePicker}
+        onClose={() => setShowDrivePicker(false)}
+        onAttach={handleAttachGoogleDrive}
       />
 
       {/* Add Checklist Modal */}

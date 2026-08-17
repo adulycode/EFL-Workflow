@@ -25,7 +25,8 @@ import {
   Palette,
   ExternalLink,
   Folder,
-  Layers
+  Layers,
+  AtSign
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -70,6 +71,7 @@ export const CardDetailModal: React.FC = () => {
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments' | 'activity'>('comments');
+  const [showFileRefMenu, setShowFileRefMenu] = useState(false);
 
   // Confirmation Popups State
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -90,6 +92,7 @@ export const CardDetailModal: React.FC = () => {
   const commentFileInputRef = useRef<HTMLInputElement>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDetails = async () => {
     if (!selectedCardId) return;
@@ -211,6 +214,17 @@ export const CardDetailModal: React.FC = () => {
       userId: currentUser?.id
     });
     fetchDetails();
+  };
+
+  // Insert File Reference into Comment Box
+  const handleInsertFileRef = (att: any) => {
+    const refSnippet = `[📎 ${att.fileName}](${att.fileUrl}) `;
+    setCommentText((prev) => (prev ? `${prev} ${refSnippet}` : refSnippet));
+    setShowFileRefMenu(false);
+    setActiveTab('comments');
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 100);
   };
 
   // Clipboard Paste Image Handler
@@ -419,6 +433,41 @@ export const CardDetailModal: React.FC = () => {
       return <FileArchive size={18} className="text-amber-500" />;
     if (fileType.includes('image')) return <ImageIcon size={18} className="text-blue-500" />;
     return <FileText size={18} className="text-neutral-500" />;
+  };
+
+  // Helper to render comment text with clickable referenced file links
+  const renderCommentContent = (content: string) => {
+    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = linkRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      const label = match[1];
+      const url = match[2];
+      parts.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 rounded-lg border border-blue-200/80 dark:border-blue-900/50 shadow-sm transition-colors"
+        >
+          <ExternalLink size={10} />
+          <span>{label}</span>
+        </a>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : content;
   };
 
   return (
@@ -678,15 +727,53 @@ export const CardDetailModal: React.FC = () => {
                   <div className="space-y-4">
                     {/* Post Comment Form */}
                     <form onSubmit={handlePostComment} className="space-y-2 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center relative">
                         <input
+                          ref={commentInputRef}
                           type="text"
                           value={commentText}
                           onChange={(e) => setCommentText(e.target.value)}
                           onPaste={handlePaste}
-                          placeholder="Write a reply or paste/attach an image..."
+                          placeholder="Write a reply, ask a question, or reference a file..."
                           className="flex-1 text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none"
                         />
+
+                        {/* Reference File Dropdown Trigger */}
+                        {cardDetails.attachments && cardDetails.attachments.length > 0 && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowFileRefMenu(!showFileRefMenu)}
+                              title="Reference an uploaded file / Google Drive document in comment"
+                              className="p-2 text-neutral-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors shrink-0 flex items-center gap-1 text-xs font-semibold"
+                            >
+                              <Paperclip size={15} />
+                              <span className="text-[11px] hidden sm:inline">Ref File</span>
+                            </button>
+
+                            {/* File Ref Menu */}
+                            {showFileRefMenu && (
+                              <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1 mb-1">
+                                  Select file to reference:
+                                </p>
+                                <div className="max-h-48 overflow-y-auto space-y-1">
+                                  {cardDetails.attachments.map((att: any) => (
+                                    <button
+                                      key={att.id}
+                                      type="button"
+                                      onClick={() => handleInsertFileRef(att)}
+                                      className="w-full text-left p-1.5 rounded-lg text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition-colors truncate"
+                                    >
+                                      <div className="shrink-0">{getFileIcon(att.fileType)}</div>
+                                      <span className="truncate text-neutral-800 dark:text-neutral-200">{att.fileName}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         <input
                           ref={commentFileInputRef}
@@ -749,9 +836,9 @@ export const CardDetailModal: React.FC = () => {
                           </div>
 
                           {c.content && (
-                            <p className="text-neutral-800 dark:text-neutral-200 leading-relaxed pl-7">
-                              {c.content}
-                            </p>
+                            <div className="text-neutral-800 dark:text-neutral-200 leading-relaxed pl-7 break-words">
+                              {renderCommentContent(c.content)}
+                            </div>
                           )}
 
                           {c.imageUrl && (
@@ -860,7 +947,18 @@ export const CardDetailModal: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {/* Ref in Comment Shortcut */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleInsertFileRef(att)}
+                                  title="Reference this file in comment / conversation"
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-blue-600 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-blue-300 transition-colors shadow-sm"
+                                >
+                                  <AtSign size={11} />
+                                  <span>Ref in Chat</span>
+                                </button>
+
                                 {isDrive ? (
                                   <a
                                     href={att.fileUrl}

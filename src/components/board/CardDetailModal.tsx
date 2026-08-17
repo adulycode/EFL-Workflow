@@ -218,7 +218,7 @@ export const CardDetailModal: React.FC = () => {
 
   // Insert File Reference into Comment Box
   const handleInsertFileRef = (att: any) => {
-    const refSnippet = `[📎 ${att.fileName}](${att.fileUrl}) `;
+    const refSnippet = `[📎 ${att.fileName}](att:${att.id}) `;
     setCommentText((prev) => (prev ? `${prev} ${refSnippet}` : refSnippet));
     setShowFileRefMenu(false);
     setActiveTab('comments');
@@ -435,39 +435,69 @@ export const CardDetailModal: React.FC = () => {
     return <FileText size={18} className="text-neutral-500" />;
   };
 
-  // Helper to render comment text with clickable referenced file links
+  // Helper to render comment text with clickable referenced file links (clean badge without long URLs)
   const renderCommentContent = (content: string) => {
-    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    // 1. Sanitize any accidentally pasted raw base64 data URLs in comments
+    const sanitized = content
+      .replace(/\(data:[A-Za-z-+\/0-9.]+;base64,[A-Za-z0-9+/=]+\)/g, '')
+      .replace(/data:[A-Za-z-+\/0-9.]+;base64,[A-Za-z0-9+/=]{50,}/g, '');
+
+    // 2. Parse markdown link tokens: [label](target)
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
 
-    while ((match = linkRegex.exec(content)) !== null) {
+    while ((match = linkRegex.exec(sanitized)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(content.substring(lastIndex, match.index));
+        parts.push(sanitized.substring(lastIndex, match.index));
       }
+
       const label = match[1];
-      const url = match[2];
+      const target = match[2];
+
+      // Resolve attachment if using att:id or url
+      let fileUrl = target;
+      let displayName = label.replace(/^[📎📄📊📽️📁]\s*/, '');
+
+      if (target.startsWith('att:')) {
+        const attId = target.slice(4);
+        const foundAtt = cardDetails.attachments?.find((a: any) => a.id === attId);
+        if (foundAtt) {
+          fileUrl = foundAtt.fileUrl;
+          displayName = foundAtt.fileName;
+        }
+      } else if (target.startsWith('data:')) {
+        const foundAtt = cardDetails.attachments?.find((a: any) => a.fileName === displayName || a.fileUrl === target);
+        if (foundAtt) {
+          fileUrl = foundAtt.fileUrl;
+        }
+      }
+
       parts.push(
         <a
           key={match.index}
-          href={url}
+          href={fileUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 rounded-lg border border-blue-200/80 dark:border-blue-900/50 shadow-sm transition-colors"
+          download={fileUrl.startsWith('data:') ? displayName : undefined}
+          title={`Click to open ${displayName}`}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 mx-1 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl border border-blue-200/90 dark:border-blue-900/60 shadow-sm transition-all cursor-pointer"
         >
-          <ExternalLink size={10} />
-          <span>{label}</span>
+          <Paperclip size={12} className="shrink-0" />
+          <span className="truncate max-w-[200px]">{displayName}</span>
+          <ExternalLink size={10} className="shrink-0 opacity-70" />
         </a>
       );
+
       lastIndex = match.index + match[0].length;
     }
 
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
+    if (lastIndex < sanitized.length) {
+      parts.push(sanitized.substring(lastIndex));
     }
 
-    return parts.length > 0 ? parts : content;
+    return parts.length > 0 ? parts : sanitized;
   };
 
   return (

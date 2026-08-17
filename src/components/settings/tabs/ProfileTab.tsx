@@ -3,12 +3,14 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { Camera, Check, Moon, Sun, Globe, UserCheck, Sparkles } from 'lucide-react';
 
 const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
-  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=e2e8f0',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Aneka&backgroundColor=fed7aa',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Milo&backgroundColor=bae6fd',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Zoe&backgroundColor=fbcfe8',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Oliver&backgroundColor=bbf7d0',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Jasper&backgroundColor=ddd6fe',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Luna&backgroundColor=fef08a',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Leo&backgroundColor=f1f5f9',
 ];
 
 export const ProfileTab: React.FC = () => {

@@ -248,7 +248,7 @@ export const CardDetailModal: React.FC = () => {
     e.preventDefault();
     if (!commentText.trim() && !attachedImage) return;
 
-    await addComment(selectedCardId, commentText.trim(), attachedImage || undefined);
+    await addComment(selectedCardId, commentText.trim(), attachedImage || undefined, currentUser?.id);
     setCommentText('');
     setAttachedImage(null);
     if (commentFileInputRef.current) commentFileInputRef.current.value = '';

@@ -44,7 +44,7 @@ interface BoardState {
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;
-  addComment: (cardId: string, content: string, imageUrl?: string) => Promise<void>;
+  addComment: (cardId: string, content: string, imageUrl?: string, userId?: string) => Promise<void>;
 
   // Attachment Operations
   addAttachment: (cardId: string, data: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number; userId?: string }) => Promise<void>;
@@ -282,12 +282,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  addComment: async (cardId, content, imageUrl) => {
+  addComment: async (cardId, content, imageUrl, userId) => {
     try {
       const res = await fetch(`/api/cards/${cardId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, imageUrl })
+        body: JSON.stringify({ content, imageUrl, userId })
       });
       if (res.ok) {
         get().fetchBoard();

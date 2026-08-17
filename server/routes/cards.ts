@@ -333,27 +333,39 @@ router.post('/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { userId, content, imageUrl } = req.body;
 
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const firstUser = await prisma.user.findFirst();
+      finalUserId = firstUser?.id;
+    }
+
+    if (!finalUserId) {
+      return res.status(400).json({ error: 'Valid user is required to post comment' });
+    }
+
     const comment = await prisma.comment.create({
       data: {
         cardId: id,
-        userId,
+        userId: finalUserId,
         content: content || '',
         imageUrl: imageUrl || null
       },
       include: { user: true }
     });
 
-    await prisma.activityLog.create({
-      data: {
-        cardId: id,
-        userId,
-        actionType: 'ADDED_COMMENT',
-        details: {
-          preview: (content || '').slice(0, 50),
-          hasImage: Boolean(imageUrl)
+    if (finalUserId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId: finalUserId,
+          actionType: 'ADDED_COMMENT',
+          details: {
+            preview: (content || '').slice(0, 50),
+            hasImage: Boolean(imageUrl)
+          }
         }
-      }
-    });
+      });
+    }
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });
     res.json(comment);

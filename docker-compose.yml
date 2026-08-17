@@ -25,12 +25,12 @@ services:
     restart: always
     ports:
       - "3010:3010"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3010
       - DATABASE_URL=postgresql://efl_user:efl_password_2026@efl-workflow-db:5432/efl_workflow_db?schema=public
-      - RESEND_API_KEY=placeholder_resend_api_key
-      - LINE_CHANNEL_ACCESS_TOKEN=placeholder_line_token
     depends_on:
       efl-workflow-db:
         condition: service_healthy

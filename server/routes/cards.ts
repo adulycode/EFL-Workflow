@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient, Priority } from '@prisma/client';
 import { sendNotification } from '../services/notificationService';
+import { uploadToGoogleDrive } from '../services/googleDrive';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -363,7 +364,7 @@ router.post('/:id/comments', async (req, res) => {
 
 // ================= ATTACHMENTS CRUD =================
 
-// Add Attachment (Files, PDFs, Images, Documents)
+// Add Attachment (Files, PDFs, Images, Documents, Google Drive)
 router.post('/:id/attachments', async (req, res) => {
   try {
     const { id } = req.params;
@@ -373,12 +374,39 @@ router.post('/:id/attachments', async (req, res) => {
       return res.status(400).json({ error: 'fileName and fileUrl are required' });
     }
 
+    let finalFileUrl = fileUrl;
+    let finalFileType = fileType || 'application/octet-stream';
+
+    // If file is uploaded as Base64 data URL, upload directly to central Google Drive folder
+    if (fileUrl.startsWith('data:')) {
+      try {
+        const matches = fileUrl.match(/^data:([A-Za-z-+\/0-9.]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const mime = matches[1];
+          const buffer = Buffer.from(matches[2], 'base64');
+          
+          const driveResult = await uploadToGoogleDrive({
+            fileName: fileName,
+            mimeType: mime,
+            fileBuffer: buffer
+          });
+
+          if (driveResult && driveResult.webViewLink) {
+            finalFileUrl = driveResult.webViewLink;
+            finalFileType = 'googledrive/file';
+          }
+        }
+      } catch (driveErr) {
+        console.error('Failed to upload to Google Drive, saving original link:', driveErr);
+      }
+    }
+
     const attachment = await prisma.attachment.create({
       data: {
         cardId: id,
         fileName,
-        fileUrl,
-        fileType: fileType || 'application/octet-stream',
+        fileUrl: finalFileUrl,
+        fileType: finalFileType,
         fileSize: fileSize || 0
       }
     });
@@ -389,7 +417,7 @@ router.post('/:id/attachments', async (req, res) => {
           cardId: id,
           userId,
           actionType: 'ADDED_ATTACHMENT',
-          details: { fileName: attachment.fileName }
+          details: { fileName: attachment.fileName, isGoogleDrive: finalFileUrl.includes('drive.google.com') }
         }
       });
     }

@@ -16,7 +16,8 @@ import {
   Image as ImageIcon,
   Maximize2,
   CheckSquare,
-  Plus
+  Plus,
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -140,7 +141,8 @@ export const CardDetailModal: React.FC = () => {
     }
   };
 
-  // Checklist Actions
+  // ================= CHECKLIST ACTIONS =================
+
   const handleCreateChecklist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChecklistTitle.trim()) return;
@@ -155,9 +157,13 @@ export const CardDetailModal: React.FC = () => {
         })
       });
       if (res.ok) {
+        const created = await res.json();
+        setCardDetails((prev: any) => ({
+          ...prev,
+          checklists: [...(prev.checklists || []), created]
+        }));
         setNewChecklistTitle('Checklist');
         setShowAddChecklistModal(false);
-        fetchDetails();
         useBoardStore.getState().fetchBoard();
       }
     } catch (err) {
@@ -166,17 +172,20 @@ export const CardDetailModal: React.FC = () => {
   };
 
   const handleDeleteChecklist = async (checklistId: string) => {
-    if (!window.confirm('Delete this checklist?')) return;
+    // Optimistic UI update immediately
+    setCardDetails((prev: any) => ({
+      ...prev,
+      checklists: prev.checklists.filter((c: any) => c.id !== checklistId)
+    }));
+
     try {
-      const res = await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}`, {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}`, {
         method: 'DELETE'
       });
-      if (res.ok) {
-        fetchDetails();
-        useBoardStore.getState().fetchBoard();
-      }
+      useBoardStore.getState().fetchBoard();
     } catch (err) {
       console.error('Failed to delete checklist:', err);
+      fetchDetails();
     }
   };
 
@@ -184,49 +193,80 @@ export const CardDetailModal: React.FC = () => {
     e.preventDefault();
     if (!newItemContent.trim()) return;
 
+    const contentToAdd = newItemContent.trim();
+    setNewItemContent('');
+
     try {
       const res = await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newItemContent.trim() })
+        body: JSON.stringify({ content: contentToAdd })
       });
       if (res.ok) {
-        setNewItemContent('');
-        fetchDetails();
+        const newItem = await res.json();
+        setCardDetails((prev: any) => ({
+          ...prev,
+          checklists: prev.checklists.map((c: any) =>
+            c.id === checklistId ? { ...c, items: [...(c.items || []), newItem] } : c
+          )
+        }));
         useBoardStore.getState().fetchBoard();
       }
     } catch (err) {
       console.error('Failed to add checklist item:', err);
+      fetchDetails();
     }
   };
 
   const handleToggleChecklistItem = async (checklistId: string, itemId: string, currentStatus: boolean) => {
+    const nextStatus = !currentStatus;
+
+    // Optimistic UI update
+    setCardDetails((prev: any) => ({
+      ...prev,
+      checklists: prev.checklists.map((c: any) => {
+        if (c.id !== checklistId) return c;
+        return {
+          ...c,
+          items: c.items.map((i: any) => (i.id === itemId ? { ...i, isCompleted: nextStatus } : i))
+        };
+      })
+    }));
+
     try {
-      const res = await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isCompleted: !currentStatus })
+        body: JSON.stringify({ isCompleted: nextStatus })
       });
-      if (res.ok) {
-        fetchDetails();
-        useBoardStore.getState().fetchBoard();
-      }
+      useBoardStore.getState().fetchBoard();
     } catch (err) {
       console.error('Failed to toggle checklist item:', err);
+      fetchDetails();
     }
   };
 
   const handleDeleteChecklistItem = async (checklistId: string, itemId: string) => {
+    // Optimistic UI update
+    setCardDetails((prev: any) => ({
+      ...prev,
+      checklists: prev.checklists.map((c: any) => {
+        if (c.id !== checklistId) return c;
+        return {
+          ...c,
+          items: c.items.filter((i: any) => i.id !== itemId)
+        };
+      })
+    }));
+
     try {
-      const res = await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
         method: 'DELETE'
       });
-      if (res.ok) {
-        fetchDetails();
-        useBoardStore.getState().fetchBoard();
-      }
+      useBoardStore.getState().fetchBoard();
     } catch (err) {
       console.error('Failed to delete checklist item:', err);
+      fetchDetails();
     }
   };
 
@@ -277,32 +317,36 @@ export const CardDetailModal: React.FC = () => {
 
               {/* Checklists Section */}
               {cardDetails.checklists && cardDetails.checklists.length > 0 && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {cardDetails.checklists.map((chk: any) => {
                     const total = chk.items?.length || 0;
                     const completed = chk.items?.filter((i: any) => i.isCompleted).length || 0;
                     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                     return (
-                      <div key={chk.id} className="bg-neutral-50/70 dark:bg-neutral-950/40 p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 space-y-3">
+                      <div key={chk.id} className="bg-neutral-50/80 dark:bg-neutral-950/60 p-4 rounded-2xl border border-neutral-200/90 dark:border-neutral-800 space-y-3 shadow-sm">
                         {/* Checklist Title & Progress */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <CheckSquare size={16} className="text-neutral-600 dark:text-neutral-300" />
+                            <CheckSquare size={16} className="text-neutral-700 dark:text-neutral-300" />
                             <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
                               {chk.title}
                             </h4>
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <span className="text-[11px] font-semibold text-neutral-500">
+                            <span className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">
                               {percent}%
                             </span>
+                            {/* Prominent Delete Checklist Button */}
                             <button
+                              type="button"
                               onClick={() => handleDeleteChecklist(chk.id)}
-                              className="text-[10px] text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 font-medium"
+                              className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 px-2 py-1 rounded-lg transition-colors"
+                              title="Delete this checklist"
                             >
-                              Delete
+                              <Trash2 size={12} />
+                              <span>Delete</span>
                             </button>
                           </div>
                         </div>
@@ -322,7 +366,7 @@ export const CardDetailModal: React.FC = () => {
                           {chk.items?.map((item: any) => (
                             <div
                               key={item.id}
-                              className="group flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                              className="group flex items-center justify-between gap-2 p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-100 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all"
                             >
                               <label className="flex items-center gap-2.5 flex-1 cursor-pointer select-none">
                                 <input
@@ -343,10 +387,12 @@ export const CardDetailModal: React.FC = () => {
                               </label>
 
                               <button
+                                type="button"
                                 onClick={() => handleDeleteChecklistItem(chk.id, item.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 rounded transition-opacity"
+                                className="opacity-60 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
+                                title="Remove item"
                               >
-                                <X size={12} />
+                                <Trash2 size={12} />
                               </button>
                             </div>
                           ))}
@@ -361,7 +407,7 @@ export const CardDetailModal: React.FC = () => {
                               value={newItemContent}
                               onChange={(e) => setNewItemContent(e.target.value)}
                               placeholder="Add an item..."
-                              className="w-full text-xs px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                              className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
                             />
                             <div className="flex items-center gap-1.5">
                               <button
@@ -385,11 +431,12 @@ export const CardDetailModal: React.FC = () => {
                           </form>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => {
                               setAddingItemChecklistId(chk.id);
                               setNewItemContent('');
                             }}
-                            className="text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white flex items-center gap-1 pt-1"
+                            className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white flex items-center gap-1 pt-1"
                           >
                             <Plus size={13} /> Add an item
                           </button>
@@ -404,6 +451,7 @@ export const CardDetailModal: React.FC = () => {
               <div>
                 <div className="flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-2 mb-4">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('comments')}
                     className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
                       activeTab === 'comments'
@@ -419,6 +467,7 @@ export const CardDetailModal: React.FC = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setActiveTab('activity')}
                     className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
                       activeTab === 'activity'
@@ -705,6 +754,7 @@ export const CardDetailModal: React.FC = () => {
                 <CheckSquare size={14} /> Add Checklist
               </h3>
               <button
+                type="button"
                 onClick={() => setShowAddChecklistModal(false)}
                 className="p-1 text-neutral-400 hover:text-neutral-700 rounded-lg"
               >
@@ -761,6 +811,7 @@ export const CardDetailModal: React.FC = () => {
               className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain"
             />
             <button
+              type="button"
               onClick={() => setLightboxImage(null)}
               className="absolute -top-3 -right-3 p-2 bg-neutral-900 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow"
             >

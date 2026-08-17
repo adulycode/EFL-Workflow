@@ -8,25 +8,25 @@ async function main() {
   // 1. Seed 20 Users
   const userSeeds = [
     { email: 'aduly@efl.org', name: 'Aduly Admin (Project Lead)', role: Role.ADMIN, avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', lineUserId: 'U1111111111' },
-    { email: 'somchai@efl.org', name: 'Somchai Prasert (Lead Dev)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', lineUserId: 'U2222222222' },
-    { email: 'kanya@efl.org', name: 'Kanya Rattana (UI/UX Designer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80', lineUserId: 'U3333333333' },
-    { email: 'natthaphol@efl.org', name: 'Natthaphol Sukjai (Frontend Dev)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
-    { email: 'chanya@efl.org', name: 'Chanya Boonmee (Backend Dev)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80' },
-    { email: 'ananda@efl.org', name: 'Ananda Wong (Full-Stack Dev)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' },
-    { email: 'ploy@efl.org', name: 'Ploy Siriwong (QA Lead)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80' },
-    { email: 'thanawat@efl.org', name: 'Thanawat Chai (DevOps Engineer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80' },
+    { email: 'somchai@efl.org', name: 'Somchai Prasert (Lead Dev)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', lineUserId: 'U2222222222' },
+    { email: 'kanya@efl.org', name: 'Kanya Rattana (UI/UX Designer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80', lineUserId: 'U3333333333' },
+    { email: 'natthaphol@efl.org', name: 'Natthaphol Sukjai (Frontend Dev)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
+    { email: 'chanya@efl.org', name: 'Chanya Boonmee (Backend Dev)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80' },
+    { email: 'ananda@efl.org', name: 'Ananda Wong (Full-Stack Dev)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' },
+    { email: 'ploy@efl.org', name: 'Ploy Siriwong (QA Lead)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80' },
+    { email: 'thanawat@efl.org', name: 'Thanawat Chai (DevOps Engineer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80' },
     { email: 'warunee@efl.org', name: 'Warunee Kaew (Product Owner)', role: Role.ADMIN, avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' },
-    { email: 'kittisak@efl.org', name: 'Kittisak Somboon (Scrum Master)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80' },
-    { email: 'siriporn@efl.org', name: 'Siriporn Thong (Security Analyst)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80' },
-    { email: 'prinya@efl.org', name: 'Prinya Chaiyot (Database Admin)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' },
-    { email: 'manat@efl.org', name: 'Manat Saelim (Mobile Developer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' },
-    { email: 'benjarong@efl.org', name: 'Benjarong Srisuk (Data Engineer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
-    { email: 'duangjai@efl.org', name: 'Duangjai Prom (Marketing Specialist)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80' },
-    { email: 'ekkachai@efl.org', name: 'Ekkachai Ruang (Tech Writer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=150&auto=format&fit=crop&q=80' },
-    { email: 'faprathan@efl.org', name: 'Faprathan Jinda (Support Engineer)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80' },
-    { email: 'gamon@efl.org', name: 'Gamonpan Nu (Business Analyst)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80' },
+    { email: 'kittisak@efl.org', name: 'Kittisak Somboon (Scrum Master)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80' },
+    { email: 'siriporn@efl.org', name: 'Siriporn Thong (Security Analyst)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80' },
+    { email: 'prinya@efl.org', name: 'Prinya Chaiyot (Database Admin)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' },
+    { email: 'manat@efl.org', name: 'Manat Saelim (Mobile Developer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' },
+    { email: 'benjarong@efl.org', name: 'Benjarong Srisuk (Data Engineer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
+    { email: 'duangjai@efl.org', name: 'Duangjai Prom (Marketing Specialist)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80' },
+    { email: 'ekkachai@efl.org', name: 'Ekkachai Ruang (Tech Writer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=150&auto=format&fit=crop&q=80' },
+    { email: 'faprathan@efl.org', name: 'Faprathan Jinda (Support Engineer)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80' },
+    { email: 'gamon@efl.org', name: 'Gamonpan Nu (Business Analyst)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80' },
     { email: 'harit@efl.org', name: 'Harit Petch (System Architect)', role: Role.ADMIN, avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80' },
-    { email: 'itsara@efl.org', name: 'Itsara Vong (Cloud Specialist)', role: Role.MEMBER, avatarUrl: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80' }
+    { email: 'itsara@efl.org', name: 'Itsara Vong (Cloud Specialist)', role: Role.STAFF, avatarUrl: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80' }
   ];
 
   const users = [];

@@ -9,7 +9,7 @@ export const SSO_CONFIG = {
   appId: process.env.SSO_APP_ID || 'efl-workflow',
   appName: process.env.SSO_APP_NAME || 'EFL Workflow System',
   appUrl: process.env.APP_URL || 'http://localhost:3010',
-  availableRoles: ['ADMIN', 'TEACHER', 'STAFF', 'MEMBER']
+  availableRoles: ['ADMIN', 'STAFF', 'VIEWER']
 };
 
 export interface SsoUserPayload {
@@ -103,10 +103,10 @@ export async function consumeSsoToken(token: string) {
   const avatarUrl = payload.avatarUrl || payload.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
   
   // Normalize Role to valid enum
-  let role: any = 'MEMBER';
+  let role: any = 'STAFF';
   if (payload.role) {
     const upperRole = payload.role.toUpperCase();
-    if (['ADMIN', 'TEACHER', 'STAFF', 'MEMBER', 'VIEWER'].includes(upperRole)) {
+    if (['ADMIN', 'STAFF', 'VIEWER'].includes(upperRole)) {
       role = upperRole;
     }
   }

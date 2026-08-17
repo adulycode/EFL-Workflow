@@ -9,9 +9,10 @@ export const MembersTab: React.FC = () => {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
-  const [inviteRole, setInviteRole] = useState<Role>('MEMBER');
+  const [inviteRole, setInviteRole] = useState<Role>('STAFF');
   const [inviteJobTitle, setInviteJobTitle] = useState('');
   const [isInviting, setIsInviting] = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const filteredUsers = users.filter((u) =>
@@ -26,27 +27,27 @@ export const MembersTab: React.FC = () => {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    if (!inviteEmail || !inviteName) return;
 
     setIsInviting(true);
-    const success = await inviteUser(
-      inviteEmail.trim(),
-      inviteName.trim(),
-      inviteRole,
-      inviteJobTitle.trim()
-    );
-
+    const ok = await inviteUser(inviteEmail, inviteName, inviteRole, inviteJobTitle || 'Staff Member');
     setIsInviting(false);
-    if (success) {
-      setIsInviteOpen(false);
+
+    if (ok) {
+      setInviteSuccess(true);
       setInviteEmail('');
       setInviteName('');
       setInviteJobTitle('');
+      setInviteRole('STAFF');
+      setTimeout(() => {
+        setInviteSuccess(false);
+        setIsInviteOpen(false);
+      }, 1500);
     }
   };
 
-  const handleCopyInviteLink = () => {
-    const link = `${window.location.origin}/join?ref=workspace-efl`;
+  const copyOrgInviteLink = () => {
+    const link = `${window.location.origin}/join/org-invite-demo`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
@@ -60,10 +61,10 @@ export const MembersTab: React.FC = () => {
             <ShieldAlert size={11} /> Admin
           </span>
         );
-      case 'MEMBER':
+      case 'STAFF':
         return (
-          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
-            <Shield size={11} /> Member
+          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+            <Shield size={11} /> Staff
           </span>
         );
       case 'VIEWER':
@@ -95,7 +96,7 @@ export const MembersTab: React.FC = () => {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
-            onClick={handleCopyInviteLink}
+            onClick={copyOrgInviteLink}
             className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-1.5"
           >
             {copiedLink ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
@@ -163,8 +164,8 @@ export const MembersTab: React.FC = () => {
                     onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
                     className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
                   >
-                    <option value="ADMIN">👑 Admin (คุมทุกอย่าง)</option>
-                    <option value="MEMBER">✏️ Member (สร้าง/แก้ไข)</option>
+                    <option value="ADMIN">👑 Admin (คุมระบบทั้งหมด)</option>
+                    <option value="STAFF">💼 Staff (บันทึก/จัดการงาน)</option>
                     <option value="VIEWER">👁️ Viewer (ดูอย่างเดียว)</option>
                   </select>
 
@@ -247,7 +248,7 @@ export const MembersTab: React.FC = () => {
                   onChange={(e) => setInviteRole(e.target.value as Role)}
                   className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 font-bold"
                 >
-                  <option value="MEMBER">✏️ Member (สร้าง/แก้ไขการ์ดได้)</option>
+                  <option value="STAFF">💼 Staff (บันทึก/จัดการการ์ดงาน)</option>
                   <option value="ADMIN">👑 Admin (ควบคุมสิทธิ์ทั้งบอร์ด)</option>
                   <option value="VIEWER">👁️ Viewer (ดูและดาวน์โหลดไฟล์ได้อย่างเดียว)</option>
                 </select>

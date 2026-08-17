@@ -140,6 +140,25 @@ export async function consumeSsoToken(token: string) {
     console.log(`[SSO Service] Updated local user from SSO: ${email} (${role})`);
   }
 
+  // Ensure user is added to the default EFL Core Organization workspace
+  const defaultWorkspaceId = '00000000-0000-0000-0000-000000000001';
+  const defaultWs = await prisma.workspace.findUnique({ where: { id: defaultWorkspaceId } });
+  if (defaultWs) {
+    await prisma.workspaceMember.upsert({
+      where: {
+        workspaceId_userId: { workspaceId: defaultWorkspaceId, userId: user.id }
+      },
+      update: {
+        role: user.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'
+      },
+      create: {
+        workspaceId: defaultWorkspaceId,
+        userId: user.id,
+        role: user.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'
+      }
+    });
+  }
+
   return user;
 }
 

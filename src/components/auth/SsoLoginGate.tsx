@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Shield, Sparkles, ArrowRight, ExternalLink, UserCheck, Lock } from 'lucide-react';
+import { Sparkles, ArrowRight, Lock } from 'lucide-react';
 
 export const SsoLoginGate: React.FC = () => {
   const { loginWithSsoToken } = useAuthStore();
@@ -28,32 +28,6 @@ export const SsoLoginGate: React.FC = () => {
 
     if (!ok) {
       setErrorMsg('โทเคน SSO ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาลองใหม่อีกครั้ง');
-    }
-  };
-
-  // Quick Demo Handshake Generator for Dev / Standalone test
-  const handleQuickDemoLogin = async (demoRole: 'ADMIN' | 'STAFF' | 'VIEWER') => {
-    setIsLoggingIn(true);
-    try {
-      // In dev mode, generate simulated token via direct local API
-      const res = await fetch('/api/auth/google-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: demoRole === 'ADMIN' ? 'aduly@efl.org' : demoRole === 'STAFF' ? 'somchai@efl.org' : 'viewer@efl.org',
-          name: demoRole === 'ADMIN' ? 'Aduly Admin' : demoRole === 'STAFF' ? 'Somchai (Staff)' : 'Auditor (Viewer)',
-          avatarUrl: `https://api.dicebear.com/7.x/notionists/svg?seed=${demoRole}`
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        useAuthStore.getState().setCurrentUser(data.user);
-      }
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 
@@ -107,51 +81,8 @@ export const SsoLoginGate: React.FC = () => {
           </p>
         </div>
 
-        {/* Divider */}
-        <div className="relative flex items-center justify-center">
-          <div className="w-full border-t border-neutral-800" />
-          <span className="bg-neutral-900 px-3 text-[10px] uppercase tracking-wider text-neutral-500 font-bold absolute">
-            หรือเลือกวิธีเข้าสู่ระบบ
-          </span>
-        </div>
-
-        {/* Quick Demo Login Option for Dev / Standalone Testing */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
-            <UserCheck size={13} className="text-emerald-500" />
-            <span>ทดสอบเข้าสู่ระบบแบบด่วน (Quick Launch):</span>
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('STAFF')}
-              disabled={isLoggingIn}
-              className="p-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700 text-left transition-colors text-xs font-semibold flex items-center gap-2"
-            >
-              <span className="text-base">💼</span>
-              <div>
-                <p className="font-bold text-white leading-tight">Staff Member</p>
-                <p className="text-[10px] text-neutral-400 font-normal">บันทึกงานทั่วไป</p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickDemoLogin('ADMIN')}
-              disabled={isLoggingIn}
-              className="p-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700 text-left transition-colors text-xs font-semibold flex items-center gap-2"
-            >
-              <span className="text-base">👑</span>
-              <div>
-                <p className="font-bold text-white leading-tight">Admin Lead</p>
-                <p className="text-[10px] text-neutral-400 font-normal">สิทธิ์ผู้ดูแลระบบ</p>
-              </div>
-            </button>
-          </div>
-        </div>
-
         {/* Manual Token Input Toggle */}
-        <div className="pt-1 text-center">
+        <div className="pt-2 text-center">
           <button
             type="button"
             onClick={() => setShowManualInput(!showManualInput)}

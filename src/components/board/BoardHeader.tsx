@@ -104,7 +104,7 @@ export const BoardHeader: React.FC = () => {
               </span>
             </h1>
             <p className="text-[11px] text-neutral-400">
-              Collaborative Kanban & Planning • 20 Member Org
+              Collaborative Kanban & Planning • EFL Workflow
             </p>
           </div>
         </div>

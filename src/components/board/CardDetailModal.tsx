@@ -16,10 +16,10 @@ import {
   Image as ImageIcon,
   Maximize2,
   CheckSquare,
-  Plus,
-  Check
+  Plus
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 export const CardDetailModal: React.FC = () => {
   const { selectedCardId, setSelectedCardId, updateCard, deleteCard, archiveCard, addComment, labels } = useBoardStore();
@@ -34,6 +34,11 @@ export const CardDetailModal: React.FC = () => {
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'activity'>('comments');
+
+  // Confirmation Popups State
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showDeleteCardConfirm, setShowDeleteCardConfirm] = useState(false);
+  const [checklistToDelete, setChecklistToDelete] = useState<string | null>(null);
 
   // Checklist state
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
@@ -135,10 +140,15 @@ export const CardDetailModal: React.FC = () => {
     fetchDetails();
   };
 
-  const handleArchive = async () => {
-    if (window.confirm(`Archive task "${cardDetails.title}"? You can restore it anytime from Archived Items.`)) {
-      await archiveCard(selectedCardId);
-    }
+  // Confirm Actions
+  const handleConfirmArchive = async () => {
+    setShowArchiveConfirm(false);
+    await archiveCard(selectedCardId);
+  };
+
+  const handleConfirmDeleteCard = async () => {
+    setShowDeleteCardConfirm(false);
+    await deleteCard(selectedCardId);
   };
 
   // ================= CHECKLIST ACTIONS =================
@@ -171,15 +181,19 @@ export const CardDetailModal: React.FC = () => {
     }
   };
 
-  const handleDeleteChecklist = async (checklistId: string) => {
+  const handleConfirmDeleteChecklist = async () => {
+    if (!checklistToDelete) return;
+    const chkId = checklistToDelete;
+    setChecklistToDelete(null);
+
     // Optimistic UI update immediately
     setCardDetails((prev: any) => ({
       ...prev,
-      checklists: prev.checklists.filter((c: any) => c.id !== checklistId)
+      checklists: prev.checklists.filter((c: any) => c.id !== chkId)
     }));
 
     try {
-      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}`, {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${chkId}`, {
         method: 'DELETE'
       });
       useBoardStore.getState().fetchBoard();
@@ -341,7 +355,7 @@ export const CardDetailModal: React.FC = () => {
                             {/* Prominent Delete Checklist Button */}
                             <button
                               type="button"
-                              onClick={() => handleDeleteChecklist(chk.id)}
+                              onClick={() => setChecklistToDelete(chk.id)}
                               className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 px-2 py-1 rounded-lg transition-colors"
                               title="Delete this checklist"
                             >
@@ -722,19 +736,15 @@ export const CardDetailModal: React.FC = () => {
               <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
                 <button
                   type="button"
-                  onClick={handleArchive}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-200/70 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 p-2 rounded-xl transition-colors font-semibold"
+                  onClick={() => setShowArchiveConfirm(true)}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 p-2 rounded-xl transition-colors font-semibold"
                 >
                   <Archive size={14} /> Archive Card (ย้ายเข้าคลัง)
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to permanently delete this card?')) {
-                      deleteCard(selectedCardId);
-                    }
-                  }}
+                  onClick={() => setShowDeleteCardConfirm(true)}
                   className="w-full flex items-center justify-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors font-medium"
                 >
                   <Trash2 size={14} /> Delete Permanently
@@ -744,6 +754,42 @@ export const CardDetailModal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal for Archive Card */}
+      <ConfirmModal
+        isOpen={showArchiveConfirm}
+        type="warning"
+        title="Archive Card"
+        message={`Are you sure you want to archive "${cardDetails.title}"? The card will be hidden from the active board, but you can restore it anytime from Archived Items.`}
+        confirmText="Archive Card"
+        cancelText="Cancel"
+        onConfirm={handleConfirmArchive}
+        onCancel={() => setShowArchiveConfirm(false)}
+      />
+
+      {/* Confirmation Modal for Delete Card Permanently */}
+      <ConfirmModal
+        isOpen={showDeleteCardConfirm}
+        type="danger"
+        title="Delete Card Permanently"
+        message={`Are you sure you want to delete "${cardDetails.title}"? All checklists, attachments, comments, and activity logs will be permanently deleted. This action cannot be undone.`}
+        confirmText="Delete Permanently"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDeleteCard}
+        onCancel={() => setShowDeleteCardConfirm(false)}
+      />
+
+      {/* Confirmation Modal for Delete Checklist */}
+      <ConfirmModal
+        isOpen={Boolean(checklistToDelete)}
+        type="danger"
+        title="Delete Checklist"
+        message="Are you sure you want to delete this checklist and all its items? This action cannot be undone."
+        confirmText="Delete Checklist"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDeleteChecklist}
+        onCancel={() => setChecklistToDelete(null)}
+      />
 
       {/* Add Checklist Modal */}
       {showAddChecklistModal && (

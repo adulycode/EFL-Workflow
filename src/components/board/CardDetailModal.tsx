@@ -92,7 +92,7 @@ export const CardDetailModal: React.FC = () => {
   const commentFileInputRef = useRef<HTMLInputElement>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
-  const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const fetchDetails = async () => {
     if (!selectedCardId) return;
@@ -755,84 +755,29 @@ export const CardDetailModal: React.FC = () => {
                 {/* Tab 1: Comments */}
                 {activeTab === 'comments' && (
                   <div className="space-y-4">
-                    {/* Post Comment Form */}
-                    <form onSubmit={handlePostComment} className="space-y-2 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                      <div className="flex gap-2 items-center relative">
-                        <input
+                    {/* Post Comment Form with Spacious Textarea */}
+                    <form onSubmit={handlePostComment} className="bg-neutral-50 dark:bg-neutral-950 p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-2.5 shadow-sm">
+                      <div className="relative">
+                        <textarea
                           ref={commentInputRef}
-                          type="text"
+                          rows={3}
                           value={commentText}
                           onChange={(e) => setCommentText(e.target.value)}
                           onPaste={handlePaste}
-                          placeholder="Write a reply, ask a question, or reference a file..."
-                          className="flex-1 text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                          onKeyDown={(e) => {
+                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                              e.preventDefault();
+                              handlePostComment(e);
+                            }
+                          }}
+                          placeholder="Write a comment, reply, ask a question, or reference a file... (Ctrl + Enter to send)"
+                          className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white resize-y min-h-[75px] leading-relaxed"
                         />
-
-                        {/* Reference File Dropdown Trigger */}
-                        {cardDetails.attachments && cardDetails.attachments.length > 0 && (
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setShowFileRefMenu(!showFileRefMenu)}
-                              title="Reference an uploaded file / Google Drive document in comment"
-                              className="p-2 text-neutral-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors shrink-0 flex items-center gap-1 text-xs font-semibold"
-                            >
-                              <Paperclip size={15} />
-                              <span className="text-[11px] hidden sm:inline">Ref File</span>
-                            </button>
-
-                            {/* File Ref Menu */}
-                            {showFileRefMenu && (
-                              <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1 mb-1">
-                                  Select file to reference:
-                                </p>
-                                <div className="max-h-48 overflow-y-auto space-y-1">
-                                  {cardDetails.attachments.map((att: any) => (
-                                    <button
-                                      key={att.id}
-                                      type="button"
-                                      onClick={() => handleInsertFileRef(att)}
-                                      className="w-full text-left p-1.5 rounded-lg text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition-colors truncate"
-                                    >
-                                      <div className="shrink-0">{getFileIcon(att.fileType)}</div>
-                                      <span className="truncate text-neutral-800 dark:text-neutral-200">{att.fileName}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <input
-                          ref={commentFileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageFileChange}
-                          className="hidden"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => commentFileInputRef.current?.click()}
-                          title="Attach Image"
-                          className="p-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
-                        >
-                          <ImageIcon size={16} />
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={!commentText.trim() && !attachedImage}
-                          className="p-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40"
-                        >
-                          <Send size={15} />
-                        </button>
                       </div>
 
+                      {/* Image Attachment Preview */}
                       {attachedImage && (
-                        <div className="relative inline-block mt-2">
+                        <div className="relative inline-block">
                           <img
                             src={attachedImage}
                             alt="Attached preview"
@@ -847,6 +792,78 @@ export const CardDetailModal: React.FC = () => {
                           </button>
                         </div>
                       )}
+
+                      {/* Comment Toolbar (Bottom of textarea) */}
+                      <div className="flex items-center justify-between pt-1 border-t border-neutral-200/60 dark:border-neutral-800/80">
+                        <span className="text-[10px] text-neutral-400 font-medium hidden sm:inline">
+                          Pro-tip: Press <kbd className="px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-[9px] font-semibold">Ctrl + Enter</kbd> to send
+                        </span>
+
+                        <div className="flex items-center gap-2 ml-auto">
+                          {/* Reference File Dropdown Trigger */}
+                          {cardDetails.attachments && cardDetails.attachments.length > 0 && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setShowFileRefMenu(!showFileRefMenu)}
+                                title="Reference an uploaded file / Google Drive document in comment"
+                                className="px-2.5 py-1.5 text-neutral-600 dark:text-neutral-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors shrink-0 flex items-center gap-1.5 text-xs font-semibold border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm"
+                              >
+                                <Paperclip size={13} className="text-blue-500" />
+                                <span>Ref File</span>
+                              </button>
+
+                              {/* File Ref Menu */}
+                              {showFileRefMenu && (
+                                <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1 mb-1">
+                                    Select file to reference:
+                                  </p>
+                                  <div className="max-h-48 overflow-y-auto space-y-1">
+                                    {cardDetails.attachments.map((att: any) => (
+                                      <button
+                                        key={att.id}
+                                        type="button"
+                                        onClick={() => handleInsertFileRef(att)}
+                                        className="w-full text-left p-1.5 rounded-lg text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition-colors truncate"
+                                      >
+                                        <div className="shrink-0">{getFileIcon(att.fileType)}</div>
+                                        <span className="truncate text-neutral-800 dark:text-neutral-200">{att.fileName}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <input
+                            ref={commentFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageFileChange}
+                            className="hidden"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => commentFileInputRef.current?.click()}
+                            title="Attach Image"
+                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
+                          >
+                            <ImageIcon size={16} />
+                          </button>
+
+                          <button
+                            type="submit"
+                            disabled={!commentText.trim() && !attachedImage}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold rounded-xl hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40 shadow-sm"
+                          >
+                            <Send size={13} />
+                            <span>Send</span>
+                          </button>
+                        </div>
+                      </div>
                     </form>
 
                     {/* Comment List */}

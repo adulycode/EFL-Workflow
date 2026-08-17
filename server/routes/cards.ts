@@ -17,7 +17,7 @@ const emitRealtime = (req: any, event: string, data: any) => {
 // Create Card
 router.post('/', async (req, res) => {
   try {
-    const { columnId, title, description, priority, dueDate, coverColor, coverImage, userId, assigneeIds, labelIds } = req.body;
+    const { columnId, title, description, priority, dueDate, coverColor, coverImage, icon, coverBanner, userId, assigneeIds, labelIds } = req.body;
 
     const lastCard = await prisma.card.findFirst({
       where: { columnId },
@@ -34,6 +34,8 @@ router.post('/', async (req, res) => {
         dueDate: dueDate ? new Date(dueDate) : null,
         coverColor: coverColor || null,
         coverImage: coverImage || null,
+        icon: icon || '📝',
+        coverBanner: coverBanner || null,
         createdById: userId,
         position,
         assignees: assigneeIds && assigneeIds.length > 0 ? {
@@ -63,6 +65,12 @@ router.post('/', async (req, res) => {
       });
     }
 
+    notifyAgentOffice({
+      agentId: 'cloud',
+      status: 'CODING',
+      task: `Created Card: ${card.title}`
+    });
+
     if (card.assignees && card.assignees.length > 0) {
       for (const a of card.assignees) {
         if (a.user.id !== userId) {
@@ -90,7 +98,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, priority, dueDate, coverColor, coverImage, userId, assigneeIds, labelIds } = req.body;
+    const { title, description, priority, dueDate, coverColor, coverImage, icon, coverBanner, userId, assigneeIds, labelIds } = req.body;
 
     const existingCard = await prisma.card.findUnique({
       where: { id },
@@ -144,7 +152,9 @@ router.patch('/:id', async (req, res) => {
         priority: priority ? (priority as Priority) : undefined,
         dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined,
         coverColor: coverColor !== undefined ? coverColor : undefined,
-        coverImage: coverImage !== undefined ? coverImage : undefined
+        coverImage: coverImage !== undefined ? coverImage : undefined,
+        icon: icon !== undefined ? icon : undefined,
+        coverBanner: coverBanner !== undefined ? coverBanner : undefined
       },
       include: {
         assignees: { include: { user: true } },

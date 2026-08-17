@@ -3,6 +3,7 @@ import { BoardHeader } from './components/board/BoardHeader';
 import { BoardFilters } from './components/board/BoardFilters';
 import { KanbanBoard } from './components/board/KanbanBoard';
 import { CalendarView } from './components/calendar/CalendarView';
+import { TableView } from './components/table/TableView';
 import { CardDetailModal } from './components/board/CardDetailModal';
 import { WorkspaceOverview } from './components/workspace/WorkspaceOverview';
 import { SettingsModal } from './components/settings/SettingsModal';
@@ -31,6 +32,11 @@ export const App: React.FC = () => {
 
       {viewMode === 'overview' ? (
         <WorkspaceOverview onSelectWorkspace={() => setViewMode('board')} />
+      ) : viewMode === 'table' ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <BoardFilters />
+          <TableView />
+        </div>
       ) : viewMode === 'calendar' ? (
         <div className="flex-1 flex flex-col overflow-hidden p-6 gap-4">
           <BoardFilters />

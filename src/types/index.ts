@@ -93,6 +93,8 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+export type ViewMode = 'board' | 'calendar' | 'overview' | 'table';
+
 export interface Card {
   id: string;
   columnId: string;
@@ -103,6 +105,8 @@ export interface Card {
   dueDate?: string;
   coverColor?: string;
   coverImage?: string;
+  icon?: string;
+  coverBanner?: string;
   isArchived?: boolean;
   column?: { id: string; title: string };
   createdById?: string;

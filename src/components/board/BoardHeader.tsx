@@ -8,6 +8,7 @@ import {
   ChevronDown, 
   LayoutGrid, 
   Calendar as CalendarIcon,
+  Table as TableIcon,
   Download,
   Tag
 } from 'lucide-react';
@@ -105,7 +106,7 @@ export const BoardHeader: React.FC = () => {
           </div>
         </div>
 
-        {/* Center: View Mode Switcher (Board, Calendar, Overview) */}
+        {/* Center: View Mode Switcher (Board, Table, Calendar, Overview) */}
         <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800/80 rounded-xl border border-neutral-200/80 dark:border-neutral-700">
           <button
             onClick={() => setViewMode('board')}
@@ -117,6 +118,18 @@ export const BoardHeader: React.FC = () => {
           >
             <Columns size={14} />
             <span>บอร์ด Kanban</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'table'
+                ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
+            }`}
+          >
+            <TableIcon size={14} className="text-emerald-600 dark:text-emerald-400" />
+            <span>ตาราง (Table)</span>
           </button>
 
           <button

@@ -52,8 +52,23 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
         isOverlay ? 'rotate-1 scale-105 shadow-2xl ring-2 ring-neutral-900/10 dark:ring-white/10 z-50' : ''
       }`}
     >
-      {/* Card Cover Banner (Image or Solid Color) */}
-      {card.coverImage ? (
+      {/* Card Cover Banner (Image or Gradient or Solid Color) */}
+      {card.coverBanner ? (
+        <div className="w-full h-24 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+          {card.coverBanner.startsWith('http') ? (
+            <img
+              src={card.coverBanner}
+              alt="Card cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div
+              style={{ background: card.coverBanner }}
+              className="w-full h-full"
+            />
+          )}
+        </div>
+      ) : card.coverImage ? (
         <div className="w-full h-28 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
           <img
             src={card.coverImage}
@@ -90,9 +105,10 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
           </span>
         </div>
 
-        {/* Card Title */}
-        <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2">
-          {card.title}
+        {/* Card Title & Emoji Icon */}
+        <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2 flex items-start gap-1.5">
+          {card.icon && <span className="text-sm select-none shrink-0">{card.icon}</span>}
+          <span>{card.title}</span>
         </h4>
 
         {/* Description Snippet */}

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { Board, Column, Card, Label, Priority } from '../types';
+import { Board, Column, Card, Label, Priority, ViewMode } from '../types';
 
 export type DueDateFilterStatus = 'ALL' | 'OVERDUE' | 'TODAY' | 'THIS_WEEK' | 'NO_DATE';
-export type ViewMode = 'board' | 'calendar' | 'overview';
+export type { ViewMode };
 
 export interface FilterState {
   searchQuery: string;

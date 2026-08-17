@@ -27,12 +27,34 @@ import {
   Folder,
   Layers,
   AtSign,
-  Smile
+  Smile,
+  Sparkles,
+  Image as CoverIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { LabelManagerModal } from './LabelManagerModal';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
+import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
+
+const POPULAR_CARD_ICONS = [
+  '📝', '📌', '🚀', '💡', '🔥', '✨', '🎯', '📊', '📈', '🛠️', 
+  '⚡', '🔍', '🐛', '🎨', '💻', '📅', '🏆', '📁', '🔒', '💬',
+  '🤖', '💼', '⭐', '❤️', '✅', '⚠️', '🎉', '☕', '🌟', '📚'
+];
+
+const CURATED_COVER_BANNERS = [
+  { name: 'Emerald Forest', value: 'linear-gradient(135deg, #047857 0%, #10b981 100%)' },
+  { name: 'Cosmic Indigo', value: 'linear-gradient(135deg, #4338ca 0%, #818cf8 100%)' },
+  { name: 'Rose Sunset', value: 'linear-gradient(135deg, #e11d48 0%, #fb7185 100%)' },
+  { name: 'Ocean Blue', value: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)' },
+  { name: 'Amber Glow', value: 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)' },
+  { name: 'Purple Dream', value: 'linear-gradient(135deg, #7c3aed 0%, #c084fc 100%)' },
+  { name: 'Abstract Mesh', value: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800' },
+  { name: 'Modern Minimalist', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800' },
+  { name: 'Blue Ocean', value: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800' },
+  { name: 'Tech Circuit', value: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800' }
+];
 
 const COVER_COLORS = [
   '#ef4444', // Red
@@ -83,6 +105,8 @@ export const CardDetailModal: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [coverColor, setCoverColor] = useState<string | null>(null);
   const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [icon, setIcon] = useState<string>('📝');
+  const [coverBanner, setCoverBanner] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -90,6 +114,14 @@ export const CardDetailModal: React.FC = () => {
   const [showFileRefMenu, setShowFileRefMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedEmojiTab, setSelectedEmojiTab] = useState(0);
+
+  // Notion-Style Features State
+  const [showCardIconPicker, setShowCardIconPicker] = useState(false);
+  const [showBannerGallery, setShowBannerGallery] = useState(false);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashPosition, setSlashPosition] = useState<{ top: number; left: number } | undefined>(undefined);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Confirmation Popups State
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -125,6 +157,8 @@ export const CardDetailModal: React.FC = () => {
         setDueDate(data.dueDate ? format(new Date(data.dueDate), 'yyyy-MM-dd') : '');
         setCoverColor(data.coverColor || null);
         setCoverImage(data.coverImage || null);
+        setIcon(data.icon || '📝');
+        setCoverBanner(data.coverBanner || null);
       }
     } catch (err) {
       console.error('Failed to load card details:', err);
@@ -144,8 +178,63 @@ export const CardDetailModal: React.FC = () => {
       priority,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       coverColor: coverColor || undefined,
-      coverImage: coverImage || undefined
+      coverImage: coverImage || undefined,
+      icon,
+      coverBanner: coverBanner || undefined
     });
+  };
+
+  const handleSelectIcon = async (newIcon: string) => {
+    setIcon(newIcon);
+    setShowCardIconPicker(false);
+    await updateCard(selectedCardId, { icon: newIcon });
+    fetchDetails();
+  };
+
+  const handleSelectCoverBanner = async (newBanner: string | null) => {
+    setCoverBanner(newBanner);
+    setShowBannerGallery(false);
+    await updateCard(selectedCardId, { coverBanner: newBanner || '' });
+    fetchDetails();
+  };
+
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setDescription(val);
+
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+
+    if (lastSlashIndex !== -1 && (lastSlashIndex === 0 || textBeforeCursor[lastSlashIndex - 1] === '\n' || textBeforeCursor[lastSlashIndex - 1] === ' ')) {
+      const query = textBeforeCursor.slice(lastSlashIndex + 1);
+      if (!query.includes('\n') && !query.includes(' ')) {
+        setSlashQuery(query);
+        setShowSlashMenu(true);
+        return;
+      }
+    }
+    setShowSlashMenu(false);
+  };
+
+  const handleSelectSlashCommand = (cmd: SlashCommand) => {
+    if (!descriptionTextareaRef.current) return;
+    const textarea = descriptionTextareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = description.slice(0, cursorPos);
+    const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+
+    if (lastSlashIndex !== -1) {
+      const newText = description.slice(0, lastSlashIndex) + cmd.insertText + description.slice(cursorPos);
+      setDescription(newText);
+      setShowSlashMenu(false);
+      updateCard(selectedCardId, { description: newText });
+      setTimeout(() => {
+        textarea.focus();
+        const nextPos = lastSlashIndex + cmd.insertText.length;
+        textarea.setSelectionRange(nextPos, nextPos);
+      }, 50);
+    }
   };
 
   const handleSetCoverColor = async (color: string | null) => {
@@ -542,9 +631,35 @@ export const CardDetailModal: React.FC = () => {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-          {/* Card Top Cover Banner in Modal */}
-          {coverImage ? (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative">
+          
+          {/* Card Top Cover Banner (Image, Gradient or Solid Color) */}
+          {coverBanner ? (
+            <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden group">
+              {coverBanner.startsWith('http') ? (
+                <img src={coverBanner} alt="Card Cover" className="w-full h-full object-cover" />
+              ) : (
+                <div style={{ background: coverBanner }} className="w-full h-full" />
+              )}
+              <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => setShowBannerGallery(true)}
+                  className="px-2.5 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur flex items-center gap-1.5 shadow"
+                >
+                  <CoverIcon size={13} /> Change Cover
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCoverBanner(null)}
+                  className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur shadow"
+                  title="Remove Cover"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            </div>
+          ) : coverImage ? (
             <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
               <img src={coverImage} alt="Card Cover" className="w-full h-full object-cover" />
               <button
@@ -567,19 +682,107 @@ export const CardDetailModal: React.FC = () => {
             </div>
           ) : null}
 
+          {/* Quick Notion Add Actions Bar (Icon & Cover triggers) */}
+          <div className="px-6 pt-3 flex items-center gap-2 text-xs font-semibold text-neutral-400">
+            <button
+              type="button"
+              onClick={() => setShowCardIconPicker(!showCardIconPicker)}
+              className="px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 flex items-center gap-1 transition-colors"
+            >
+              <Smile size={13} className="text-emerald-500" />
+              <span>{icon ? `${icon} Change Icon` : 'Add Icon'}</span>
+            </button>
+
+            {!coverBanner && !coverImage && (
+              <button
+                type="button"
+                onClick={() => setShowBannerGallery(true)}
+                className="px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 flex items-center gap-1 transition-colors"
+              >
+                <CoverIcon size={13} className="text-blue-500" />
+                <span>Add Cover Banner</span>
+              </button>
+            )}
+          </div>
+
+          {/* Icon Picker Popover */}
+          {showCardIconPicker && (
+            <div className="absolute top-16 left-6 z-50 p-3 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl space-y-2 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between text-xs font-bold text-neutral-700 dark:text-neutral-300 pb-1 border-b border-neutral-100 dark:border-neutral-800">
+                <span>เลือก Emoji ประจำการ์ด</span>
+                <button type="button" onClick={() => setShowCardIconPicker(false)} className="text-neutral-400 hover:text-neutral-600">✕</button>
+              </div>
+              <div className="grid grid-cols-6 gap-1.5 max-w-[240px]">
+                {POPULAR_CARD_ICONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => handleSelectIcon(emoji)}
+                    className="w-8 h-8 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-lg flex items-center justify-center transition-colors"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cover Banner Gallery Modal */}
+          {showBannerGallery && (
+            <div className="absolute top-16 left-6 right-6 z-50 p-4 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl space-y-3 animate-in fade-in zoom-in-95 max-h-[380px] overflow-y-auto">
+              <div className="flex items-center justify-between text-xs font-bold text-neutral-900 dark:text-white pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-emerald-500" />
+                  <span>Notion Cover Gallery & Gradients</span>
+                </span>
+                <button type="button" onClick={() => setShowBannerGallery(false)} className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400">✕</button>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {CURATED_COVER_BANNERS.map((banner) => (
+                  <button
+                    key={banner.name}
+                    type="button"
+                    onClick={() => handleSelectCoverBanner(banner.value)}
+                    className="h-16 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800 hover:ring-2 hover:ring-emerald-500 transition-all relative group text-left"
+                  >
+                    {banner.value.startsWith('http') ? (
+                      <img src={banner.value} alt={banner.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div style={{ background: banner.value }} className="w-full h-full" />
+                    )}
+                    <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white drop-shadow bg-black/40 px-1.5 py-0.5 rounded">
+                      {banner.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Modal Header */}
           <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between">
-            <div className="flex-1 pr-4">
-              <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                in column: {cardDetails.column?.title}
-              </span>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={handleSaveBasic}
-                className="text-base font-bold text-neutral-900 dark:text-white bg-transparent w-full focus:outline-none border-b border-transparent focus:border-neutral-300 dark:focus:border-neutral-700 py-0.5 mt-0.5"
-              />
+            <div className="flex items-start gap-2.5 flex-1 pr-4">
+              <button
+                type="button"
+                onClick={() => setShowCardIconPicker(!showCardIconPicker)}
+                className="text-2xl select-none hover:scale-110 transition-transform p-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0 mt-0.5"
+                title="Change card icon"
+              >
+                {icon || '📝'}
+              </button>
+              <div className="flex-1 min-w-0">
+                <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                  in column: {cardDetails.column?.title}
+                </span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={handleSaveBasic}
+                  className="text-base font-bold text-neutral-900 dark:text-white bg-transparent w-full focus:outline-none border-b border-transparent focus:border-neutral-300 dark:focus:border-neutral-700 py-0.5 mt-0.5"
+                />
+              </div>
             </div>
             <button
               onClick={() => setSelectedCardId(null)}
@@ -593,19 +796,39 @@ export const CardDetailModal: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Main Column */}
             <div className="md:col-span-2 space-y-6">
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={handleSaveBasic}
-                  placeholder="Add detailed task notes, acceptance criteria..."
-                  rows={3}
-                  className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-200 resize-none leading-relaxed"
-                />
+              {/* Description with Slash Command Menu */}
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Description & Notes
+                  </label>
+                  <span className="text-[10px] font-semibold text-neutral-400 flex items-center gap-1">
+                    <Sparkles size={11} className="text-emerald-500" />
+                    พิมพ์ <kbd className="px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 font-mono">/</kbd> สำหรับ Slash Commands
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    ref={descriptionTextareaRef}
+                    value={description}
+                    onChange={handleDescriptionChange}
+                    onBlur={handleSaveBasic}
+                    placeholder="เขียนรายละเอียดงาน... หรือพิมพ์ / เพื่อแทรก Callout, Checklist, Headings, Code"
+                    rows={4}
+                    className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none leading-relaxed font-sans"
+                  />
+
+                  {/* Slash Command Palette Popup */}
+                  {showSlashMenu && (
+                    <SlashCommandMenu
+                      query={slashQuery}
+                      onSelect={handleSelectSlashCommand}
+                      onClose={() => setShowSlashMenu(false)}
+                      position={{ top: 40, left: 10 }}
+                    />
+                  )}
+                </div>
               </div>
 
               {/* Checklists Section */}

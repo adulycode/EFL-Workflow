@@ -1,0 +1,279 @@
+import React, { useState } from 'react';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { Role, User } from '../../../types';
+import { Users, UserPlus, Shield, ShieldAlert, Eye, Search, Copy, Check, Mail } from 'lucide-react';
+
+export const MembersTab: React.FC = () => {
+  const { users, currentUser, updateUserRole, inviteUser } = useAuthStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteRole, setInviteRole] = useState<Role>('MEMBER');
+  const [inviteJobTitle, setInviteJobTitle] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const filteredUsers = users.filter((u) =>
+    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.jobTitle && u.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const handleRoleChange = async (userId: string, newRole: Role) => {
+    await updateUserRole(userId, newRole);
+  };
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+
+    setIsInviting(true);
+    const success = await inviteUser(
+      inviteEmail.trim(),
+      inviteName.trim(),
+      inviteRole,
+      inviteJobTitle.trim()
+    );
+
+    setIsInviting(false);
+    if (success) {
+      setIsInviteOpen(false);
+      setInviteEmail('');
+      setInviteName('');
+      setInviteJobTitle('');
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    const link = `${window.location.origin}/join?ref=workspace-efl`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
+  const getRoleBadge = (role: Role) => {
+    switch (role) {
+      case 'ADMIN':
+        return (
+          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+            <ShieldAlert size={11} /> Admin
+          </span>
+        );
+      case 'MEMBER':
+        return (
+          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+            <Shield size={11} /> Member
+          </span>
+        );
+      case 'VIEWER':
+        return (
+          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+            <Eye size={11} /> Viewer
+          </span>
+        );
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Header with Search & Invite Button */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Search Bar */}
+        <div className="relative w-full sm:w-64">
+          <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาสมาชิก..."
+            className="w-full pl-8 pr-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100"
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={handleCopyInviteLink}
+            className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-1.5"
+          >
+            {copiedLink ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+            <span>{copiedLink ? 'Link Copied!' : 'Copy Invite Link'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsInviteOpen(true)}
+            className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5"
+          >
+            <UserPlus size={14} />
+            <span>Invite Member</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Members Directory List */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900/60 divide-y divide-slate-100 dark:divide-slate-800">
+        {filteredUsers.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-400">
+            No team members found matching your search.
+          </div>
+        ) : (
+          filteredUsers.map((user: User) => {
+            const isSelf = user.id === currentUser?.id;
+            const isAdmin = currentUser?.role === 'ADMIN';
+
+            return (
+              <div
+                key={user.id}
+                className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+              >
+                {/* User Info */}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-slate-200 shrink-0 border border-slate-300 dark:border-slate-600 shadow-sm">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                    ) : (
+                      user.name.slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                        {user.name}
+                      </h4>
+                      {isSelf && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          YOU
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {user.jobTitle || 'Team Member'} • {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Role Selector & Badge */}
+                <div className="flex items-center gap-2.5 self-end sm:self-center">
+                  <select
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
+                    className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="ADMIN">👑 Admin (คุมทุกอย่าง)</option>
+                    <option value="MEMBER">✏️ Member (สร้าง/แก้ไข)</option>
+                    <option value="VIEWER">👁️ Viewer (ดูอย่างเดียว)</option>
+                  </select>
+
+                  {getRoleBadge(user.role)}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Invite Member Popup Modal */}
+      {isInviteOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <UserPlus size={16} className="text-emerald-500" />
+                <span>Invite New Member</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsInviteOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <form onSubmit={handleInvite} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Email Address *
+                </label>
+                <div className="relative">
+                  <Mail size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                    placeholder="name@company.com"
+                    className="w-full pl-8 pr-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="e.g. Anong Somjai"
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Job Title
+                </label>
+                <input
+                  type="text"
+                  value={inviteJobTitle}
+                  onChange={(e) => setInviteJobTitle(e.target.value)}
+                  placeholder="e.g. QA Engineer, Product Designer"
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Role Permission
+                </label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as Role)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 font-bold"
+                >
+                  <option value="MEMBER">✏️ Member (สร้าง/แก้ไขการ์ดได้)</option>
+                  <option value="ADMIN">👑 Admin (ควบคุมสิทธิ์ทั้งบอร์ด)</option>
+                  <option value="VIEWER">👁️ Viewer (ดูและดาวน์โหลดไฟล์ได้อย่างเดียว)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isInviting || !inviteEmail.trim()}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors disabled:opacity-50"
+                >
+                  {isInviting ? 'Adding Member...' : 'Send Invitation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

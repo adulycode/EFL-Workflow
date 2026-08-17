@@ -145,10 +145,20 @@ export const BoardHeader: React.FC = () => {
         </div>
 
         {/* Right Section: Tools & Profile */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Settings Suite Button */}
+          <button
+            onClick={() => useAuthStore.getState().openSettings()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors border border-neutral-200/80 dark:border-neutral-800 shadow-sm"
+            title="Workspace & System Settings"
+          >
+            <Settings size={14} className="text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Settings</span>
+          </button>
+
           {/* Manage Labels button */}
           <button
-            onClick={() => setShowLabelManager(true)}
+            onClick={() => useAuthStore.getState().openSettings('labels')}
             className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors border border-neutral-200/80 dark:border-neutral-800"
             title="Manage Labels"
           >
@@ -162,8 +172,8 @@ export const BoardHeader: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors border border-neutral-200/80 dark:border-neutral-800 shadow-sm"
             title="Export board data to CSV / Excel"
           >
-            <Download size={13} className="text-emerald-600 dark:text-emerald-400" />
-            <span>Export CSV</span>
+            <Download size={13} className="text-sky-600 dark:text-sky-400" />
+            <span className="hidden sm:inline">Export CSV</span>
           </button>
 
           {/* User Account Dropdown */}
@@ -203,12 +213,12 @@ export const BoardHeader: React.FC = () => {
                   <button
                     onClick={() => {
                       setShowUserDropdown(false);
-                      setShowSettingsModal(true);
+                      useAuthStore.getState().openSettings();
                     }}
                     className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                   >
-                    <Settings size={14} />
-                    <span>Notification & Account Settings</span>
+                    <Settings size={14} className="text-emerald-500" />
+                    <span>Workspace & System Settings</span>
                   </button>
                 </div>
 

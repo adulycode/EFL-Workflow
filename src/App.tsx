@@ -5,6 +5,7 @@ import { KanbanBoard } from './components/board/KanbanBoard';
 import { CalendarView } from './components/calendar/CalendarView';
 import { CardDetailModal } from './components/board/CardDetailModal';
 import { WorkspaceOverview } from './components/workspace/WorkspaceOverview';
+import { SettingsModal } from './components/settings/SettingsModal';
 import { useAuthStore } from './store/useAuthStore';
 import { useWorkspaceStore } from './store/useWorkspaceStore';
 import { useBoardStore } from './store/useBoardStore';
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
       )}
 
       <CardDetailModal />
+      <SettingsModal />
     </div>
   );
 };

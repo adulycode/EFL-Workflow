@@ -10,6 +10,7 @@ generator client {
 enum Role {
   ADMIN
   MEMBER
+  VIEWER
 }
 
 enum Priority {
@@ -23,17 +24,25 @@ enum WorkspaceRole {
   OWNER
   ADMIN
   MEMBER
+  VIEWER
 }
 
 model User {
   id               String            @id @default(uuid())
   email            String            @unique
   name             String
+  jobTitle         String?           @default("Team Member")
   avatarUrl        String?
   role             Role              @default(MEMBER)
+  language         String            @default("th")
+  theme            String            @default("dark")
   lineUserId       String?
+  lineNotifyToken  String?
   notifyEmail      Boolean           @default(true)
   notifyLine       Boolean           @default(true)
+  notifyAssigned   Boolean           @default(true)
+  notifyDueDate    Boolean           @default(true)
+  notifyMention    Boolean           @default(true)
   assignedCards    CardAssignee[]
   comments         Comment[]
   activityLogs     ActivityLog[]
@@ -47,17 +56,18 @@ model User {
 }
 
 model Workspace {
-  id          String            @id @default(uuid())
-  name        String
-  description String?
-  icon        String?           @default("📁")
-  color       String?           @default("#16a34a")
-  ownerId     String
-  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members     WorkspaceMember[]
-  boards      Board[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id                  String            @id @default(uuid())
+  name                String
+  description         String?
+  icon                String?           @default("📁")
+  color               String?           @default("#16a34a")
+  googleDriveFolderId String?           @default("1N1tclaApps6k8gmz-1SIbBWacOAW-T1D")
+  ownerId             String
+  owner               User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members             WorkspaceMember[]
+  boards              Board[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 }
 
 model WorkspaceMember {
@@ -73,16 +83,17 @@ model WorkspaceMember {
 }
 
 model Board {
-  id          String      @id @default(uuid())
-  workspaceId String
-  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  createdById String?
-  createdBy   User?       @relation("BoardCreatedByUser", fields: [createdById], references: [id])
-  columns     Column[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                  String      @id @default(uuid())
+  workspaceId         String
+  workspace           Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  googleDriveFolderId String?     @default("1N1tclaApps6k8gmz-1SIbBWacOAW-T1D")
+  createdById         String?
+  createdBy           User?       @relation("BoardCreatedByUser", fields: [createdById], references: [id])
+  columns             Column[]
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 }
 
 model Column {

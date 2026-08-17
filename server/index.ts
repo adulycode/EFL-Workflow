@@ -10,6 +10,8 @@ import workspacesRouter from './routes/workspaces';
 import boardsRouter from './routes/boards';
 import cardsRouter from './routes/cards';
 import notificationsRouter from './routes/notifications';
+import usersRouter from './routes/users';
+import settingsRouter from './routes/settings';
 
 dotenv.config();
 
@@ -33,6 +35,8 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // API Routes
 app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/settings', settingsRouter);
 app.use('/api/workspaces', workspacesRouter);
 app.use('/api/boards', boardsRouter);
 app.use('/api/cards', cardsRouter);

@@ -1,16 +1,25 @@
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-export type Role = 'ADMIN' | 'MEMBER';
-export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type Role = 'ADMIN' | 'MEMBER' | 'VIEWER';
+export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
 export interface User {
   id: string;
   email: string;
   name: string;
+  jobTitle?: string;
   avatarUrl?: string;
   role: Role;
+  language?: string;
+  theme?: string;
   lineUserId?: string;
+  lineNotifyToken?: string;
   notifyEmail?: boolean;
   notifyLine?: boolean;
+  notifyAssigned?: boolean;
+  notifyDueDate?: boolean;
+  notifyMention?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WorkspaceMember {
@@ -123,6 +132,7 @@ export interface Board {
   workspace?: Workspace;
   title: string;
   description?: string;
+  googleDriveFolderId?: string;
   columns: Column[];
 }
 
@@ -132,6 +142,7 @@ export interface Workspace {
   description?: string;
   icon?: string;
   color?: string;
+  googleDriveFolderId?: string;
   ownerId: string;
   owner?: User;
   members: WorkspaceMember[];

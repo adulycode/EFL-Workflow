@@ -136,6 +136,7 @@ model ChecklistItem {
   checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   content     String
   isCompleted Boolean   @default(false)
+  completedAt DateTime?
   position    Float     @default(1000)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

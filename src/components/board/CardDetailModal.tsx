@@ -348,6 +348,7 @@ export const CardDetailModal: React.FC = () => {
 
   const handleToggleChecklistItem = async (checklistId: string, itemId: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
+    const nowIso = nextStatus ? new Date().toISOString() : null;
 
     setCardDetails((prev: any) => ({
       ...prev,
@@ -355,7 +356,9 @@ export const CardDetailModal: React.FC = () => {
         if (c.id !== checklistId) return c;
         return {
           ...c,
-          items: c.items.map((i: any) => (i.id === itemId ? { ...i, isCompleted: nextStatus } : i))
+          items: c.items.map((i: any) =>
+            i.id === itemId ? { ...i, isCompleted: nextStatus, completedAt: nowIso } : i
+          )
         };
       })
     }));
@@ -621,15 +624,15 @@ export const CardDetailModal: React.FC = () => {
                               key={item.id}
                               className="group flex items-center justify-between gap-2 p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-100 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all"
                             >
-                              <label className="flex items-center gap-2.5 flex-1 cursor-pointer select-none">
+                              <label className="flex items-center gap-2.5 flex-1 cursor-pointer select-none min-w-0 mr-2">
                                 <input
                                   type="checkbox"
                                   checked={item.isCompleted}
                                   onChange={() => handleToggleChecklistItem(chk.id, item.id, item.isCompleted)}
-                                  className="h-4 w-4 rounded border-neutral-300 text-neutral-900 dark:text-white focus:ring-0 cursor-pointer"
+                                  className="h-4 w-4 rounded border-neutral-300 text-neutral-900 dark:text-white focus:ring-0 cursor-pointer shrink-0"
                                 />
                                 <span
-                                  className={`text-xs ${
+                                  className={`text-xs truncate ${
                                     item.isCompleted
                                       ? 'line-through text-neutral-400 dark:text-neutral-500'
                                       : 'text-neutral-800 dark:text-neutral-200'
@@ -639,14 +642,24 @@ export const CardDetailModal: React.FC = () => {
                                 </span>
                               </label>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteChecklistItem(chk.id, item.id)}
-                                className="opacity-60 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
-                                title="Remove item"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Completed Timestamp Badge */}
+                                {item.isCompleted && item.completedAt && (
+                                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs">
+                                    <Clock size={10} />
+                                    <span>{format(new Date(item.completedAt), 'd MMM, HH:mm')}</span>
+                                  </span>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteChecklistItem(chk.id, item.id)}
+                                  className="opacity-60 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
+                                  title="Remove item"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>

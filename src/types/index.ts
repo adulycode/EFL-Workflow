@@ -43,6 +43,7 @@ export interface ChecklistItem {
   checklistId: string;
   content: string;
   isCompleted: boolean;
+  completedAt?: string;
   position: number;
 }
 

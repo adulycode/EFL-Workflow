@@ -539,12 +539,16 @@ router.patch('/:id/checklists/:checklistId/items/:itemId', async (req, res) => {
     const { id, checklistId, itemId } = req.params;
     const { isCompleted, content } = req.body;
 
+    const updateData: any = {};
+    if (content !== undefined) updateData.content = content.trim();
+    if (isCompleted !== undefined) {
+      updateData.isCompleted = Boolean(isCompleted);
+      updateData.completedAt = Boolean(isCompleted) ? new Date() : null;
+    }
+
     const item = await prisma.checklistItem.update({
       where: { id: itemId },
-      data: {
-        isCompleted: isCompleted !== undefined ? Boolean(isCompleted) : undefined,
-        content: content !== undefined ? content.trim() : undefined
-      }
+      data: updateData
     });
 
     emitRealtime(req, 'checklist_item:updated', { cardId: id, checklistId, item });

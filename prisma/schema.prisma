@@ -9,6 +9,8 @@ generator client {
 
 enum Role {
   ADMIN
+  TEACHER
+  STAFF
   MEMBER
   VIEWER
 }

@@ -18,6 +18,7 @@ interface AuthState {
   openSettings: (tab?: 'profile' | 'notifications' | 'googledrive' | 'members' | 'labels') => void;
   closeSettings: () => void;
   fetchUsers: () => Promise<void>;
+  loginWithSsoToken: (token: string) => Promise<boolean>;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   updateUserRole: (userId: string, role: Role) => Promise<boolean>;
   inviteUser: (email: string, name: string, role: Role, jobTitle?: string) => Promise<boolean>;
@@ -82,6 +83,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       console.error('Failed to fetch users:', err);
       set({ isLoading: false });
+    }
+  },
+
+  loginWithSsoToken: async (token: string) => {
+    try {
+      set({ isLoading: true });
+      const res = await fetch('/api/auth/sso-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          get().setCurrentUser(data.user);
+          await get().fetchUsers();
+          set({ isLoading: false });
+          return true;
+        }
+      }
+      set({ isLoading: false });
+      return false;
+    } catch (err) {
+      console.error('Failed SSO token exchange:', err);
+      set({ isLoading: false });
+      return false;
     }
   },
 

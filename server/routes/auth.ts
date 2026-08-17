@@ -61,4 +61,44 @@ router.post('/google-auth', async (req, res) => {
   }
 });
 
+// ================= EFL CENTRAL SSO ENDPOINTS =================
+
+// SSO Login & Token Exchange Endpoint
+router.post('/sso-login', async (req, res) => {
+  try {
+    const token = req.body?.token || (req.query?.token as string);
+    if (!token) {
+      return res.status(400).json({ error: 'SSO Token is required' });
+    }
+
+    const { consumeSsoToken } = await import('../services/ssoService');
+    const user = await consumeSsoToken(token);
+
+    res.json({
+      success: true,
+      user,
+      token: 'efl-session-' + user.id
+    });
+  } catch (err: any) {
+    console.error('[SSO Login Error]', err);
+    res.status(401).json({ error: err.message || 'SSO Authentication failed' });
+  }
+});
+
+// SSO Config Info Endpoint
+router.get('/sso-config', async (req, res) => {
+  try {
+    const { SSO_CONFIG } = await import('../services/ssoService');
+    res.json({
+      portalUrl: SSO_CONFIG.portalUrl,
+      appId: SSO_CONFIG.appId,
+      appName: SSO_CONFIG.appName,
+      appUrl: SSO_CONFIG.appUrl,
+      availableRoles: SSO_CONFIG.availableRoles
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

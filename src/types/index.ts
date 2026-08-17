@@ -1,5 +1,5 @@
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-export type Role = 'ADMIN' | 'MEMBER' | 'VIEWER';
+export type Role = 'ADMIN' | 'TEACHER' | 'STAFF' | 'MEMBER' | 'VIEWER';
 export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
 export interface User {

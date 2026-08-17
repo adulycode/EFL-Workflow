@@ -10,7 +10,8 @@ import {
   Calendar as CalendarIcon,
   Table as TableIcon,
   Download,
-  Tag
+  Tag,
+  ExternalLink
 } from 'lucide-react';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { UserSettingsModal } from '../settings/UserSettingsModal';
@@ -233,6 +234,19 @@ export const BoardHeader: React.FC = () => {
                     <Settings size={14} className="text-emerald-500" />
                     <span>Workspace & System Settings</span>
                   </button>
+
+                  <a
+                    href="http://localhost:3050"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm">🔑</span>
+                      <span>EFL Central SSO Portal</span>
+                    </div>
+                    <ExternalLink size={12} className="opacity-70" />
+                  </a>
                 </div>
 
                 {/* Switch Active User Simulation */}

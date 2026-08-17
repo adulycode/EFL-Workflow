@@ -14,6 +14,7 @@ import { useSocketRealtime } from './hooks/useSocketRealtime';
 
 export const App: React.FC = () => {
   const fetchUsers = useAuthStore((s) => s.fetchUsers);
+  const loginWithSsoToken = useAuthStore((s) => s.loginWithSsoToken);
   const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const { viewMode, setViewMode } = useBoardStore();
 
@@ -21,10 +22,26 @@ export const App: React.FC = () => {
   useSocketRealtime();
 
   useEffect(() => {
-    fetchUsers().then(() => {
-      fetchWorkspaces();
-    });
-  }, [fetchUsers, fetchWorkspaces]);
+    // Check for SSO Token in URL query parameters (e.g. ?sso_token=... or ?token=...)
+    const params = new URLSearchParams(window.location.search);
+    const ssoToken = params.get('sso_token') || params.get('token');
+
+    if (ssoToken) {
+      loginWithSsoToken(ssoToken).then((success) => {
+        if (success) {
+          console.log('[SSO Handshake] Successfully logged in via EFL Central SSO');
+        }
+        // Remove token from address bar for security & cleanliness
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        fetchWorkspaces();
+      });
+    } else {
+      fetchUsers().then(() => {
+        fetchWorkspaces();
+      });
+    }
+  }, [fetchUsers, fetchWorkspaces, loginWithSsoToken]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans">

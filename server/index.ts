@@ -73,5 +73,13 @@ server.listen(PORT, () => {
   console.log(`🚀 EFL-Workflow Server Running on Port ${PORT}`);
   console.log(`📊 Local Web UI: http://localhost:${PORT}`);
   console.log(`⚡ Multi-Workspace & Image Engine Active`);
+  console.log(`🔑 Central SSO Handshake Active`);
   console.log(`=========================================`);
+
+  // Auto-register with EFL Central SSO
+  import('./services/ssoService').then(({ registerWithCentralSSO }) => {
+    registerWithCentralSSO();
+  }).catch((err) => {
+    console.error('[SSO Auto-Register Init Error]', err);
+  });
 });

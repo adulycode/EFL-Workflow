@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient, Priority } from '@prisma/client';
 import { sendNotification } from '../services/notificationService';
 import { uploadToGoogleDrive } from '../services/googleDrive';
+import { notifyAgentOffice } from '../services/agentOfficeSync';
 
 const router = Router();
 const prisma = new PrismaClient();

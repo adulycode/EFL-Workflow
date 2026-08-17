@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 export const TableView: React.FC = () => {
   const { 
@@ -25,6 +26,7 @@ export const TableView: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [sortField, setSortField] = useState<'title' | 'priority' | 'dueDate' | 'column'>('column');
   const [sortAsc, setSortAsc] = useState(true);
+  const [cardToArchive, setCardToArchive] = useState<{ id: string; title: string } | null>(null);
 
   if (!board) return null;
 
@@ -369,7 +371,7 @@ export const TableView: React.FC = () => {
                   <td className="py-2.5 px-4 text-center">
                     <button
                       type="button"
-                      onClick={() => archiveCard(card.id)}
+                      onClick={() => setCardToArchive({ id: card.id, title: card.title })}
                       title="Archive Card"
                       className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                     >
@@ -449,6 +451,23 @@ export const TableView: React.FC = () => {
           💡 คลิกที่หัวคอลัมน์เพื่อเรียงลำดับ (Sort) หรือคลิกที่ชื่อการ์ดเพื่อเปิดดูรายละเอียด
         </div>
       </div>
+
+      {/* Confirm Archive Modal */}
+      <ConfirmModal
+        isOpen={cardToArchive !== null}
+        onCancel={() => setCardToArchive(null)}
+        onConfirm={async () => {
+          if (cardToArchive) {
+            await archiveCard(cardToArchive.id);
+            setCardToArchive(null);
+          }
+        }}
+        title="ยืนยันการเก็บการ์ดเข้ากรุ (Archive Card)"
+        message={`คุณแน่ใจหรือไม่ว่าต้องการเก็บการ์ด "${cardToArchive?.title}" เข้ากรุ? การ์ดจะถูกซ่อนจากมุมมองหลัก แต่คุณสามารถเรียกดูและกู้คืน (Restore) ได้ตลอดเวลา`}
+        confirmText="เก็บเข้ากรุ (Archive)"
+        cancelText="ยกเลิก"
+        type="warning"
+      />
     </div>
   );
 };

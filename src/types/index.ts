@@ -127,6 +127,7 @@ export interface Column {
   boardId: string;
   title: string;
   position: number;
+  autoArchiveDays?: number;
   cards: Card[];
 }
 

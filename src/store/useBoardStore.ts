@@ -34,7 +34,7 @@ interface BoardState {
 
   // Column Operations
   createColumn: (boardId: string, title: string) => Promise<void>;
-  updateColumn: (columnId: string, title: string) => Promise<void>;
+  updateColumn: (columnId: string, data: string | { title?: string; autoArchiveDays?: number }) => Promise<void>;
   deleteColumn: (columnId: string) => Promise<void>;
 
   // Card Operations
@@ -133,12 +133,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  updateColumn: async (columnId: string, title: string) => {
+  updateColumn: async (columnId: string, data: string | { title?: string; autoArchiveDays?: number }) => {
     try {
+      const payload = typeof data === 'string' ? { title: data } : data;
       const res = await fetch(`/api/boards/columns/${columnId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         get().fetchBoard();

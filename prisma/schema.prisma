@@ -97,14 +97,15 @@ model Board {
 }
 
 model Column {
-  id        String   @id @default(uuid())
-  boardId   String
-  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  title     String
-  position  Float
-  cards     Card[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  boardId         String
+  board           Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title           String
+  position        Float
+  autoArchiveDays Int?     @default(0)
+  cards           Card[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Card {

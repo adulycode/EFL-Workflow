@@ -4,12 +4,21 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Column, Priority } from '../../types';
 import { KanbanCard } from './KanbanCard';
 import { useBoardStore } from '../../store/useBoardStore';
-import { Plus, MoreHorizontal, X, Edit2, Trash2, Check } from 'lucide-react';
+import { Plus, MoreHorizontal, X, Edit2, Trash2, Check, Clock, Archive } from 'lucide-react';
 import { ConfirmModal } from '../common/ConfirmModal';
 
 interface Props {
   column: Column;
 }
+
+const AUTO_ARCHIVE_OPTIONS = [
+  { days: 0, label: 'ปิด (Disabled)' },
+  { days: 1, label: '1 วัน (1 Day)' },
+  { days: 3, label: '3 วัน (3 Days)' },
+  { days: 7, label: '7 วัน (7 Days)' },
+  { days: 14, label: '14 วัน (14 Days)' },
+  { days: 30, label: '30 วัน (30 Days)' }
+];
 
 export const KanbanColumn: React.FC<Props> = ({ column }) => {
   const { setNodeRef } = useDroppable({ id: column.id });
@@ -25,6 +34,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [columnTitle, setColumnTitle] = useState(column.title);
   const [showMenu, setShowMenu] = useState(false);
+  const [showAutoArchiveSubmenu, setShowAutoArchiveSubmenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +56,12 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
     } else {
       setColumnTitle(column.title);
     }
+  };
+
+  const handleSetAutoArchive = async (days: number) => {
+    setShowMenu(false);
+    setShowAutoArchiveSubmenu(false);
+    await updateColumn(column.id, { autoArchiveDays: days });
   };
 
   const handleKeyDownTitle = (e: React.KeyboardEvent) => {
@@ -70,6 +86,8 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
     setIsAdding(false);
   };
 
+  const currentAutoArchiveDays = column.autoArchiveDays || 0;
+
   return (
     <>
       <div
@@ -78,7 +96,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
       >
         {/* Column Header */}
         <div className="relative flex items-center justify-between px-2 py-1.5 mb-2.5">
-          <div className="flex items-center gap-2 flex-1 mr-2">
+          <div className="flex items-center gap-2 flex-1 mr-2 min-w-0">
             {isEditingTitle ? (
               <div className="flex items-center gap-1 w-full">
                 <input
@@ -101,7 +119,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
               <div
                 onClick={() => setIsEditingTitle(true)}
                 title="Click to rename column"
-                className="flex items-center gap-2 cursor-pointer group flex-1"
+                className="flex items-center gap-2 cursor-pointer group flex-1 min-w-0"
               >
                 <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
                   {column.title}
@@ -109,6 +127,17 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
                 <span className="inline-flex items-center justify-center text-[11px] font-semibold px-2 py-0.5 rounded-full bg-neutral-200/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
                   {column.cards.length}
                 </span>
+
+                {/* Auto Archive Badge */}
+                {currentAutoArchiveDays > 0 && (
+                  <span
+                    title={`การ์ดที่อยู่ในคอลัมน์นี้นานเกิน ${currentAutoArchiveDays} วัน จะถูกเก็บเข้ากรุอัตโนมัติ`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 shrink-0"
+                  >
+                    <Clock size={10} />
+                    <span>{currentAutoArchiveDays}d</span>
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -124,7 +153,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
 
             {/* Options Dropdown */}
             {showMenu && (
-              <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
                 <button
                   onClick={() => {
                     setShowMenu(false);
@@ -135,6 +164,34 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
                   <Edit2 size={13} />
                   <span>Rename Column</span>
                 </button>
+
+                {/* Auto-Archive Submenu Trigger */}
+                <div className="relative border-t border-neutral-100 dark:border-neutral-800 my-1 pt-1">
+                  <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+                    <Archive size={11} className="text-amber-500" />
+                    <span>Auto-Archive Threshold</span>
+                  </div>
+                  
+                  <div className="space-y-0.5 px-1.5">
+                    {AUTO_ARCHIVE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.days}
+                        type="button"
+                        onClick={() => handleSetAutoArchive(opt.days)}
+                        className={`w-full flex items-center justify-between px-2 py-1 rounded-lg text-[11px] font-medium text-left transition-colors ${
+                          currentAutoArchiveDays === opt.days
+                            ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold'
+                            : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {currentAutoArchiveDays === opt.days && <Check size={12} className="text-amber-600 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-100 dark:border-neutral-800 my-1" />
 
                 <button
                   onClick={() => {

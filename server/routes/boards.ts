@@ -11,10 +11,39 @@ const emitRealtime = (req: any, event: string, data: any) => {
   }
 };
 
-// Get board data by workspaceId or first available board
+// GET Board details with active cards & columns
 router.get('/', async (req, res) => {
   try {
-    const { workspaceId, boardId } = req.query;
+    const { workspaceId } = req.query;
+
+    // Run Auto-Archive sweep for columns with autoArchiveDays > 0
+    try {
+      const autoArchiveCols = await prisma.column.findMany({
+        where: {
+          autoArchiveDays: { gt: 0 }
+        }
+      });
+
+      for (const col of autoArchiveCols) {
+        if (col.autoArchiveDays && col.autoArchiveDays > 0) {
+          const thresholdDate = new Date(Date.now() - col.autoArchiveDays * 24 * 60 * 60 * 1000);
+          await prisma.card.updateMany({
+            where: {
+              columnId: col.id,
+              isArchived: false,
+              updatedAt: { lte: thresholdDate }
+            },
+            data: {
+              isArchived: true
+            }
+          });
+        }
+      }
+    } catch (archiveErr) {
+      console.error('[AutoArchive Error]', archiveErr);
+    }
+
+    const { boardId } = req.query;
 
     let whereClause: any = {};
     if (boardId) {
@@ -151,17 +180,18 @@ router.post('/columns', async (req, res) => {
   }
 });
 
-// Update / Rename Column
+// Update / Rename Column & Settings
 router.patch('/columns/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, position } = req.body;
+    const { title, position, autoArchiveDays } = req.body;
 
     const column = await prisma.column.update({
       where: { id },
       data: {
         title: title !== undefined ? title.trim() : undefined,
-        position: position !== undefined ? position : undefined
+        position: position !== undefined ? position : undefined,
+        autoArchiveDays: autoArchiveDays !== undefined ? parseInt(autoArchiveDays) : undefined
       }
     });
 

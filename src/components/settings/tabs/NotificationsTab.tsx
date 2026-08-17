@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { Bell, Check, MessageCircle, Mail, Clock, AtSign, UserCheck, Send } from 'lucide-react';
+import { Bell, Check, MessageCircle, Mail, Clock, AtSign, UserCheck, Send, Smartphone, Sparkles, ExternalLink } from 'lucide-react';
 
 export const NotificationsTab: React.FC = () => {
   const { currentUser, updateProfile } = useAuthStore();
@@ -13,6 +13,7 @@ export const NotificationsTab: React.FC = () => {
   const [notifyEmail, setNotifyEmail] = useState(currentUser?.notifyEmail ?? true);
   const [notifyLine, setNotifyLine] = useState(currentUser?.notifyLine ?? true);
 
+  const [showLinePreview, setShowLinePreview] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testSent, setTestSent] = useState(false);
@@ -47,8 +48,8 @@ export const NotificationsTab: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser?.id,
-          title: '🔔 Test Alert - EFL Workflow',
-          message: 'การเชื่อมต่อระบบแจ้งเตือนสำเร็จเรียบร้อยแล้ว!'
+          title: '📌 มอบหมายงาน: ตรวจสอบและพัฒนา LINE Flex Card Notification',
+          message: 'คุณได้รับมอบหมายให้ดูแลการ์ดงานนี้ในบอร์ด EFL Core Organization'
         })
       });
       setTimeout(() => setTestSent(false), 4000);
@@ -74,7 +75,7 @@ export const NotificationsTab: React.FC = () => {
                 </span>
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                รับการแจ้งเตือนงานและการอัปเดตการ์ดผ่าน LINE ส่วนตัวหรือกลุ่ม
+                รับการแจ้งเตือนงานเป็นการ์ด Flex Message สวยหรูผ่าน LINE ส่วนตัวหรือกลุ่ม
               </p>
             </div>
           </div>
@@ -101,7 +102,7 @@ export const NotificationsTab: React.FC = () => {
                 value={lineUserId}
                 onChange={(e) => setLineUserId(e.target.value)}
                 placeholder="กรอก LINE User ID ของคุณ..."
-                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-[#06C755] text-slate-900 dark:text-slate-100"
+                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-[#06C755] text-slate-900 dark:text-slate-100 font-mono"
               />
             </div>
 
@@ -114,11 +115,106 @@ export const NotificationsTab: React.FC = () => {
                 value={lineNotifyToken}
                 onChange={(e) => setLineNotifyToken(e.target.value)}
                 placeholder="กรอก LINE Notify Token สำหรับยิงเข้ากลุ่ม..."
-                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-[#06C755] text-slate-900 dark:text-slate-100"
+                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-[#06C755] text-slate-900 dark:text-slate-100 font-mono"
               />
             </div>
           </div>
         )}
+      </div>
+
+      {/* Live LINE Flex Card Preview Widget */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Smartphone size={16} className="text-[#06C755]" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              ตัวอย่างการ์ดบน LINE (LINE Flex Message Card Preview)
+            </h4>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#06C755]/10 text-[#06C755] border border-[#06C755]/30 flex items-center gap-1">
+            <Sparkles size={11} /> Flex 3.0 Rich Format
+          </span>
+        </div>
+
+        {/* Mock Smartphone LINE Chat Screen */}
+        <div className="max-w-md mx-auto bg-[#849EB9] p-4 rounded-2xl shadow-inner border border-slate-400/40">
+          <div className="text-center text-[10px] text-white/80 mb-2 font-medium">
+            วันนี้ 15:26 น.
+          </div>
+
+          {/* Flex Message Bubble */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
+            {/* Flex Header */}
+            <div className="bg-emerald-700 p-3.5 text-white flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-bold tracking-widest uppercase block opacity-80">
+                  EFL WORKFLOW
+                </span>
+                <span className="text-xs font-bold text-emerald-100 flex items-center gap-1 mt-0.5">
+                  📁 EFL Core Organization • 📋 Main Kanban
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-sm">
+                🔴 URGENT
+              </span>
+            </div>
+
+            {/* Flex Body */}
+            <div className="p-4 space-y-3 text-left">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                  📌 จัดทำรายงานประเมินผลการเรียนรู้ Q3 & แผนการสอน
+                </h4>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  คุณได้รับมอบหมายให้เป็นผู้รับผิดชอบหลักในการ์ดนี้ กรุณาตรวจสอบเอกสารแนบใน Google Drive และอัปเดต Checklist
+                </p>
+              </div>
+
+              <div className="h-[1px] bg-slate-100 w-full" />
+
+              {/* Key-Value Details */}
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <Clock size={12} className="text-amber-500" /> กำหนดส่ง:
+                  </span>
+                  <span className="font-bold text-rose-600">
+                    18 ส.ค. 2026, 17:00 น.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <UserCheck size={12} className="text-emerald-500" /> ผู้รับผิดชอบ:
+                  </span>
+                  <span className="font-bold text-slate-900">
+                    {currentUser?.name || 'สมชาย ประเสริฐ'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <Check size={12} className="text-sky-500" /> Checklist:
+                  </span>
+                  <span className="font-bold text-emerald-600">
+                    3/4 รายการ (75%)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Flex Footer / Action Button */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100">
+              <button
+                type="button"
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>🔗 เปิดดูการ์ดงานบนบอร์ด</span>
+                <ExternalLink size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Trigger Event Checkboxes */}

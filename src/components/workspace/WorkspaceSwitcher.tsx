@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { ChevronDown, Plus, Users, UserPlus, Check } from 'lucide-react';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
 import { InviteMemberModal } from './InviteMemberModal';
@@ -9,10 +10,13 @@ export const WorkspaceSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(switcherRef, () => setIsOpen(false), isOpen);
 
   return (
     <>
-      <div className="relative">
+      <div className="relative" ref={switcherRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all text-left shadow-sm"

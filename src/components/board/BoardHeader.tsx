@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useBoardStore } from '../../store/useBoardStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { 
   Columns, 
   Users, 
@@ -27,6 +28,9 @@ export const BoardHeader: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(userDropdownRef, () => setShowUserDropdown(false), showUserDropdown);
 
   // Export Board Data to Excel / CSV with UTF-8 BOM
   const handleExportCSV = () => {
@@ -193,7 +197,7 @@ export const BoardHeader: React.FC = () => {
           </button>
 
           {/* User Account Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={userDropdownRef}>
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
               className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-neutral-200/60 dark:border-neutral-800"

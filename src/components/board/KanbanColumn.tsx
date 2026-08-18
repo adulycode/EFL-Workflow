@@ -6,6 +6,7 @@ import { KanbanCard } from './KanbanCard';
 import { useBoardStore } from '../../store/useBoardStore';
 import { Plus, MoreHorizontal, X, Edit2, Trash2, Check, Clock, Archive } from 'lucide-react';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface Props {
   column: Column;
@@ -37,6 +38,9 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
   const [showAutoArchiveSubmenu, setShowAutoArchiveSubmenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(menuContainerRef, () => setShowMenu(false), showMenu);
 
   useEffect(() => {
     setColumnTitle(column.title);
@@ -143,7 +147,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
           </div>
 
           {/* Column Options Button */}
-          <div className="relative">
+          <div className="relative" ref={menuContainerRef}>
             <button
               onClick={() => setShowMenu(!showMenu)}
               className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1 rounded-md transition-colors"

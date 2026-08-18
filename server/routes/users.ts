@@ -74,7 +74,7 @@ router.patch('/:id/role', async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
 
-    if (!['ADMIN', 'MEMBER', 'VIEWER'].includes(role)) {
+    if (!['ADMIN', 'STAFF', 'VIEWER'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role value' });
     }
 
@@ -97,7 +97,7 @@ router.patch('/:id/role', async (req, res) => {
 // Invite / Add Member
 router.post('/invite', async (req, res) => {
   try {
-    const { email, name, role = 'MEMBER', jobTitle } = req.body;
+    const { email, name, role = 'STAFF', jobTitle } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -110,8 +110,8 @@ router.post('/invite', async (req, res) => {
         data: {
           email,
           name: name || email.split('@')[0],
-          jobTitle: jobTitle || 'Team Member',
-          role: (role as Role) || 'MEMBER'
+          jobTitle: jobTitle || 'Staff Member',
+          role: (role as Role) || 'STAFF'
         }
       });
     }

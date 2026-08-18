@@ -234,7 +234,7 @@ export const BoardHeader: React.FC = () => {
                     className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                   >
                     <Settings size={14} className="text-emerald-500" />
-                    <span>Workspace & System Settings</span>
+                    <span>{currentUser?.role === 'ADMIN' ? 'Workspace & System Settings' : 'My Profile & Preferences'}</span>
                   </button>
 
                   <a

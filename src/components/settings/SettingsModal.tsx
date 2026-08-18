@@ -10,24 +10,34 @@ import { Settings, User, Bell, Cloud, Users, Tag, X } from 'lucide-react';
 type SettingsTabType = 'profile' | 'notifications' | 'googledrive' | 'members' | 'labels';
 
 export const SettingsModal: React.FC = () => {
-  const { isSettingsOpen, closeSettings, settingsInitialTab } = useAuthStore();
+  const { isSettingsOpen, closeSettings, settingsInitialTab, currentUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SettingsTabType>('profile');
+
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const isStaff = currentUser?.role === 'STAFF';
+
+  const ALL_TABS = [
+    { id: 'profile' as const, label: 'Profile & Appearance', thai: 'ข้อมูลส่วนตัว & ธีม', icon: User, color: 'text-emerald-500', allowed: true },
+    { id: 'notifications' as const, label: 'Notifications', thai: 'การแจ้งเตือน (LINE/Email)', icon: Bell, color: 'text-amber-500', allowed: true },
+    { id: 'googledrive' as const, label: 'Cloud & Google Drive', thai: 'คลาวด์และพื้นที่เก็บไฟล์', icon: Cloud, color: 'text-sky-500', allowed: isAdmin },
+    { id: 'members' as const, label: 'Members & Roles', thai: 'สมาชิกและสิทธิ์การใช้งาน', icon: Users, color: 'text-purple-500', allowed: isAdmin },
+    { id: 'labels' as const, label: 'Custom Labels', thai: 'ป้ายกำกับประจำบอร์ด', icon: Tag, color: 'text-pink-500', allowed: isAdmin || isStaff },
+  ];
+
+  const visibleTabs = ALL_TABS.filter((t) => t.allowed);
 
   useEffect(() => {
     if (settingsInitialTab) {
-      setActiveTab(settingsInitialTab);
+      const isAllowed = visibleTabs.some((t) => t.id === settingsInitialTab);
+      setActiveTab(isAllowed ? settingsInitialTab : 'profile');
+    } else {
+      if (!visibleTabs.some((t) => t.id === activeTab)) {
+        setActiveTab('profile');
+      }
     }
-  }, [settingsInitialTab, isSettingsOpen]);
+  }, [settingsInitialTab, isSettingsOpen, currentUser?.role]);
 
   if (!isSettingsOpen) return null;
-
-  const TABS = [
-    { id: 'profile' as const, label: 'Profile & Appearance', thai: 'ข้อมูลส่วนตัว & ธีม', icon: User, color: 'text-emerald-500' },
-    { id: 'notifications' as const, label: 'Notifications', thai: 'การแจ้งเตือน (LINE/Email)', icon: Bell, color: 'text-amber-500' },
-    { id: 'googledrive' as const, label: 'Cloud & Google Drive', thai: 'คลาวด์และพื้นที่เก็บไฟล์', icon: Cloud, color: 'text-sky-500' },
-    { id: 'members' as const, label: 'Members & Roles', thai: 'สมาชิกและสิทธิ์การใช้งาน', icon: Users, color: 'text-purple-500' },
-    { id: 'labels' as const, label: 'Custom Labels', thai: 'ป้ายกำกับประจำบอร์ด', icon: Tag, color: 'text-pink-500' },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -63,7 +73,7 @@ export const SettingsModal: React.FC = () => {
 
         {/* Tab Navigation Scrollable Bar */}
         <div className="px-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
-          {TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 

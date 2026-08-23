@@ -9,6 +9,7 @@ export interface User {
   jobTitle?: string;
   avatarUrl?: string;
   role: Role;
+  isActive?: boolean;
   language?: string;
   theme?: string;
   lineUserId?: string;

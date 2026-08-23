@@ -21,6 +21,9 @@ export interface SsoUserPayload {
   avatar?: string;
   role?: string;
   appId?: string;
+  disabled?: boolean;
+  isActive?: boolean;
+  status?: string;
   exp?: number;
   iat?: number;
 }
@@ -111,18 +114,26 @@ export async function consumeSsoToken(token: string) {
     }
   }
 
+  // Check active/disabled status
+  const isExplicitlyDisabled = payload.disabled === true || payload.isActive === false || payload.status === 'INACTIVE' || payload.status === 'DISABLED';
+  const isActive = !isExplicitlyDisabled;
+
   // Upsert user into database
   let user = await prisma.user.findUnique({
     where: { email }
   });
 
   if (!user) {
+    if (isExplicitlyDisabled) {
+      throw new Error('This user account is disabled and cannot access EFL-Workflow.');
+    }
     user = await prisma.user.create({
       data: {
         email,
         name,
         avatarUrl,
         role,
+        isActive: true,
         language: 'th',
         theme: 'dark'
       }
@@ -134,10 +145,15 @@ export async function consumeSsoToken(token: string) {
       data: {
         name: name || user.name,
         avatarUrl: avatarUrl || user.avatarUrl,
-        role: role || user.role
+        role: role || user.role,
+        isActive
       }
     });
-    console.log(`[SSO Service] Updated local user from SSO: ${email} (${role})`);
+    console.log(`[SSO Service] Updated local user from SSO: ${email} (${role}, active: ${isActive})`);
+
+    if (isExplicitlyDisabled) {
+      throw new Error('This user account has been disabled in Central SSO.');
+    }
   }
 
   // Ensure user is added to the default EFL Core Organization workspace
@@ -200,4 +216,24 @@ export async function registerWithCentralSSO(retryCount = 0) {
     }
   }
   return false;
+}
+
+/**
+ * Sync user active/disabled status from SSO Webhook
+ */
+export async function syncUserStatusFromSso(email: string, isActive: boolean) {
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  if (!user) return null;
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { isActive }
+  });
+
+  console.log(`[SSO Service] Synced active status for user ${normalizedEmail} -> ${isActive}`);
+  return updated;
 }

@@ -34,6 +34,7 @@ model User {
   jobTitle         String?           @default("Staff Member")
   avatarUrl        String?
   role             Role              @default(STAFF)
+  isActive         Boolean           @default(true)
   language         String            @default("th")
   theme            String            @default("dark")
   lineUserId       String?

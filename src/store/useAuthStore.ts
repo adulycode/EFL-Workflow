@@ -22,6 +22,7 @@ interface AuthState {
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   updateUserRole: (userId: string, role: Role) => Promise<boolean>;
+  updateUserStatus: (userId: string, isActive: boolean) => Promise<boolean>;
   inviteUser: (email: string, name: string, role: Role, jobTitle?: string) => Promise<boolean>;
 }
 
@@ -192,6 +193,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     } catch (err) {
       console.error('Failed to update user role:', err);
+      return false;
+    }
+  },
+
+  updateUserStatus: async (userId, isActive) => {
+    try {
+      const res = await fetch(`/api/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive })
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        set({
+          users: get().users.map((u) => (u.id === updated.id ? updated : u)),
+          currentUser: get().currentUser?.id === updated.id ? updated : get().currentUser
+        });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update user status:', err);
       return false;
     }
   },

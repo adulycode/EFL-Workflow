@@ -127,4 +127,52 @@ router.post('/invite', async (req, res) => {
   }
 });
 
+// Toggle User Active Status
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isActive: Boolean(isActive) }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user:updated', updatedUser);
+    }
+
+    res.json(updatedUser);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Central SSO Webhook to Sync Active/Disabled Status
+router.post('/sso-status-sync', async (req, res) => {
+  try {
+    const { email, isActive, secretKey } = req.body;
+    const { SSO_CONFIG, syncUserStatusFromSso } = await import('../services/ssoService');
+
+    if (secretKey && secretKey !== SSO_CONFIG.sharedSecret) {
+      return res.status(401).json({ error: 'Unauthorized secret key' });
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const updated = await syncUserStatusFromSso(email, isActive !== false);
+    const io = req.app.get('io');
+    if (io && updated) {
+      io.emit('user:updated', updated);
+    }
+
+    res.json({ success: true, user: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

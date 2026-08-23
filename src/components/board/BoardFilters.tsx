@@ -129,11 +129,13 @@ export const BoardFilters: React.FC = () => {
               className="text-xs px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 focus:outline-none"
             >
               <option value="">All Assignees</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
+              {users
+                .filter((u) => u.isActive !== false || filters.selectedAssigneeId === u.id)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} {u.isActive === false ? '(Inactive)' : ''}
+                  </option>
+                ))}
             </select>
           </div>
 

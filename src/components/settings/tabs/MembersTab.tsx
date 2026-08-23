@@ -4,7 +4,7 @@ import { Role, User } from '../../../types';
 import { Users, UserPlus, Shield, ShieldAlert, Eye, Search, Copy, Check, Mail } from 'lucide-react';
 
 export const MembersTab: React.FC = () => {
-  const { users, currentUser, updateUserRole, inviteUser } = useAuthStore();
+  const { users, currentUser, updateUserRole, updateUserStatus, inviteUser } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -23,6 +23,11 @@ export const MembersTab: React.FC = () => {
 
   const handleRoleChange = async (userId: string, newRole: Role) => {
     await updateUserRole(userId, newRole);
+  };
+
+  const handleToggleStatus = async (userId: string, currentStatus?: boolean) => {
+    const nextStatus = currentStatus === false ? true : false;
+    await updateUserStatus(userId, nextStatus);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -124,20 +129,28 @@ export const MembersTab: React.FC = () => {
           filteredUsers.map((user: User) => {
             const isSelf = user.id === currentUser?.id;
             const isAdmin = currentUser?.role === 'ADMIN';
+            const isActive = user.isActive !== false;
 
             return (
               <div
                 key={user.id}
-                className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                  isActive ? 'hover:bg-slate-50 dark:hover:bg-slate-800/40' : 'bg-rose-50/20 dark:bg-rose-950/10 opacity-75'
+                }`}
               >
                 {/* User Info */}
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-slate-200 shrink-0 border border-slate-300 dark:border-slate-600 shadow-sm">
+                  <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-slate-200 shrink-0 border border-slate-300 dark:border-slate-600 shadow-sm">
                     {user.avatarUrl ? (
                       <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
                     ) : (
                       user.name.slice(0, 2).toUpperCase()
                     )}
+                    <span
+                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
+                        isActive ? 'bg-emerald-500' : 'bg-rose-500'
+                      }`}
+                    />
                   </div>
 
                   <div className="min-w-0">
@@ -150,6 +163,11 @@ export const MembersTab: React.FC = () => {
                           YOU
                         </span>
                       )}
+                      {!isActive && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                          DISABLED
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                       {user.jobTitle || 'Team Member'} • {user.email}
@@ -157,12 +175,13 @@ export const MembersTab: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Role Selector & Badge */}
+                {/* Role Selector & Status Toggle */}
                 <div className="flex items-center gap-2.5 self-end sm:self-center">
                   <select
                     value={user.role}
+                    disabled={!isAdmin}
                     onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
-                    className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer disabled:opacity-60"
                   >
                     <option value="ADMIN">👑 Admin (คุมระบบทั้งหมด)</option>
                     <option value="STAFF">💼 Staff (บันทึก/จัดการงาน)</option>
@@ -170,6 +189,22 @@ export const MembersTab: React.FC = () => {
                   </select>
 
                   {getRoleBadge(user.role)}
+
+                  {/* Status Toggle Button for Admin */}
+                  {isAdmin && !isSelf && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(user.id, user.isActive)}
+                      title={isActive ? 'คลิกเพื่อระงับการใช้งาน (Disable)' : 'คลิกเพื่อเปิดใช้งาน (Enable)'}
+                      className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border transition-colors ${
+                        isActive
+                          ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/80 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                          : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                      }`}
+                    >
+                      {isActive ? 'ระงับ' : 'เปิดใช้งาน'}
+                    </button>
+                  )}
                 </div>
               </div>
             );

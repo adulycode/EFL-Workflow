@@ -19,7 +19,7 @@ export const InviteMemberModal: React.FC<Props> = ({ onClose }) => {
   if (!currentWorkspace) return null;
 
   const currentMemberUserIds = currentWorkspace.members.map((m) => m.userId);
-  const nonMembers = users.filter((u) => !currentMemberUserIds.includes(u.id));
+  const nonMembers = users.filter((u) => u.isActive !== false && !currentMemberUserIds.includes(u.id));
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();

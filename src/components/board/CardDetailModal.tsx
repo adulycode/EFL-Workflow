@@ -1550,27 +1550,40 @@ export const CardDetailModal: React.FC = () => {
               {/* Assignees */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1">
-                  <Users size={13} /> Assignees
+                  <Users size={13} /> Assignees (ผู้รับผิดชอบ)
                 </label>
                 <div className="max-h-36 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-lg border border-neutral-200 dark:border-neutral-800">
-                  {users.map((u) => {
-                    const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id);
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => handleToggleAssignee(u.id)}
-                        className={`w-full flex items-center justify-between p-1.5 rounded text-xs transition-colors ${
-                          isAssigned
-                            ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                            : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
-                        }`}
-                      >
-                        <span className="truncate">{u.name}</span>
-                        {isAssigned && <span className="text-[10px] font-bold">✓</span>}
-                      </button>
-                    );
-                  })}
+                  {users
+                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id))
+                    .map((u) => {
+                      const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id);
+                      const isInactive = u.isActive === false;
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => handleToggleAssignee(u.id)}
+                          className={`w-full flex items-center justify-between p-1.5 rounded text-xs transition-colors ${
+                            isAssigned
+                              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                              : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
+                          }`}
+                        >
+                          <span className="truncate flex items-center gap-1.5">
+                            <span>{u.name}</span>
+                            {isInactive && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
+                                Inactive
+                              </span>
+                            )}
+                          </span>
+                          {isAssigned && <span className="text-[10px] font-bold">✓</span>}
+                        </button>
+                      );
+                    })}
+                  {users.filter((u) => u.isActive !== false).length === 0 && (
+                    <p className="text-[11px] text-neutral-400 text-center py-1">ไม่มีสมาชิกที่เปิดใช้งาน</p>
+                  )}
                 </div>
               </div>
 

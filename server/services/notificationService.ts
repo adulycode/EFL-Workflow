@@ -621,7 +621,7 @@ export async function sendStakeholderNotifications({
         boardTitle: card.column.board.title,
         workspaceTitle: (card.column.board as any).workspace?.name || 'EFL Organization',
         priority: card.priority,
-        dueDate: card.dueDate,
+        dueDate: card.dueDate || undefined,
         actorName,
         cardId: card.id,
         userId: user.id

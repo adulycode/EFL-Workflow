@@ -303,35 +303,50 @@ export async function upsertUserFromSsoData(data: {
  */
 export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: number; users: any[] }> {
   try {
-    const urls = [
-      `${SSO_CONFIG.portalUrl}/api/apps/${SSO_CONFIG.appId}/users`,
-      `${SSO_CONFIG.portalUrl}/api/users`
+    const baseHosts = Array.from(new Set([
+      SSO_CONFIG.portalUrl,
+      'http://host.docker.internal:3050',
+      'http://103.91.190.29:3050',
+      'http://172.17.0.1:3050',
+      'http://localhost:3050'
+    ])).filter(Boolean);
+
+    const endpoints = [
+      `/api/apps/${SSO_CONFIG.appId}/users`,
+      `/api/apps/users`,
+      `/api/users`,
+      `/api/admin/users`,
+      `/api/members`
     ];
 
     let usersData: any[] = [];
-    for (const url of urls) {
-      try {
-        console.log(`[SSO Sync] Attempting to pull all users from ${url}...`);
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-sso-secret': SSO_CONFIG.sharedSecret,
-            'Authorization': `Bearer ${SSO_CONFIG.sharedSecret}`
-          }
-        });
+    for (const host of baseHosts) {
+      for (const endpoint of endpoints) {
+        const url = `${host.replace(/\/$/, '')}${endpoint}`;
+        try {
+          const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-sso-secret': SSO_CONFIG.sharedSecret,
+              'Authorization': `Bearer ${SSO_CONFIG.sharedSecret}`
+            }
+          });
 
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : data.users || data.data;
-          if (Array.isArray(list) && list.length > 0) {
-            usersData = list;
-            break;
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : data.users || data.data || data.members;
+            if (Array.isArray(list) && list.length > 0) {
+              console.log(`[SSO Sync] ✅ Successfully fetched ${list.length} users from SSO at ${url}`);
+              usersData = list;
+              break;
+            }
           }
+        } catch {
+          // continue probe
         }
-      } catch {
-        // try next endpoint
       }
+      if (usersData.length > 0) break;
     }
 
     if (usersData.length === 0) {

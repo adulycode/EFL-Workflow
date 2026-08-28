@@ -1569,7 +1569,12 @@ export const CardDetailModal: React.FC = () => {
                 </label>
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
                   {users
-                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type)))
+                    .filter((u) => {
+                      const isAssignableUser = u.isActive !== false && u.isAssignable !== false;
+                      const isNotAdmin = u.role !== 'ADMIN';
+                      const isCurrentlyAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
+                      return isAssignableUser && (isNotAdmin || isCurrentlyAssigned);
+                    })
                     .map((u) => {
                       const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
                       const isInactive = u.isActive === false;

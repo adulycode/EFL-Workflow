@@ -85,4 +85,11 @@ server.listen(PORT, () => {
   }).catch((err) => {
     console.error('[SSO Auto-Register Init Error]', err);
   });
+
+  // Start Gmail IMAP Inbound Email Listener (Email-to-Comment Automation)
+  import('./services/inboundEmailListener').then(({ startInboundEmailListener }) => {
+    startInboundEmailListener(io);
+  }).catch((err) => {
+    console.error('[Inbound Email Listener Init Error]', err);
+  });
 });

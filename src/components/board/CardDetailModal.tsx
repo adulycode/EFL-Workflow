@@ -169,6 +169,22 @@ export const CardDetailModal: React.FC = () => {
 
   useEffect(() => {
     fetchDetails();
+
+    const handleRealtimeUpdate = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (detail.cardId === selectedCardId || detail.id === selectedCardId) {
+        fetchDetails();
+      }
+    };
+
+    window.addEventListener('realtime:comment_added', handleRealtimeUpdate);
+    window.addEventListener('realtime:card_updated', handleRealtimeUpdate);
+
+    return () => {
+      window.removeEventListener('realtime:comment_added', handleRealtimeUpdate);
+      window.removeEventListener('realtime:card_updated', handleRealtimeUpdate);
+    };
   }, [selectedCardId]);
 
   if (!selectedCardId || !cardDetails) return null;
@@ -1215,13 +1231,19 @@ export const CardDetailModal: React.FC = () => {
                       {cardDetails.comments?.map((c: any) => (
                         <div key={c.id} className="bg-neutral-50 dark:bg-neutral-800/40 p-3.5 rounded-2xl text-xs space-y-2 border border-neutral-200/60 dark:border-neutral-800">
                           <div className="flex items-center justify-between text-[11px] text-neutral-400">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <img
                                 src={c.user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user?.name || 'User')}`}
                                 alt={c.user?.name}
-                                className="w-5 h-5 rounded-full object-cover"
+                                className="w-5 h-5 rounded-full object-cover shadow-sm"
                               />
                               <span className="font-semibold text-neutral-800 dark:text-neutral-200">{c.user?.name}</span>
+                              {c.isEmailReply && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shadow-xs">
+                                  <Mail size={10} />
+                                  <span>via Email</span>
+                                </span>
+                              )}
                             </div>
                             <span>{format(new Date(c.createdAt), 'MMM d, HH:mm')}</span>
                           </div>

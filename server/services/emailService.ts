@@ -198,6 +198,7 @@ export async function sendCardNotificationEmail({
     <div style="background-color: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8;">
       <p style="margin: 0 0 6px 0;">อีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ EFL Workflow Automation</p>
       <p style="margin: 0;">หากต้องการตั้งค่าการรับการแจ้งเตือน สามารถปรับแต่งได้ในหน้า Profile & Notifications Settings</p>
+      <!-- EFL-CARD-ID:${cardId || ''} -->
     </div>
 
   </div>
@@ -205,11 +206,13 @@ export async function sendCardNotificationEmail({
 </html>
   `;
 
+  const subjectCardTag = cardId ? ` [card:${cardId}]` : '';
+
   return sendEmail({
     to,
-    subject: `[EFL Workflow] ${title}`,
+    subject: `[EFL Workflow] ${title}${subjectCardTag}`,
     html,
-    text: `${title}\n\n${message}\n\nเปิดดูการ์ดงาน: ${cardUrl}`,
+    text: `${title}\n\n${message}\n\nเปิดดูการ์ดงาน: ${cardUrl}\n\n[card:${cardId || ''}]`,
     userId,
     cardId
   });

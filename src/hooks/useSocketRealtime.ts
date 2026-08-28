@@ -19,10 +19,20 @@ export const useSocketRealtime = () => {
     });
 
     socket.on('card:created', () => fetchBoard());
-    socket.on('card:updated', () => fetchBoard());
+    socket.on('card:updated', (data) => {
+      fetchBoard();
+      window.dispatchEvent(new CustomEvent('realtime:card_updated', { detail: data }));
+    });
     socket.on('card:moved', () => fetchBoard());
     socket.on('card:deleted', () => fetchBoard());
-    socket.on('comment:added', () => fetchBoard());
+    socket.on('comment:added', (data) => {
+      fetchBoard();
+      window.dispatchEvent(new CustomEvent('realtime:comment_added', { detail: data }));
+    });
+    socket.on('comment:created', (data) => {
+      fetchBoard();
+      window.dispatchEvent(new CustomEvent('realtime:comment_added', { detail: data }));
+    });
 
     socket.on('workspace:created', () => fetchWorkspaces());
     socket.on('workspace:member_added', () => fetchWorkspaces());

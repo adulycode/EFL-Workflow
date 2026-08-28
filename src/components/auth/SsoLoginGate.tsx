@@ -9,7 +9,7 @@ export const SsoLoginGate: React.FC = () => {
   const [showManualInput, setShowManualInput] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const ssoPortalUrl = 'http://localhost:3050';
+  const ssoPortalUrl = window.location.hostname === 'localhost' ? 'http://localhost:3050' : 'https://eflworkspace.com';
   const appId = 'efl-workflow';
 
   const handleGoToCentralSso = () => {

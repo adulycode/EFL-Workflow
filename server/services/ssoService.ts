@@ -4,11 +4,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export const SSO_CONFIG = {
-  portalUrl: process.env.SSO_PORTAL_URL || 'http://localhost:3050',
+  portalUrl: process.env.SSO_PORTAL_URL || 'https://eflworkspace.com',
   sharedSecret: process.env.SSO_SHARED_SECRET || 'super-secret-jwt-key-for-efl-sso-change-in-production-123456789',
   appId: process.env.SSO_APP_ID || 'efl-workflow',
   appName: process.env.SSO_APP_NAME || 'EFL Workflow System',
-  appUrl: process.env.APP_URL || 'http://localhost:3010',
+  appUrl: process.env.APP_URL || 'https://trello.eflworkspace.com',
   availableRoles: ['ADMIN', 'STAFF', 'VIEWER']
 };
 
@@ -305,6 +305,7 @@ export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: 
   try {
     const baseHosts = Array.from(new Set([
       SSO_CONFIG.portalUrl,
+      'https://eflworkspace.com',
       'http://host.docker.internal:3050',
       'http://103.91.190.29:3050',
       'http://172.17.0.1:3050',

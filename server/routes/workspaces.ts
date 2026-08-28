@@ -206,6 +206,44 @@ router.post('/:id/invite', async (req, res) => {
   }
 });
 
+// Invite multiple members at once (Batch Invite)
+router.post('/:id/invite-batch', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userIds, role } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds array is required' });
+    }
+
+    const createdMembers = [];
+    for (const userId of userIds) {
+      const existing = await prisma.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: { workspaceId: id, userId }
+        }
+      });
+
+      if (!existing) {
+        const member = await prisma.workspaceMember.create({
+          data: {
+            workspaceId: id,
+            userId,
+            role: role || WorkspaceRole.MEMBER
+          },
+          include: { user: true }
+        });
+        createdMembers.push(member);
+        emitRealtime(req, 'workspace:member_added', { workspaceId: id, member });
+      }
+    }
+
+    res.json({ success: true, count: createdMembers.length, members: createdMembers });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Remove member
 router.delete('/:id/members/:userId', async (req, res) => {
   try {

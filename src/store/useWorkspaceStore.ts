@@ -12,6 +12,7 @@ interface WorkspaceState {
   fetchWorkspaces: (userId?: string) => Promise<void>;
   createWorkspace: (data: { name: string; description?: string; icon?: string; color?: string; ownerId: string }) => Promise<Workspace | null>;
   inviteMember: (workspaceId: string, userId: string, role?: string) => Promise<boolean>;
+  inviteMembersBatch: (workspaceId: string, userIds: string[], role?: string) => Promise<boolean>;
   removeMember: (workspaceId: string, userId: string) => Promise<boolean>;
 }
 
@@ -39,12 +40,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
         set({
           workspaces: data,
-          currentWorkspace: matched || data[0] || null,
+          currentWorkspace: matched || null,
           isLoading: false
         });
 
-        if (matched || data[0]) {
-          useBoardStore.getState().fetchBoard((matched || data[0]).id);
+        if (matched) {
+          useBoardStore.getState().fetchBoard(matched.id);
         }
       }
     } catch (err) {
@@ -86,6 +87,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to invite member:', err);
+    }
+    return false;
+  },
+
+  inviteMembersBatch: async (workspaceId, userIds, role = 'MEMBER') => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/invite-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds, role })
+      });
+      if (res.ok) {
+        const activeUid = useAuthStore.getState().currentUser?.id;
+        await get().fetchWorkspaces(activeUid);
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to batch invite members:', err);
     }
     return false;
   },

@@ -7,24 +7,28 @@ async function main() {
 
   // 1. Seed Clean Admin User
   const adminUser = await prisma.user.upsert({
-    where: { email: 'aduly@efl.org' },
+    where: { email: 'adulnp@gmail.com' },
     update: {
-      name: 'Aduly Admin',
+      name: 'Admin System (reyz)',
       role: Role.ADMIN,
-      jobTitle: 'System Administrator',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      jobTitle: 'System Administrator (ดูแลระบบ)',
+      isAssignable: false
     },
     create: {
-      email: 'aduly@efl.org',
-      name: 'Aduly Admin',
+      email: 'adulnp@gmail.com',
+      name: 'Admin System (reyz)',
       role: Role.ADMIN,
-      jobTitle: 'System Administrator',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      jobTitle: 'System Administrator (ดูแลระบบ)',
+      isAssignable: false,
+      language: 'th',
+      theme: 'dark'
     }
   });
 
-  // Clean up any legacy dummy mockup users (e.g. somchai, kanya, ploy, etc.)
+  // Clean up any legacy dummy mockup users
   const mockEmails = [
+    'aduly@efl.org',
+    'sanhomefl@gmail.com',
     'somchai@efl.org', 'kanya@efl.org', 'natthaphol@efl.org', 'chanya@efl.org',
     'ananda@efl.org', 'ploy@efl.org', 'thanawat@efl.org', 'warunee@efl.org',
     'kittisak@efl.org', 'siriporn@efl.org', 'prinya@efl.org', 'manat@efl.org',

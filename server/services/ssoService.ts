@@ -22,6 +22,8 @@ export interface SsoUserPayload {
   avatar?: string;
   role?: string;
   appId?: string;
+  hasAccess?: boolean;
+  isSuperAdmin?: boolean;
   disabled?: boolean;
   isActive?: boolean;
   status?: string;

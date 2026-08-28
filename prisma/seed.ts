@@ -107,22 +107,19 @@ async function main() {
     columns.push(col);
   }
 
-  // 5. Seed Standard Labels
-  const labelDefs = [
-    { name: 'Feature', colorBg: '#dcfce7', colorText: '#15803d' },
-    { name: 'Urgent Bug', colorBg: '#fee2e2', colorText: '#b91c1c' },
-    { name: 'Design / UX', colorBg: '#f3e8ff', colorText: '#7e22ce' },
-    { name: 'Operations', colorBg: '#fef3c7', colorText: '#b45309' },
-    { name: 'DevOps / Infra', colorBg: '#e0e7ff', colorText: '#4338ca' }
-  ];
+  // 5. Seed Standard Labels ONLY on initial empty database
+  const existingLabelsCount = await prisma.label.count();
+  if (existingLabelsCount === 0) {
+    const labelDefs = [
+      { name: 'Feature', colorBg: '#dcfce7', colorText: '#15803d' },
+      { name: 'Urgent Bug', colorBg: '#fee2e2', colorText: '#b91c1c' },
+      { name: 'Design / UX', colorBg: '#f3e8ff', colorText: '#7e22ce' },
+      { name: 'Operations', colorBg: '#fef3c7', colorText: '#b45309' },
+      { name: 'DevOps / Infra', colorBg: '#e0e7ff', colorText: '#4338ca' }
+    ];
 
-  const labels = [];
-  for (const l of labelDefs) {
-    let label = await prisma.label.findFirst({
-      where: { name: l.name }
-    });
-    if (!label) {
-      label = await prisma.label.create({
+    for (const l of labelDefs) {
+      await prisma.label.create({
         data: {
           name: l.name,
           colorBg: l.colorBg,
@@ -130,7 +127,6 @@ async function main() {
         }
       });
     }
-    labels.push(label);
   }
 
   // 6. Clean Starter Cards

@@ -96,7 +96,7 @@ router.get('/', async (req, res) => {
           create: {
             workspaceId: defaultWorkspace.id,
             userId: user.id,
-            role: user.role === 'ADMIN' ? 'OWNER' : 'COLLABORATOR'
+            role: user.role === 'ADMIN' ? WorkspaceRole.ADMIN : WorkspaceRole.MEMBER
           }
         });
 

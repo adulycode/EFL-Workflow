@@ -42,10 +42,10 @@ async function main() {
     }
   });
 
-  // 2. Seed Default Core Workspace
+  // 2. Seed Default Core Workspace (Create only if empty)
   const defaultWorkspace = await prisma.workspace.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
-    update: { name: 'EFL Core Organization', icon: '🏢', color: '#16a34a', ownerId: adminUser.id },
+    update: {}, // Do not overwrite user-customized workspace name/icon
     create: {
       id: '00000000-0000-0000-0000-000000000001',
       name: 'EFL Core Organization',
@@ -82,29 +82,27 @@ async function main() {
     });
   }
 
-  // 4. Seed Standard Columns
-  const columnDefs = [
-    { title: 'Backlog & Requests', position: 1000 },
-    { title: 'In Progress (กำลังทำ)', position: 2000 },
-    { title: 'Under Review (รอตรวจ)', position: 3000 },
-    { title: 'Completed (เสร็จสิ้น)', position: 4000 }
-  ];
+  // 4. Seed Standard Columns ONLY on fresh empty board
+  let columns = await prisma.column.findMany({ where: { boardId: board.id }, orderBy: { position: 'asc' } });
+  if (columns.length === 0) {
+    const columnDefs = [
+      { title: 'Backlog & Requests', position: 1000 },
+      { title: 'In Progress (กำลังทำ)', position: 2000 },
+      { title: 'Under Review (รอตรวจ)', position: 3000 },
+      { title: 'Completed (เสร็จสิ้น)', position: 4000 }
+    ];
 
-  const columns = [];
-  for (const c of columnDefs) {
-    let col = await prisma.column.findFirst({
-      where: { boardId: board.id, title: c.title }
-    });
-    if (!col) {
-      col = await prisma.column.create({
+    columns = [];
+    for (const c of columnDefs) {
+      const col = await prisma.column.create({
         data: {
           boardId: board.id,
           title: c.title,
           position: c.position
         }
       });
+      columns.push(col);
     }
-    columns.push(col);
   }
 
   // 5. Seed Standard Labels ONLY on initial empty database

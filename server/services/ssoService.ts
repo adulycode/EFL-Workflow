@@ -124,8 +124,9 @@ export async function consumeSsoToken(token: string) {
   const lineNotifyToken = payload.lineNotifyToken || payload.lineToken;
   const lineUserId = payload.lineUserId;
 
-  // Check active/disabled status
-  const isExplicitlyDisabled = payload.disabled === true || payload.isActive === false || payload.status === 'INACTIVE' || payload.status === 'DISABLED';
+  // Check active/disabled status and app-level permission
+  const hasAppAccess = payload.hasAccess !== false && (payload.appId ? payload.appId === 'efl-workflow' || payload.isSuperAdmin : true);
+  const isExplicitlyDisabled = payload.disabled === true || payload.isActive === false || payload.status === 'INACTIVE' || payload.status === 'DISABLED' || !hasAppAccess;
   const isActive = !isExplicitlyDisabled;
 
   // Upsert user into database
@@ -135,7 +136,7 @@ export async function consumeSsoToken(token: string) {
 
   if (!user) {
     if (isExplicitlyDisabled) {
-      throw new Error('This user account is disabled and cannot access EFL-Workflow.');
+      throw new Error('บัญชีนี้ไม่ได้รับสิทธิ์เข้าใช้งาน EFL Trello หรือถูกระงับใน Central SSO');
     }
     user = await prisma.user.create({
       data: {
@@ -215,12 +216,29 @@ export async function upsertUserFromSsoData(data: {
   lineNotifyToken?: string;
   lineToken?: string;
   lineUserId?: string;
+  hasAccess?: boolean;
+  isSuperAdmin?: boolean;
   jobTitle?: string;
 }) {
   if (!data.email) return null;
   const email = data.email.toLowerCase().trim();
   const name = data.name || email.split('@')[0];
   const avatarUrl = data.avatarUrl || data.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
+  
+  // If explicitly not granted access to efl-workflow
+  const hasAppAccess = data.hasAccess !== false || data.isSuperAdmin === true;
+  if (!hasAppAccess) {
+    // If user exists locally, deactivate them
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { isActive: false }
+      });
+      console.log(`[SSO Sync] 🔒 Deactivated user without efl-workflow access: ${email}`);
+    }
+    return null;
+  }
   
   let role: any = 'STAFF';
   if (data.role) {

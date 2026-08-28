@@ -68,7 +68,7 @@ router.post('/test', async (req, res) => {
       cardDetails: {
         title: 'พัฒนาระบบแจ้งเตือน Realtime Notifications',
         priority: 'HIGH',
-        dueDate: new Date(Date.now() + 86400000)
+        dueDate: new Date(Date.now() + 86400000).toISOString()
       }
     });
 

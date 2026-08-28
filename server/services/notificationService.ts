@@ -11,7 +11,10 @@ interface NotificationPayload {
   cardId?: string;
   actionType: string;
   cardDetails?: {
+    title?: string;
     boardTitle?: string;
+    workspaceTitle?: string;
+    actorName?: string;
     priority?: string;
     dueDate?: string;
     assigneeName?: string;

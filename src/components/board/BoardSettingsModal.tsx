@@ -58,7 +58,7 @@ export const LABEL_COLORS = [
 
 export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, onClose }) => {
   const { board, labels, updateBoard, deleteBoard, createLabel, updateLabel, deleteLabel } = useBoardStore();
-  const { currentWorkspace, inviteMember, removeMember } = useWorkspaceStore();
+  const { currentWorkspace, inviteMember, removeMember, deleteWorkspace } = useWorkspaceStore();
   const { users, currentUser } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'theme' | 'labels' | 'members' | 'danger'>('theme');
@@ -125,8 +125,11 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
   };
 
   const handleDeleteBoard = async () => {
-    if (!board) return;
-    await deleteBoard(board.id);
+    if (currentWorkspace) {
+      await deleteWorkspace(currentWorkspace.id);
+    } else if (board) {
+      await deleteBoard(board.id);
+    }
     onClose();
   };
 

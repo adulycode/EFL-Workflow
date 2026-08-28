@@ -2,7 +2,7 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Deploying Board Settings & Theme Customization to VPS...');
+console.log('🚀 Rebuilding with Board Settings on VPS...');
 
 conn.on('ready', () => {
   const commands = [

@@ -267,4 +267,16 @@ router.delete('/:id/members/:userId', async (req, res) => {
   }
 });
 
+// Delete Workspace (Cascades to all boards, columns, and cards)
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.workspace.delete({ where: { id } });
+    emitRealtime(req, 'workspace:deleted', { workspaceId: id });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

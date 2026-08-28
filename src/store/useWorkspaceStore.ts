@@ -14,6 +14,7 @@ interface WorkspaceState {
   inviteMember: (workspaceId: string, userId: string, role?: string) => Promise<boolean>;
   inviteMembersBatch: (workspaceId: string, userIds: string[], role?: string) => Promise<boolean>;
   removeMember: (workspaceId: string, userId: string) => Promise<boolean>;
+  deleteWorkspace: (workspaceId: string) => Promise<boolean>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -121,6 +122,28 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to remove member:', err);
+    }
+    return false;
+  },
+
+  deleteWorkspace: async (workspaceId) => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        const activeUid = useAuthStore.getState().currentUser?.id;
+        await get().fetchWorkspaces(activeUid);
+        const remaining = get().workspaces;
+        if (remaining.length > 0) {
+          get().setCurrentWorkspace(remaining[0]);
+        } else {
+          set({ currentWorkspace: null });
+        }
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to delete workspace:', err);
     }
     return false;
   }

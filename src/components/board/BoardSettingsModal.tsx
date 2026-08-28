@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useBoardStore } from '../../store/useBoardStore';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
-import { useAuthStore } from '../../store/useAuthStore';
 import { 
   X, 
   Palette, 
   Tag, 
-  Users, 
   Trash2, 
   Check, 
   Sparkles, 
@@ -15,9 +13,9 @@ import {
   Edit2, 
   Download,
   AlertTriangle,
-  UserPlus,
-  ShieldCheck,
-  Smile
+  Upload,
+  RefreshCw,
+  Link
 } from 'lucide-react';
 
 interface BoardSettingsModalProps {
@@ -58,10 +56,9 @@ export const LABEL_COLORS = [
 
 export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, onClose }) => {
   const { board, labels, updateBoard, deleteBoard, createLabel, updateLabel, deleteLabel } = useBoardStore();
-  const { currentWorkspace, inviteMember, removeMember, deleteWorkspace } = useWorkspaceStore();
-  const { users, currentUser } = useAuthStore();
+  const { currentWorkspace, deleteWorkspace } = useWorkspaceStore();
 
-  const [activeTab, setActiveTab] = useState<'theme' | 'labels' | 'members' | 'danger'>('theme');
+  const [activeTab, setActiveTab] = useState<'theme' | 'labels' | 'danger'>('theme');
 
   // Theme state
   const [title, setTitle] = useState(board?.title || '');
@@ -69,16 +66,18 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
   const [icon, setIcon] = useState(board?.icon || '📋');
   const [selectedBg, setSelectedBg] = useState(board?.background || 'default');
   const [customBgUrl, setCustomBgUrl] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Label form state
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
 
-  // Member invite state
-  const [selectedUserId, setSelectedUserId] = useState('');
+  // Danger delete state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!isOpen || !board) return null;
@@ -100,6 +99,52 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
     setTimeout(() => setSaveSuccess(false), 2500);
   };
 
+  // Smart client-side image compression for wallpapers
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 1920;
+        const maxH = 1080;
+        let { width, height } = img;
+
+        if (width > maxW || height > maxH) {
+          if (width / height > maxW / maxH) {
+            height = Math.round((height * maxW) / width);
+            width = maxW;
+          } else {
+            width = Math.round((width * maxH) / height);
+            height = maxH;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setSelectedBg(compressedDataUrl);
+          handleSaveTheme(compressedDataUrl);
+        }
+        setIsUploading(false);
+      };
+      img.src = event.target?.result as string;
+    };
+
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleCreateOrUpdateLabel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLabelName.trim()) return;
@@ -118,12 +163,6 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
     setNewLabelName('');
   };
 
-  const handleInviteMember = async () => {
-    if (!selectedUserId || !currentWorkspace) return;
-    await inviteMember(currentWorkspace.id, selectedUserId, 'MEMBER');
-    setSelectedUserId('');
-  };
-
   const handleDeleteBoard = async () => {
     if (currentWorkspace) {
       await deleteWorkspace(currentWorkspace.id);
@@ -133,9 +172,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
     onClose();
   };
 
-  // Filter out existing workspace members from invite picker
-  const existingMemberIds = new Set(currentWorkspace?.members?.map((m) => m.userId) || []);
-  const availableUsersToInvite = users.filter((u) => !existingMemberIds.has(u.id));
+  const isCustomUploadedImage = selectedBg.startsWith('data:') || (selectedBg.startsWith('http') && !HD_WALLPAPERS.some(w => w.url === selectedBg));
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -153,7 +190,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
                 </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                ปรับแต่งธีม วอลเปเปอร์ ป้ายกำกับ และจัดการสมาชิกในบอร์ด
+                ปรับแต่งธีม วอลเปเปอร์ และป้ายกำกับประจำบอร์ดงาน
               </p>
             </div>
           </div>
@@ -166,7 +203,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
           </button>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs (Theme, Labels, Danger) */}
         <div className="flex items-center gap-2 px-6 pt-3 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
           <button
             onClick={() => setActiveTab('theme')}
@@ -177,7 +214,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
             }`}
           >
             <Palette size={14} />
-            <span>🎨 ธีม & พื้นหลัง</span>
+            <span>🎨 ธีม & วอลเปเปอร์</span>
           </button>
 
           <button
@@ -190,18 +227,6 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
           >
             <Tag size={14} />
             <span>🏷️ ป้ายกำกับ (Labels)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('members')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold border-b-2 transition-all shrink-0 ${
-              activeTab === 'members'
-                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Users size={14} />
-            <span>👥 สมาชิก ({currentWorkspace?.members?.length || 0})</span>
           </button>
 
           <button
@@ -268,6 +293,61 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
                 </div>
               </div>
 
+              {/* Upload Picture from Device (Add Picture) */}
+              <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      <Upload size={14} className="text-emerald-500" />
+                      <span>อัปโหลดรูปภาพพื้นหลัง (Add Picture from Device)</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      เลือกรูปภาพจากเครื่องคอมพิวเตอร์เพื่อใช้เป็นวอลเปเปอร์บอร์ด
+                    </p>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isUploading ? <RefreshCw size={13} className="animate-spin" /> : <Upload size={13} />}
+                    <span>{isUploading ? 'กำลังประมวลผลภาพ...' : '➕ เลือกรูปภาพ'}</span>
+                  </button>
+                </div>
+
+                {/* Show Custom Uploaded Preview if Active */}
+                {isCustomUploadedImage && (
+                  <div className="relative rounded-xl overflow-hidden h-28 border border-emerald-500/50 shadow-md group">
+                    <img src={selectedBg} alt="Custom Background" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-between px-4">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5 drop-shadow">
+                        <Check size={16} className="text-emerald-400" /> ใช้วอลเปเปอร์ที่คุณอัปโหลดอยู่
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBg('default');
+                          handleSaveTheme('default');
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-bold shadow transition-colors"
+                      >
+                        ลบรูปพื้นหลัง
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Gradient Color Themes */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -275,7 +355,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
                     ชุดสี Gradient พรีเมียม (Vibrant Gradients)
                   </label>
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <Sparkles size={11} /> 1-Click เปลี่ยนธีมทันที
+                    <Sparkles size={11} /> 1-Click เปลี่ยนทันที
                   </span>
                 </div>
 
@@ -348,10 +428,11 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
                 </div>
               </div>
 
-              {/* Custom Image URL */}
+              {/* Custom Image URL fallback */}
               <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  ใส่วอลเปเปอร์แบบ Custom (Image URL)
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Link size={13} className="text-slate-400" />
+                  <span>หรือใส่ลิงก์รูปภาพผ่าน URL (Image URL)</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -367,11 +448,12 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
                       if (customBgUrl.trim()) {
                         setSelectedBg(customBgUrl.trim());
                         handleSaveTheme(customBgUrl.trim());
+                        setCustomBgUrl('');
                       }
                     }}
                     className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs shadow transition-colors"
                   >
-                    ใช้ภาพนี้
+                    ใช้ลิงก์นี้
                   </button>
                 </div>
               </div>
@@ -485,87 +567,7 @@ export const BoardSettingsModal: React.FC<BoardSettingsModalProps> = ({ isOpen, 
             </div>
           )}
 
-          {/* TAB 3: MEMBERS & INVITE */}
-          {activeTab === 'members' && (
-            <div className="space-y-6">
-              {/* Invite Member Box */}
-              <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  <UserPlus size={16} />
-                  <span>เชิญพนักงานเข้าร่วมบอร์ดงาน (Invite Colleague)</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <select
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                    className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="">-- เลือกพนักงานในองค์กรที่ต้องการเชิญ --</option>
-                    {availableUsersToInvite.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.email}) - {u.jobTitle || 'Staff'}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={handleInviteMember}
-                    disabled={!selectedUserId}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs shadow transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <Plus size={14} />
-                    <span>เชิญเข้าบอร์ด</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Existing Members List */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                  สมาชิกที่ได้รับสิทธิ์ในบอร์ดนี้ ({currentWorkspace?.members?.length || 0} คน)
-                </label>
-
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-                  {currentWorkspace?.members?.map((m) => (
-                    <div key={m.userId} className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={m.user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}`}
-                          alt={m.user.name}
-                          className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{m.user.name}</span>
-                            {m.role === 'OWNER' && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
-                                OWNER
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[11px] text-slate-400">{m.user.email}</span>
-                        </div>
-                      </div>
-
-                      {m.userId !== currentWorkspace.ownerId && currentUser?.id === currentWorkspace.ownerId && (
-                        <button
-                          type="button"
-                          onClick={() => removeMember(currentWorkspace.id, m.userId)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
-                        >
-                          ลบออก
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: DANGER ZONE & EXPORT */}
+          {/* TAB 3: DANGER ZONE & EXPORT */}
           {activeTab === 'danger' && (
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex items-center justify-between">

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
@@ -15,9 +16,19 @@ import { useBoardStore } from '../../store/useBoardStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Undo2, Check } from 'lucide-react';
 import { isPast, isToday, isThisWeek } from 'date-fns';
 import { GRADIENT_THEMES } from './BoardSettingsModal';
+
+interface LastMoveInfo {
+  cardId: string;
+  cardTitle: string;
+  sourceColId: string;
+  destColId: string;
+  sourceIndex: number;
+  destIndex: number;
+  destColTitle: string;
+}
 
 export const KanbanBoard: React.FC = () => {
   const { board, activeCard, setActiveCard, moveCard, createColumn, filters } = useBoardStore();
@@ -25,15 +36,39 @@ export const KanbanBoard: React.FC = () => {
 
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [lastMove, setLastMove] = useState<LastMoveInfo | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Require deliberate movement on desktop and touch-hold on mobile/tablets
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 8 // Requires 8px drag movement to prevent accidental clicks
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // Requires 200ms hold on touch screens to lift the card
+        tolerance: 6
+      }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
   );
+
+  // Clear Undo Toast after 6 seconds
+  useEffect(() => {
+    if (lastMove) {
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = setTimeout(() => {
+        setLastMove(null);
+      }, 6000);
+    }
+    return () => {
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    };
+  }, [lastMove]);
 
   if (!board) {
     return (
@@ -60,6 +95,7 @@ export const KanbanBoard: React.FC = () => {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    const currentActiveCard = activeCard;
     setActiveCard(null);
     if (!over) return;
 
@@ -71,13 +107,40 @@ export const KanbanBoard: React.FC = () => {
 
     if (!sourceCol || !destCol) return;
 
+    const sourceIndex = sourceCol.cards.findIndex((c) => c.id === activeId);
     const newIndex = destCol.cards.findIndex((c) => c.id === overId);
+    const finalDestIndex = newIndex >= 0 ? newIndex : destCol.cards.length;
+
+    // If card moved to a different column or changed position
+    if (sourceCol.id !== destCol.id || sourceIndex !== finalDestIndex) {
+      setLastMove({
+        cardId: activeId,
+        cardTitle: currentActiveCard?.title || 'การ์ดงาน',
+        sourceColId: sourceCol.id,
+        destColId: destCol.id,
+        sourceIndex,
+        destIndex: finalDestIndex,
+        destColTitle: destCol.title
+      });
+
+      moveCard(
+        activeId,
+        sourceCol.id,
+        destCol.id,
+        finalDestIndex
+      );
+    }
+  };
+
+  const handleUndo = () => {
+    if (!lastMove) return;
     moveCard(
-      activeId,
-      sourceCol.id,
-      destCol.id,
-      newIndex >= 0 ? newIndex : destCol.cards.length
+      lastMove.cardId,
+      lastMove.destColId,
+      lastMove.sourceColId,
+      lastMove.sourceIndex
     );
+    setLastMove(null);
   };
 
   // Filter cards per column with complete multi-filter support
@@ -160,7 +223,7 @@ export const KanbanBoard: React.FC = () => {
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] pointer-events-none" />
         )}
 
-        <div className="relative z-10 flex gap-6 items-start min-w-full">
+        <div className="relative z-10 flex gap-6 items-start min-w-full pb-12">
           {filteredColumns.map((column) => (
             <KanbanColumn key={column.id} column={column} />
           ))}
@@ -210,9 +273,37 @@ export const KanbanBoard: React.FC = () => {
         </div>
       </main>
 
+      {/* Floating Drag Overlay (Card Lifting/Floating visual) */}
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {activeCard ? <KanbanCard card={activeCard} isOverlay /> : null}
       </DragOverlay>
+
+      {/* Instant Undo Toast (Safety against accidental drags) */}
+      {lastMove && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white border border-slate-700 shadow-2xl rounded-2xl px-4 py-2.5 flex items-center gap-3.5">
+            <span className="text-xs font-medium flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-md">
+              <Check size={14} className="text-emerald-400 shrink-0" />
+              <span>ย้ายไปยัง <strong className="text-emerald-300 font-bold">[{lastMove.destColTitle}]</strong></span>
+            </span>
+
+            <button
+              onClick={handleUndo}
+              className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow transition-colors flex items-center gap-1 shrink-0"
+            >
+              <Undo2 size={13} />
+              <span>ยกเลิก (Undo)</span>
+            </button>
+
+            <button
+              onClick={() => setLastMove(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 };

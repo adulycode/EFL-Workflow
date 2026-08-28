@@ -28,7 +28,7 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.35 : 1
+    opacity: isDragging ? 0.25 : 1
   };
 
   const isOverdue = card.dueDate && isPast(new Date(card.dueDate));
@@ -48,8 +48,12 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
       {...attributes}
       {...listeners}
       onClick={() => !isDragging && setSelectedCardId(card.id)}
-      className={`group relative bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/90 dark:border-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing transition-all overflow-hidden ${
-        isOverlay ? 'rotate-1 scale-105 shadow-2xl ring-2 ring-neutral-900/10 dark:ring-white/10 z-50' : ''
+      className={`group relative bg-white dark:bg-neutral-900 rounded-xl border transition-all overflow-hidden ${
+        isOverlay
+          ? 'rotate-2 scale-105 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] ring-2 ring-emerald-500/80 border-emerald-400 dark:border-emerald-500 cursor-grabbing z-50 animate-in zoom-in-95 duration-100'
+          : isDragging
+          ? 'border-2 border-dashed border-emerald-500/50 bg-emerald-500/5 opacity-30 shadow-none'
+          : 'border-neutral-200/90 dark:border-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing active:scale-[0.98]'
       }`}
     >
       {/* Card Cover Banner (Image or Gradient or Solid Color) */}

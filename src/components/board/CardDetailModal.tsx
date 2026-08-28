@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useBoardStore } from '../../store/useBoardStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { Priority } from '../../types';
 import { 
   X, 
@@ -97,6 +98,7 @@ export const CardDetailModal: React.FC = () => {
     labels 
   } = useBoardStore();
   const { users, currentUser } = useAuthStore();
+  const { currentWorkspace } = useWorkspaceStore();
 
   const [cardDetails, setCardDetails] = useState<any>(null);
   const [title, setTitle] = useState('');
@@ -267,12 +269,16 @@ export const CardDetailModal: React.FC = () => {
 
     let newAssigneesData: Array<{ userId: string; type: string }>;
     if (isCurrentlyAdded) {
+      // Unselect from this role
       newAssigneesData = currentAssignees
         .filter((a: any) => !(a.userId === userId && (a.type || 'ASSIGNEE') === type))
         .map((a: any) => ({ userId: a.userId, type: a.type || 'ASSIGNEE' }));
     } else {
+      // Assign new role and automatically remove any other role for this user (prevent duplicate avatars & conflicting roles)
       newAssigneesData = [
-        ...currentAssignees.map((a: any) => ({ userId: a.userId, type: a.type || 'ASSIGNEE' })),
+        ...currentAssignees
+          .filter((a: any) => a.userId !== userId)
+          .map((a: any) => ({ userId: a.userId, type: a.type || 'ASSIGNEE' })),
         { userId, type }
       ];
     }
@@ -1740,13 +1746,15 @@ export const CardDetailModal: React.FC = () => {
                   <Archive size={14} /> Archive Card (ย้ายเข้าคลัง)
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteCardConfirm(true)}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors font-medium"
-                >
-                  <Trash2 size={14} /> Delete Permanently
-                </button>
+                {(currentUser?.role === 'ADMIN' || currentWorkspace?.ownerId === currentUser?.id || cardDetails?.createdById === currentUser?.id) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteCardConfirm(true)}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors font-medium"
+                  >
+                    <Trash2 size={14} /> Delete Permanently (ลบการ์ดถาวร)
+                  </button>
+                )}
               </div>
             </div>
           </div>

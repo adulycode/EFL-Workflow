@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useBoardStore } from '../../store/useBoardStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { X, Archive, RotateCcw, Trash2, Search, Calendar, Tag, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -10,8 +13,12 @@ interface Props {
 
 export const ArchivedCardsModal: React.FC<Props> = ({ onClose }) => {
   const { archivedCards, restoreCard, deleteCard, setSelectedCardId } = useBoardStore();
+  const { currentUser } = useAuthStore();
+  const { currentWorkspace } = useWorkspaceStore();
   const [search, setSearch] = useState('');
   const [cardToDelete, setCardToDelete] = useState<{ id: string; title: string } | null>(null);
+
+  const isAdmin = currentUser?.role === 'ADMIN' || currentWorkspace?.ownerId === currentUser?.id;
 
   const filtered = archivedCards.filter((c) => {
     if (!search) return true;
@@ -26,10 +33,10 @@ export const ArchivedCardsModal: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-xl max-h-[85vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div className="bg-white dark:bg-neutral-900 rounded-3xl w-full max-w-xl max-h-[85vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -119,13 +126,15 @@ export const ArchivedCardsModal: React.FC<Props> = ({ onClose }) => {
                       <span>Send to Board</span>
                     </button>
 
-                    <button
-                      onClick={() => setCardToDelete({ id: card.id, title: card.title })}
-                      className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                      title="Delete Permanently"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setCardToDelete({ id: card.id, title: card.title })}
+                        className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete Permanently"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -144,6 +153,7 @@ export const ArchivedCardsModal: React.FC<Props> = ({ onClose }) => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setCardToDelete(null)}
       />
-    </>
+    </>,
+    document.body
   );
 };

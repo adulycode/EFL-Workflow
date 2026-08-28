@@ -714,49 +714,21 @@ export async function sendNotification({
 
   const promises: Promise<any>[] = [];
 
-  // 1. Email Notification via Resend
-  if (email && RESEND_API_KEY && RESEND_API_KEY !== 'placeholder_resend_api_key') {
-    const emailPromise = fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'EFL-Workflow <notifications@efl.org>',
-        to: [email],
-        subject: title,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-            <div style="background: #047857; padding: 20px; text-align: left;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 1px;">EFL WORKFLOW ALERT</h1>
-            </div>
-            <div style="padding: 24px;">
-              <h2 style="font-size: 16px; font-weight: 700; color: #111827; margin-top: 0;">${title}</h2>
-              <p style="font-size: 14px; line-height: 1.6; color: #4b5563;">${message}</p>
-              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
-                <a href="${APP_BASE_URL}" style="display: inline-block; background: #059669; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">เปิดดูการ์ดงาน</a>
-              </div>
-            </div>
-          </div>
-        `
-      })
-    })
-    .then(async (res) => {
-      const data = await res.json();
-      await prisma.notificationLog.create({
-        data: {
-          userId,
-          channel: 'EMAIL',
-          title,
-          message,
-          status: res.ok ? 'SENT' : 'FAILED',
-          details: data
-        }
-      });
-    })
-    .catch((err) => {
-      console.error('[Resend Error]', err);
+  // 1. Email Notification via Gmail SMTP (or Resend fallback)
+  if (email) {
+    const { sendCardNotificationEmail } = await import('./emailService');
+    const emailPromise = sendCardNotificationEmail({
+      to: email,
+      title,
+      message,
+      cardTitle: cardDetails?.title,
+      priority: cardDetails?.priority,
+      dueDate: cardDetails?.dueDate,
+      actorName: cardDetails?.actorName,
+      cardId,
+      userId
+    }).catch((err) => {
+      console.error('[Email Dispatch Error]:', err.message);
     });
 
     promises.push(emailPromise);

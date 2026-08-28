@@ -19,21 +19,28 @@ export function setInboundSocketIO(io: any) {
 export function cleanEmailReply(rawText: string): string {
   if (!rawText) return '';
 
-  let cleaned = rawText
-    // Remove multi-line "On ... wrote:" or "เมื่อ ... เขียนว่า:"
-    .split(/\r?\nOn\s+[\s\S]+?wrote:\s*/i)[0]
-    .split(/\r?\nเมื่อ\s+[\s\S]+?เขียนว่า:\s*/i)[0]
-    .split(/\r?\nFrom:\s+[\s\S]+?\r?\n/i)[0]
-    .split(/\r?\n-----Original Message-----/i)[0]
-    .split(/\r?\n--\s*\r?\n/)[0]
-    .split(/--\s*Reply above this line\s*--/i)[0]
-    // Remove any remaining quoted lines starting with >
-    .replace(/\r?\n\s*>[\s\S]*/g, '')
-    // Remove mobile signatures
-    .replace(/(?:Sent from my (?:iPhone|iPad|Android|Galaxy|mobile device)|ส่งจาก iPhone ของฉัน|ส่งจากสมาร์ทโฟนของฉัน)[\s\S]*$/i, '')
-    .trim();
+  const markerIndex = rawText.search(/\r?\n\s*On\s+[\s\S]+?wrote:\s*/i);
+  let cleaned = markerIndex !== -1 ? rawText.slice(0, markerIndex) : rawText;
 
-  return cleaned || rawText.trim();
+  const thaiIndex = cleaned.search(/\r?\n\s*เมื่อ\s+[\s\S]+?เขียนว่า:\s*/i);
+  if (thaiIndex !== -1) cleaned = cleaned.slice(0, thaiIndex);
+
+  const fromIndex = cleaned.search(/\r?\n\s*From:\s+/i);
+  if (fromIndex !== -1) cleaned = cleaned.slice(0, fromIndex);
+
+  const dashIndex = cleaned.search(/\r?\n\s*--\s*\r?\n/);
+  if (dashIndex !== -1) cleaned = cleaned.slice(0, dashIndex);
+
+  // Strip lines starting with >
+  cleaned = cleaned
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('>'))
+    .join('\n');
+
+  // Strip mobile signatures
+  cleaned = cleaned.replace(/(?:Sent from my|ส่งจาก)[\s\S]*$/i, '');
+
+  return cleaned.trim() || rawText.trim();
 }
 
 /**

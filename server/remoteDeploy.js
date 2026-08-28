@@ -6,40 +6,37 @@ conn.on('ready', () => {
   const cmd = `docker exec efl-workflow-app npx tsx -e "
     const { PrismaClient } = require('@prisma/client');
     const p = new PrismaClient();
-    async function check() {
-      const card = await p.card.findUnique({
-        where: { id: 'db2a3c9e-aec4-4167-ba8f-703725bf85e4' },
-        include: {
-          column: {
-            include: {
-              board: {
-                include: { workspace: true }
-              }
-            }
-          },
-          comments: {
-            include: { user: true },
-            orderBy: { createdAt: 'desc' }
-          }
-        }
-      });
-      console.log('=== CARD INFO ===');
-      console.log('Card Title:', card.title);
-      console.log('Board Title:', card.column.board.title);
-      console.log('Board ID:', card.column.board.id);
-      console.log('Workspace Name:', card.column.board.workspace?.name);
-      console.log('Workspace ID:', card.column.board.workspaceId);
-      console.log('Direct URL:', 'https://trello.eflworkspace.com/workspace/' + card.column.board.workspaceId + '/board/' + card.column.board.id);
-      console.log('=== LATEST COMMENTS ===');
-      console.log(card.comments.map(c => ({
-        user: c.user?.name,
-        email: c.user?.email,
-        content: c.content,
-        isEmailReply: c.isEmailReply,
-        time: c.createdAt
-      })));
+    function clean(rawText) {
+      if (!rawText) return '';
+      const markerIndex = rawText.search(/\\r?\\n\\s*On\\s+[\\s\\S]+?wrote:\\s*/i);
+      let cleaned = markerIndex !== -1 ? rawText.slice(0, markerIndex) : rawText;
+
+      const thaiIndex = cleaned.search(/\\r?\\n\\s*เมื่อ\\s+[\\s\\S]+?เขียนว่า:\\s*/i);
+      if (thaiIndex !== -1) cleaned = cleaned.slice(0, thaiIndex);
+
+      const fromIndex = cleaned.search(/\\r?\\n\\s*From:\\s+/i);
+      if (fromIndex !== -1) cleaned = cleaned.slice(0, fromIndex);
+
+      const dashIndex = cleaned.search(/\\r?\\n\\s*--\\s*\\r?\\n/);
+      if (dashIndex !== -1) cleaned = cleaned.slice(0, dashIndex);
+
+      cleaned = cleaned.split('\\n').filter(line => !line.trim().startsWith('>')).join('\\n');
+      cleaned = cleaned.replace(/(?:Sent from my|ส่งจาก)[\\s\\S]*$/i, '');
+      return cleaned.trim();
     }
-    check().finally(() => p.\\$disconnect());
+
+    async function run() {
+      const c = await p.comment.findFirst({ where: { isEmailReply: true } });
+      if (c) {
+        const cleanedText = clean(c.content);
+        await p.comment.update({
+          where: { id: c.id },
+          data: { content: cleanedText }
+        });
+        console.log('Resulting cleaned comment:', JSON.stringify(cleanedText));
+      }
+    }
+    run().finally(() => p.\\$disconnect());
   "`;
 
   conn.exec(cmd, (err, stream) => {

@@ -2,69 +2,51 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Deploying Inbound Email-to-Comment feature to VPS...');
-
 conn.on('ready', () => {
-  const commands = [
-    'cd /home/serva/EFL-Workflow',
-    'rm -f .git/refs/remotes/origin/main .git/refs/remotes/origin/main.lock',
-    'git fetch origin main',
-    'git reset --hard origin/main',
-    'docker compose up -d --build',
-    'sleep 4',
-    'docker compose exec -T efl-workflow-app npx prisma db push --accept-data-loss',
-    'sleep 2',
-    'docker ps --filter "name=efl"'
-  ].join(' && ');
-
-  conn.exec(commands, (err, stream) => {
-    if (err) throw err;
-    stream.on('close', (code) => {
-      console.log(`\n🎉 Deploy finished with exit code: ${code}`);
-      
-      // Let's send a brand new notification email for a real card to adulnp@gmail.com so the user can test replying!
-      const sendCardAlertCmd = 'docker exec efl-workflow-app npx tsx -e "\
-        const { PrismaClient } = require(\'@prisma/client\');\
-        const p = new PrismaClient();\
-        async function run() {\
-          const firstCard = await p.card.findFirst({\
-            include: { column: { include: { board: { include: { workspace: true } } } } }\
-          });\
-          if (!firstCard) { console.log(\'No card found\'); return; }\
-          console.log(\'Found card:\', firstCard.title, \'(ID: \' + firstCard.id + \')\');\
-          \
-          const { sendCardNotificationEmail } = await import(\'./server/services/emailService\');\
-          const res = await sendCardNotificationEmail({\
-            to: \'adulnp@gmail.com\',\
-            title: \'📌 ทดสอบ Reply ตอบกลับอีเมล: \' + firstCard.title,\
-            message: \'การ์ดงานนี้พร้อมสำหรับการทดสอบ Email-to-Comment! คุณสามารถกดปุ่ม [Reply] ในแอป Gmail เพื่อตอบกลับข้อความนี้ได้ทันทีครับ\',\
-            cardTitle: firstCard.title,\
-            boardTitle: firstCard.column.board.title,\
-            workspaceTitle: firstCard.column.board.workspace?.name || \'EFL Organization\',\
-            priority: firstCard.priority,\
-            dueDate: firstCard.dueDate || new Date(Date.now() + 86400000),\
-            actorName: \'EFL System Alert\',\
-            cardId: firstCard.id\
-          });\
-          console.log(\'Email Dispatch Result:\', res);\
-        }\
-        run().finally(() => p.\\$disconnect());\
-      "';
-
-      conn.exec(sendCardAlertCmd, (err2, stream2) => {
-        if (err2) throw err2;
-        stream2.on('data', (d) => process.stdout.write(d.toString()));
-        stream2.stderr.on('data', (d) => process.stderr.write(d.toString()));
-        stream2.on('close', () => {
-          console.log('\n✅ Real card notification sent for live testing!');
-          conn.end();
-        });
+  const cmd = `docker exec efl-workflow-app npx tsx -e "
+    const { PrismaClient } = require('@prisma/client');
+    const p = new PrismaClient();
+    async function check() {
+      const card = await p.card.findUnique({
+        where: { id: 'db2a3c9e-aec4-4167-ba8f-703725bf85e4' },
+        include: {
+          column: {
+            include: {
+              board: {
+                include: { workspace: true }
+              }
+            }
+          },
+          comments: {
+            include: { user: true },
+            orderBy: { createdAt: 'desc' }
+          }
+        }
       });
-    }).on('data', (data) => {
-      process.stdout.write(data.toString());
-    }).stderr.on('data', (data) => {
-      process.stderr.write(data.toString());
-    });
+      console.log('=== CARD INFO ===');
+      console.log('Card Title:', card.title);
+      console.log('Board Title:', card.column.board.title);
+      console.log('Board ID:', card.column.board.id);
+      console.log('Workspace Name:', card.column.board.workspace?.name);
+      console.log('Workspace ID:', card.column.board.workspaceId);
+      console.log('Direct URL:', 'https://trello.eflworkspace.com/workspace/' + card.column.board.workspaceId + '/board/' + card.column.board.id);
+      console.log('=== LATEST COMMENTS ===');
+      console.log(card.comments.map(c => ({
+        user: c.user?.name,
+        email: c.user?.email,
+        content: c.content,
+        isEmailReply: c.isEmailReply,
+        time: c.createdAt
+      })));
+    }
+    check().finally(() => p.\\$disconnect());
+  "`;
+
+  conn.exec(cmd, (err, stream) => {
+    if (err) throw err;
+    stream.on('data', (d) => process.stdout.write(d.toString()));
+    stream.stderr.on('data', (d) => process.stderr.write(d.toString()));
+    stream.on('close', () => conn.end());
   });
 }).connect({
   host: '103.91.190.29',

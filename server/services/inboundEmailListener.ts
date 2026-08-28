@@ -20,11 +20,16 @@ export function cleanEmailReply(rawText: string): string {
   if (!rawText) return '';
 
   let cleaned = rawText
-    // Remove reply header lines (English & Thai)
-    .split(/\r?\nOn .+ wrote:|\r?\nเมื่อ .+ เขียนว่า:|\r?\nFrom: .+|\r?\n-----Original Message-----|\r?\n--\s*\r?\n/i)[0]
-    // Remove "Reply above this line" markers
+    // Remove multi-line "On ... wrote:" or "เมื่อ ... เขียนว่า:"
+    .split(/\r?\nOn\s+[\s\S]+?wrote:\s*/i)[0]
+    .split(/\r?\nเมื่อ\s+[\s\S]+?เขียนว่า:\s*/i)[0]
+    .split(/\r?\nFrom:\s+[\s\S]+?\r?\n/i)[0]
+    .split(/\r?\n-----Original Message-----/i)[0]
+    .split(/\r?\n--\s*\r?\n/)[0]
     .split(/--\s*Reply above this line\s*--/i)[0]
-    // Remove sent from iPhone/Android/Outlook lines
+    // Remove any remaining quoted lines starting with >
+    .replace(/\r?\n\s*>[\s\S]*/g, '')
+    // Remove mobile signatures
     .replace(/(?:Sent from my (?:iPhone|iPad|Android|Galaxy|mobile device)|ส่งจาก iPhone ของฉัน|ส่งจากสมาร์ทโฟนของฉัน)[\s\S]*$/i, '')
     .trim();
 

@@ -1607,13 +1607,15 @@ export const CardDetailModal: React.FC = () => {
                 </label>
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-amber-200/80 dark:border-amber-950/60 shadow-sm">
                   {users
-                    .slice()
-                    .sort((a, b) => (a.role === 'ADMIN' ? -1 : 1))
-                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO'))
+                    .filter((u) => {
+                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
+                      const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
+                      const isEligible = u.isActive !== false && u.isAssignable !== false;
+                      return (isBoss && isEligible) || isReportTo;
+                    })
                     .map((u) => {
                       const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
                       const isInactive = u.isActive === false;
-                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /manager|director|lead|head/i.test(u.jobTitle));
                       return (
                         <button
                           key={`reportto-${u.id}`}
@@ -1626,7 +1628,7 @@ export const CardDetailModal: React.FC = () => {
                           }`}
                         >
                           <span className="truncate flex items-center gap-1.5">
-                            {isBoss && <span className="text-[11px]">👑</span>}
+                            <span className="text-[11px]">👑</span>
                             <span>{u.name}</span>
                             {isInactive && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">

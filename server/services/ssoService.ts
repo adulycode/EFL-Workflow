@@ -381,6 +381,16 @@ export async function registerWithCentralSSO(retryCount = 0) {
       
       // Auto pull all members on successful handshake
       setTimeout(() => pullAllUsersFromSSO(), 1000);
+
+      // Start periodic background auto-sync every 2 minutes
+      setInterval(async () => {
+        try {
+          await pullAllUsersFromSSO();
+        } catch {
+          // background sync fallback
+        }
+      }, 120000);
+
       return true;
     } else {
       console.warn(`[EFL Central SSO] Registration response status: ${res.status}`);

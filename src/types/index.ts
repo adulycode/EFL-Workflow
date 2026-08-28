@@ -148,6 +148,8 @@ export interface Board {
   workspace?: Workspace;
   title: string;
   description?: string;
+  icon?: string;
+  background?: string;
   googleDriveFolderId?: string;
   columns: Column[];
 }

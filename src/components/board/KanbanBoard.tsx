@@ -17,6 +17,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { Plus, X } from 'lucide-react';
 import { isPast, isToday, isThisWeek } from 'date-fns';
+import { GRADIENT_THEMES } from './BoardSettingsModal';
 
 export const KanbanBoard: React.FC = () => {
   const { board, activeCard, setActiveCard, moveCard, createColumn, filters } = useBoardStore();
@@ -128,6 +129,22 @@ export const KanbanBoard: React.FC = () => {
     })
   }));
 
+  // Determine dynamic background styling
+  const currentBgId = board.background || 'default';
+  const matchedGradient = GRADIENT_THEMES.find((g) => g.id === currentBgId);
+  const isCustomWallpaper = currentBgId.startsWith('http') || currentBgId.startsWith('data:');
+
+  const bgClass = matchedGradient 
+    ? matchedGradient.class 
+    : (!isCustomWallpaper ? 'bg-gradient-to-br from-emerald-950/80 via-teal-900/40 to-slate-950' : '');
+
+  const bgStyle = isCustomWallpaper ? {
+    backgroundImage: `url("${currentBgId}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed'
+  } : undefined;
+
   return (
     <DndContext
       sensors={sensors}
@@ -135,13 +152,21 @@ export const KanbanBoard: React.FC = () => {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <main className="flex-1 overflow-x-auto p-6 flex gap-6 items-start select-none">
-        {filteredColumns.map((column) => (
-          <KanbanColumn key={column.id} column={column} />
-        ))}
+      <main 
+        className={`flex-1 overflow-x-auto p-6 flex gap-6 items-start select-none relative min-h-full transition-all duration-300 ${bgClass}`}
+        style={bgStyle}
+      >
+        {isCustomWallpaper && (
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] pointer-events-none" />
+        )}
 
-        {/* Add New Column Section */}
-        <div className="w-80 shrink-0">
+        <div className="relative z-10 flex gap-6 items-start min-w-full">
+          {filteredColumns.map((column) => (
+            <KanbanColumn key={column.id} column={column} />
+          ))}
+
+          {/* Add New Column Section */}
+          <div className="w-80 shrink-0">
           {isAddingColumn ? (
             <form
               onSubmit={handleCreateColumn}
@@ -181,6 +206,7 @@ export const KanbanBoard: React.FC = () => {
               <span>Add Another Column</span>
             </button>
           )}
+        </div>
         </div>
       </main>
 

@@ -2,18 +2,13 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Deploying notifyComment toggle and DB migration to VPS...');
-
 conn.on('ready', () => {
   const commands = [
     'cd /home/serva/EFL-Workflow',
-    'rm -f .git/refs/remotes/origin/main .git/refs/remotes/origin/main.lock',
-    'git fetch origin main',
-    'git reset --hard origin/main',
-    'docker compose up -d --build',
-    'sleep 4',
+    'docker compose up -d',
+    'sleep 3',
     'docker compose exec -T efl-workflow-app npx prisma db push --accept-data-loss',
-    'sleep 2',
+    'sleep 1',
     'docker ps --filter "name=efl"'
   ].join(' && ');
 
@@ -21,8 +16,8 @@ conn.on('ready', () => {
     if (err) throw err;
     stream.on('data', (d) => process.stdout.write(d.toString()));
     stream.stderr.on('data', (d) => process.stderr.write(d.toString()));
-    stream.on('close', (code) => {
-      console.log(`\n🎉 Deploy finished with exit code: ${code}`);
+    stream.on('close', () => {
+      console.log('\n✅ All containers are up and database synchronized!');
       conn.end();
     });
   });

@@ -14,11 +14,13 @@ import {
   Tag,
   ExternalLink,
   LogOut,
-  Shield
+  Shield,
+  Palette
 } from 'lucide-react';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { UserSettingsModal } from '../settings/UserSettingsModal';
 import { LabelManagerModal } from './LabelManagerModal';
+import { BoardSettingsModal } from './BoardSettingsModal';
 import { format } from 'date-fns';
 
 export const BoardHeader: React.FC = () => {
@@ -28,6 +30,7 @@ export const BoardHeader: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
+  const [showBoardSettingsModal, setShowBoardSettingsModal] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(userDropdownRef, () => setShowUserDropdown(false), showUserDropdown);
@@ -102,6 +105,7 @@ export const BoardHeader: React.FC = () => {
 
           <div>
             <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              <span className="text-base">{board?.icon || '📋'}</span>
               <span>{board?.title || 'Loading Board...'}</span>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
                 Workspace Board
@@ -166,24 +170,24 @@ export const BoardHeader: React.FC = () => {
 
         {/* Right Section: Tools & Profile */}
         <div className="flex items-center gap-2.5">
+          {/* Board Settings & Themes Button */}
+          <button
+            onClick={() => setShowBoardSettingsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 rounded-xl transition-all border border-emerald-200 dark:border-emerald-800/80 shadow-xs"
+            title="ตั้งค่าและปรับแต่งธีมบอร์ด (Board Settings & Themes)"
+          >
+            <Palette size={14} className="text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">ปรับแต่งบอร์ด</span>
+          </button>
+
           {/* Settings Suite Button */}
           <button
             onClick={() => useAuthStore.getState().openSettings()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors border border-neutral-200/80 dark:border-neutral-800 shadow-sm"
             title="Workspace & System Settings"
           >
-            <Settings size={14} className="text-emerald-600 dark:text-emerald-400" />
+            <Settings size={14} className="text-slate-600 dark:text-slate-400" />
             <span className="hidden sm:inline">Settings</span>
-          </button>
-
-          {/* Manage Labels button */}
-          <button
-            onClick={() => useAuthStore.getState().openSettings('labels')}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors border border-neutral-200/80 dark:border-neutral-800"
-            title="Manage Labels"
-          >
-            <Tag size={13} className="text-purple-600 dark:text-purple-400" />
-            <span>Labels</span>
           </button>
 
           {/* Export to CSV Button */}
@@ -291,6 +295,12 @@ export const BoardHeader: React.FC = () => {
       <LabelManagerModal
         isOpen={showLabelManager}
         onClose={() => setShowLabelManager(false)}
+      />
+
+      {/* Board Settings & Customization Modal */}
+      <BoardSettingsModal
+        isOpen={showBoardSettingsModal}
+        onClose={() => setShowBoardSettingsModal(false)}
       />
     </>
   );

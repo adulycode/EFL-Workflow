@@ -279,4 +279,57 @@ router.delete('/labels/:id', async (req, res) => {
   }
 });
 
+// Update Board (Title, Description, Icon, Background Theme)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, icon, background } = req.body;
+
+    const board = await prisma.board.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title: title.trim() }),
+        ...(description !== undefined && { description: description?.trim() || null }),
+        ...(icon !== undefined && { icon: icon?.trim() || '📋' }),
+        ...(background !== undefined && { background: background?.trim() || 'default' })
+      },
+      include: {
+        workspace: true,
+        columns: {
+          orderBy: { position: 'asc' },
+          include: {
+            cards: {
+              where: { isArchived: false },
+              include: {
+                assignees: { include: { user: true } },
+                labels: { include: { label: true } },
+                checklists: { include: { items: true } },
+                attachments: true,
+                _count: { select: { comments: true, attachments: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    emitRealtime(req, 'board:updated', board);
+    res.json(board);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Board
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const board = await prisma.board.delete({ where: { id } });
+    emitRealtime(req, 'board:deleted', { id, workspaceId: board.workspaceId });
+    res.json({ success: true, workspaceId: board.workspaceId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

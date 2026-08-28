@@ -50,6 +50,10 @@ interface BoardState {
   addAttachment: (cardId: string, data: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number; userId?: string }) => Promise<void>;
   deleteAttachment: (cardId: string, attachmentId: string) => Promise<void>;
 
+  // Board Operations
+  updateBoard: (boardId: string, data: { title?: string; description?: string; icon?: string; background?: string }) => Promise<void>;
+  deleteBoard: (boardId: string) => Promise<void>;
+
   // Label Operations
   createLabel: (name: string, colorBg: string, colorText: string) => Promise<void>;
   updateLabel: (labelId: string, data: { name?: string; colorBg?: string; colorText?: string }) => Promise<void>;
@@ -355,6 +359,38 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to update label:', err);
+    }
+  },
+
+  // Board Operations
+  updateBoard: async (boardId, data) => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        set((state) => ({
+          board: state.board?.id === boardId ? { ...state.board, ...updated } : state.board
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to update board:', err);
+    }
+  },
+
+  deleteBoard: async (boardId) => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        get().fetchBoard();
+      }
+    } catch (err) {
+      console.error('Failed to delete board:', err);
     }
   },
 

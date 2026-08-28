@@ -93,6 +93,8 @@ model Board {
   workspace           Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title               String
   description         String?
+  icon                String?     @default("📋")
+  background          String?     @default("default")
   googleDriveFolderId String?     @default("1N1tclaApps6k8gmz-1SIbBWacOAW-T1D")
   createdById         String?
   createdBy           User?       @relation("BoardCreatedByUser", fields: [createdById], references: [id])

@@ -53,11 +53,11 @@ export function extractCardIdFromEmail(subject: string, bodyText: string, htmlTe
 /**
  * Process a single incoming email
  */
-async function processIncomingEmail(stream: NodeJS.ReadableStream) {
+async function processIncomingEmail(stream: any) {
   try {
-    const parsed = await simpleParser(stream);
+    const parsed: any = await simpleParser(stream as any);
 
-    const fromAddress = parsed.from?.value[0]?.address?.toLowerCase().trim() || '';
+    const fromAddress = (parsed.from?.value?.[0]?.address || parsed.from?.text || '').toLowerCase().trim();
     const subject = parsed.subject || '';
     const textBody = parsed.text || '';
     const htmlBody = parsed.html || '';

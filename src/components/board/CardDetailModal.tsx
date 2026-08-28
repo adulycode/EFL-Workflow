@@ -29,6 +29,8 @@ import {
   Layers,
   AtSign,
   Smile,
+  Mail,
+  UserCheck,
   Sparkles,
   Image as CoverIcon
 } from 'lucide-react';

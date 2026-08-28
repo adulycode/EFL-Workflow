@@ -163,17 +163,31 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
             )}
           </div>
 
-          {/* Assignees Avatars */}
-          <div className="flex -space-x-1.5 overflow-hidden">
-            {card.assignees?.map(({ user }) => (
-              <img
-                key={user.id}
-                src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
-                alt={user.name}
-                title={user.name}
-                className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-neutral-900 object-cover"
-              />
-            ))}
+          {/* Stakeholder Avatars (Assignees, Report To, FYI) */}
+          <div className="flex -space-x-1.5 overflow-hidden items-center">
+            {card.assignees?.map((a: any) => {
+              const u = a.user;
+              const isReportTo = a.type === 'REPORT_TO';
+              const isFyi = a.type === 'FYI';
+              const roleTitle = isReportTo ? `👑 Report to: ${u.name}` : isFyi ? `📢 FYI: ${u.name}` : `🛠️ Assignee: ${u.name}`;
+              return (
+                <div key={`${a.cardId || card.id}-${u.id}-${a.type || 'assignee'}`} className="relative inline-block" title={roleTitle}>
+                  <img
+                    src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}`}
+                    alt={u.name}
+                    className={`inline-block h-5 w-5 rounded-full ring-2 ${
+                      isReportTo ? 'ring-amber-400' : isFyi ? 'ring-sky-400' : 'ring-white dark:ring-neutral-900'
+                    } object-cover`}
+                  />
+                  {isReportTo && (
+                    <span className="absolute -top-1.5 -right-1 text-[8px]">👑</span>
+                  )}
+                  {isFyi && (
+                    <span className="absolute -bottom-1 -right-0.5 text-[7px]">👁️</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

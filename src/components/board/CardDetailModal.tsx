@@ -259,15 +259,29 @@ export const CardDetailModal: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleToggleAssignee = async (userId: string) => {
-    const currentAssigneeIds = cardDetails.assignees.map((a: any) => a.userId);
-    const newAssigneeIds = currentAssigneeIds.includes(userId)
-      ? currentAssigneeIds.filter((id: string) => id !== userId)
-      : [...currentAssigneeIds, userId];
+  const handleToggleStakeholder = async (userId: string, type: 'ASSIGNEE' | 'REPORT_TO' | 'FYI') => {
+    const currentAssignees = cardDetails.assignees || [];
+    const isCurrentlyAdded = currentAssignees.some(
+      (a: any) => a.userId === userId && (a.type || 'ASSIGNEE') === type
+    );
 
-    await updateCard(selectedCardId, { assigneeIds: newAssigneeIds });
+    let newAssigneesData: Array<{ userId: string; type: string }>;
+    if (isCurrentlyAdded) {
+      newAssigneesData = currentAssignees
+        .filter((a: any) => !(a.userId === userId && (a.type || 'ASSIGNEE') === type))
+        .map((a: any) => ({ userId: a.userId, type: a.type || 'ASSIGNEE' }));
+    } else {
+      newAssigneesData = [
+        ...currentAssignees.map((a: any) => ({ userId: a.userId, type: a.type || 'ASSIGNEE' })),
+        { userId, type }
+      ];
+    }
+
+    await updateCard(selectedCardId, { assigneesData: newAssigneesData });
     fetchDetails();
   };
+
+  const handleToggleAssignee = (userId: string) => handleToggleStakeholder(userId, 'ASSIGNEE');
 
   const handleToggleLabel = async (labelId: string) => {
     const currentLabelIds = cardDetails.labels.map((l: any) => l.labelId);
@@ -1547,25 +1561,26 @@ export const CardDetailModal: React.FC = () => {
                 />
               </div>
 
-              {/* Assignees */}
+              {/* 1. Assignees (ผู้รับผิดชอบหลัก - Doers) */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1">
-                  <Users size={13} /> Assignees (ผู้รับผิดชอบ)
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <Users size={13} className="text-emerald-600 dark:text-emerald-400" />
+                  <span>Assignees (ผู้รับผิดชอบหลัก)</span>
                 </label>
-                <div className="max-h-36 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
                   {users
-                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id))
+                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type)))
                     .map((u) => {
-                      const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id);
+                      const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
                       const isInactive = u.isActive === false;
                       return (
                         <button
-                          key={u.id}
+                          key={`assignee-${u.id}`}
                           type="button"
-                          onClick={() => handleToggleAssignee(u.id)}
-                          className={`w-full flex items-center justify-between p-1.5 rounded text-xs transition-colors ${
+                          onClick={() => handleToggleStakeholder(u.id, 'ASSIGNEE')}
+                          className={`w-full flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${
                             isAssigned
-                              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                              ? 'bg-emerald-600 text-white font-bold'
                               : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
                           }`}
                         >
@@ -1581,9 +1596,87 @@ export const CardDetailModal: React.FC = () => {
                         </button>
                       );
                     })}
-                  {users.filter((u) => u.isActive !== false).length === 0 && (
-                    <p className="text-[11px] text-neutral-400 text-center py-1">ไม่มีสมาชิกที่เปิดใช้งาน</p>
-                  )}
+                </div>
+              </div>
+
+              {/* 2. Report To (รายงานผู้บังคับบัญชา / เจ้านาย) */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <span className="text-amber-500">👑</span>
+                  <span>Report to (รายงานเจ้านาย/ผู้บริหาร)</span>
+                </label>
+                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-amber-200/80 dark:border-amber-950/60 shadow-sm">
+                  {users
+                    .slice()
+                    .sort((a, b) => (a.role === 'ADMIN' ? -1 : 1))
+                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO'))
+                    .map((u) => {
+                      const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
+                      const isInactive = u.isActive === false;
+                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /manager|director|lead|head/i.test(u.jobTitle));
+                      return (
+                        <button
+                          key={`reportto-${u.id}`}
+                          type="button"
+                          onClick={() => handleToggleStakeholder(u.id, 'REPORT_TO')}
+                          className={`w-full flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${
+                            isReportTo
+                              ? 'bg-amber-600 text-white font-bold'
+                              : 'hover:bg-amber-50 dark:hover:bg-amber-950/30 text-neutral-700 dark:text-neutral-300'
+                          }`}
+                        >
+                          <span className="truncate flex items-center gap-1.5">
+                            {isBoss && <span className="text-[11px]">👑</span>}
+                            <span>{u.name}</span>
+                            {isInactive && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
+                                Inactive
+                              </span>
+                            )}
+                          </span>
+                          {isReportTo && <span className="text-[10px] font-bold">✓</span>}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* 3. FYI (แจ้งเพื่อทราบ / ผู้เข้าร่วม) */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <span className="text-sky-500">📢</span>
+                  <span>FYI (แจ้งเพื่อทราบ / ผู้ร่วมรับรู้)</span>
+                </label>
+                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
+                  {users
+                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI'))
+                    .map((u) => {
+                      const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
+                      const isInactive = u.isActive === false;
+                      return (
+                        <button
+                          key={`fyi-${u.id}`}
+                          type="button"
+                          onClick={() => handleToggleStakeholder(u.id, 'FYI')}
+                          className={`w-full flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${
+                            isFyi
+                              ? 'bg-sky-600 text-white font-bold'
+                              : 'hover:bg-sky-50 dark:hover:bg-sky-950/30 text-neutral-700 dark:text-neutral-300'
+                          }`}
+                        >
+                          <span className="truncate flex items-center gap-1.5">
+                            <span className="text-[10px]">👁️</span>
+                            <span>{u.name}</span>
+                            {isInactive && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
+                                Inactive
+                              </span>
+                            )}
+                          </span>
+                          {isFyi && <span className="text-[10px] font-bold">✓</span>}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
 

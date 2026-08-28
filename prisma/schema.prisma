@@ -177,12 +177,15 @@ model CardLabel {
 }
 
 model CardAssignee {
-  cardId String
-  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String   @default("ASSIGNEE") // "ASSIGNEE" | "REPORT_TO" | "FYI"
+  assignedAt DateTime @default(now())
 
-  @@id([cardId, userId])
+  @@unique([cardId, userId, type])
 }
 
 model Comment {

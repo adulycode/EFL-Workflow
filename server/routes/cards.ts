@@ -98,7 +98,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, priority, dueDate, coverColor, coverImage, icon, coverBanner, userId, assigneeIds, labelIds } = req.body;
+    const { title, description, priority, dueDate, coverColor, coverImage, icon, coverBanner, userId, assigneeIds, assigneesData, labelIds } = req.body;
 
     const existingCard = await prisma.card.findUnique({
       where: { id },
@@ -107,28 +107,43 @@ router.patch('/:id', async (req, res) => {
 
     if (!existingCard) return res.status(404).json({ error: 'Card not found' });
 
-    if (assigneeIds !== undefined) {
+    // Handle Stakeholders (Assignees, Report To, FYI)
+    if (assigneesData !== undefined || assigneeIds !== undefined) {
       await prisma.cardAssignee.deleteMany({ where: { cardId: id } });
-      if (assigneeIds.length > 0) {
+
+      let recordsToCreate: Array<{ cardId: string; userId: string; type: string }> = [];
+
+      if (Array.isArray(assigneesData)) {
+        recordsToCreate = assigneesData.map((item: any) => ({
+          cardId: id,
+          userId: typeof item === 'string' ? item : item.userId,
+          type: typeof item === 'object' && item.type ? item.type : 'ASSIGNEE'
+        }));
+      } else if (Array.isArray(assigneeIds)) {
+        recordsToCreate = assigneeIds.map((uid: string) => ({
+          cardId: id,
+          userId: uid,
+          type: 'ASSIGNEE'
+        }));
+      }
+
+      if (recordsToCreate.length > 0) {
         await prisma.cardAssignee.createMany({
-          data: assigneeIds.map((uid: string) => ({ cardId: id, userId: uid }))
+          data: recordsToCreate
         });
 
-        const newlyAssigned = assigneeIds.filter(
-          (uid: string) => !existingCard.assignees.some((a) => a.userId === uid)
-        );
-
-        for (const newUid of newlyAssigned) {
-          const user = await prisma.user.findUnique({ where: { id: newUid } });
-          if (user) {
-            sendNotification({
-              userId: user.id,
-              email: user.email,
-              lineUserId: user.lineUserId || undefined,
-              title: `Task Assigned: "${title || existingCard.title}"`,
-              message: `You have been assigned to task "${title || existingCard.title}".`,
+        // Trigger notifications for new stakeholders
+        const { sendStakeholderNotifications } = await import('../services/notificationService');
+        for (const item of recordsToCreate) {
+          const wasAlreadyAssigned = existingCard.assignees.some(
+            (a) => a.userId === item.userId && a.type === item.type
+          );
+          if (!wasAlreadyAssigned && item.userId !== userId) {
+            sendStakeholderNotifications({
               cardId: id,
-              actionType: 'ASSIGNED_USER'
+              actorUserId: userId,
+              type: item.type === 'REPORT_TO' ? 'REPORT_TO_ASSIGNED' : item.type === 'FYI' ? 'FYI_ASSIGNED' : 'COLUMN_MOVED',
+              actionSummary: `คุณได้รับมอบหมายในงาน "${title || existingCard.title}"`
             });
           }
         }
@@ -377,6 +392,15 @@ router.post('/:id/comments', async (req, res) => {
         }
       });
     }
+
+    // Trigger Smart Stakeholder Notifications (Assignees, Report To, FYI)
+    const { sendStakeholderNotifications } = await import('../services/notificationService');
+    sendStakeholderNotifications({
+      cardId: id,
+      actorUserId: finalUserId,
+      type: 'COMMENT',
+      comment: { content, imageUrl }
+    });
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });
     res.json(comment);

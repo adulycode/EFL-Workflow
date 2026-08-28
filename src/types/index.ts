@@ -40,8 +40,14 @@ export interface Label {
   colorText: string;
 }
 
+export type StakeholderType = 'ASSIGNEE' | 'REPORT_TO' | 'FYI';
+
 export interface CardAssignee {
+  id?: string;
+  cardId?: string;
   userId: string;
+  type?: StakeholderType;
+  assignedAt?: string;
   user: User;
 }
 

@@ -12,6 +12,7 @@ import cardsRouter from './routes/cards';
 import notificationsRouter from './routes/notifications';
 import usersRouter from './routes/users';
 import settingsRouter from './routes/settings';
+import inboundEmailRouter from './routes/inboundEmail';
 
 dotenv.config();
 
@@ -40,6 +41,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/workspaces', workspacesRouter);
 app.use('/api/boards', boardsRouter);
 app.use('/api/cards', cardsRouter);
+app.use('/api/cards', inboundEmailRouter);
+app.use('/api/webhooks', inboundEmailRouter);
 app.use('/api/notifications', notificationsRouter);
 
 app.get('/api/health', (req, res) => {

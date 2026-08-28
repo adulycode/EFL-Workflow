@@ -232,6 +232,471 @@ export function buildLineFlexCard({
   };
 }
 
+const APP_BASE_URL = process.env.APP_URL || 'https://trello.eflworkspace.com';
+
+/**
+ * Generate cryptographic magic token for 1-click email actions
+ */
+export function generateMagicActionToken(cardId: string, userId: string, action: string = 'view'): string {
+  const secret = process.env.SSO_SHARED_SECRET || 'super-secret-jwt-key-for-efl-sso-change-in-production-123456789';
+  const payload = `${cardId}:${userId}:${action}:${Math.floor(Date.now() / 1000) + 86400 * 30}`;
+  const crypto = require('crypto');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  return Buffer.from(`${payload}:${signature}`).toString('base64url');
+}
+
+/**
+ * Pattern 1: Comment / Reply Notification HTML
+ */
+export function buildCommentReplyEmailHtml({
+  cardTitle,
+  boardTitle,
+  columnTitle,
+  priority,
+  commenterName,
+  commenterAvatar,
+  commentContent,
+  imageUrl,
+  cardId,
+  recipientName,
+  recipientRoleText,
+  stakeholderSummary
+}: {
+  cardTitle: string;
+  boardTitle: string;
+  columnTitle: string;
+  priority: string;
+  commenterName: string;
+  commenterAvatar?: string;
+  commentContent: string;
+  imageUrl?: string | null;
+  cardId: string;
+  recipientName: string;
+  recipientRoleText: string;
+  stakeholderSummary?: { assignees: string[]; reportTo: string[]; fyi: string[] };
+}) {
+  const cardUrl = `${APP_BASE_URL}?cardId=${cardId}`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
+        <div style="background: #0f172a; padding: 20px 24px; border-bottom: 3px solid #10b981; display: flex; justify-content: space-between; align-items: center;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td>
+                <span style="color: #10b981; font-weight: 800; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;">EFL WORKFLOW</span>
+                <h1 style="color: #ffffff; margin: 4px 0 0 0; font-size: 16px; font-weight: 700;">💬 มีการตอบกลับใน Ticket</h1>
+              </td>
+              <td align="right">
+                <span style="background: #1e293b; color: #94a3b8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1px solid #334155;">${recipientRoleText}</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Ticket Summary Banner -->
+        <div style="background: #f8fafc; padding: 16px 24px; border-bottom: 1px solid #e2e8f0;">
+          <span style="font-size: 11px; color: #64748b; font-weight: 600;">📁 ${boardTitle} • 📋 ${columnTitle}</span>
+          <h2 style="margin: 4px 0 0 0; font-size: 16px; font-weight: 700; color: #0f172a;">${cardTitle}</h2>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 13px; color: #475569;">เรียน <strong>${recipientName}</strong>,</p>
+
+          <!-- Comment Box -->
+          <div style="background: #f8fafc; border-left: 4px solid #10b981; border-radius: 8px 12px 12px 8px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 13px; font-weight: 700; color: #0f172a;">👤 ${commenterName}</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-left: 8px;">ตอบกลับว่า:</span>
+            </div>
+            <div style="font-size: 14px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${commentContent}</div>
+
+            ${
+              imageUrl
+                ? `
+              <div style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                <span style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">🖼️ รูปภาพที่แนบมา:</span>
+                <img src="${imageUrl}" alt="Attachment" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #cbd5e1; display: block;" />
+                <a href="${imageUrl}" target="_blank" style="display: inline-block; font-size: 11px; color: #2563eb; margin-top: 6px; text-decoration: none; font-weight: 600;">🔍 คลิกดูรูปขนาดเต็ม (Full Resolution)</a>
+              </div>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- Stakeholders Footer List -->
+          ${
+            stakeholderSummary
+              ? `
+            <div style="background: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 12px; color: #475569; line-height: 1.6;">
+              ${stakeholderSummary.assignees.length ? `<div>🛠️ <strong>ผู้รับผิดชอบ (Assignees):</strong> ${stakeholderSummary.assignees.join(', ')}</div>` : ''}
+              ${stakeholderSummary.reportTo.length ? `<div>👑 <strong>รายงาน (Report To):</strong> ${stakeholderSummary.reportTo.join(', ')}</div>` : ''}
+              ${stakeholderSummary.fyi.length ? `<div>📢 <strong>แจ้งเพื่อทราบ (FYI):</strong> ${stakeholderSummary.fyi.join(', ')}</div>` : ''}
+            </div>
+          `
+              : ''
+          }
+
+          <!-- Action Button -->
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="${cardUrl}" style="display: inline-block; background: #10b981; color: #ffffff; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: 13px; text-decoration: none; box-shadow: 0 4px 12px rgba(16,185,129,0.25);">💬 เปิดดูและตอบกลับบนเว็บ</a>
+          </div>
+          
+          <div style="text-align: center; margin-top: 14px;">
+            <span style="font-size: 11px; color: #94a3b8;">💡 หรือกดปุ่ม <strong>Reply (ตอบกลับ)</strong> ในแอปอีเมลนี้เพื่อโพสต์ข้อความกลับเข้า Ticket ได้ทันที</span>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          🔒 ระบบส่งอัตโนมัติจาก EFL Workflow System • <a href="${APP_BASE_URL}" style="color: #64748b; text-decoration: none;">trello.eflworkspace.com</a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Pattern 2: Executive Report To Notification HTML (for Boss / Manager)
+ */
+export function buildReportToEmailHtml({
+  cardTitle,
+  boardTitle,
+  columnTitle,
+  priority,
+  actionSummary,
+  actorName,
+  dueDate,
+  imageUrl,
+  cardId,
+  managerName,
+  magicApproveUrl
+}: {
+  cardTitle: string;
+  boardTitle: string;
+  columnTitle: string;
+  priority: string;
+  actionSummary: string;
+  actorName: string;
+  dueDate?: string;
+  imageUrl?: string | null;
+  cardId: string;
+  managerName: string;
+  magicApproveUrl?: string;
+}) {
+  const cardUrl = `${APP_BASE_URL}?cardId=${cardId}`;
+  const priorityColor = priority === 'URGENT' ? '#e11d48' : priority === 'HIGH' ? '#f59e0b' : '#10b981';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
+        <div style="background: #1e1b4b; padding: 22px 24px; border-bottom: 3px solid #fbbf24;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td>
+                <span style="color: #fbbf24; font-weight: 800; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;">👑 EXECUTIVE REPORT</span>
+                <h1 style="color: #ffffff; margin: 4px 0 0 0; font-size: 17px; font-weight: 700;">รายงานความคืบหน้าถึงคุณ</h1>
+              </td>
+              <td align="right">
+                <span style="background: ${priorityColor}; color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">${priority}</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #1e293b;">เรียน <strong>คุณ${managerName}</strong>,</p>
+          <p style="font-size: 13px; color: #475569; margin: 0 0 16px 0;">มีการรายงานผลงานและส่งความคืบหน้าของงานใน Ticket ที่รายงานถึงคุณโดยตรง:</p>
+
+          <!-- Card Summary Card -->
+          <div style="background: #f8fafc; border-radius: 12px; padding: 18px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+            <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px;">📁 ${boardTitle} • 📋 ${columnTitle}</div>
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #0f172a;">${cardTitle}</h3>
+
+            <div style="font-size: 13px; color: #334155; line-height: 1.6; background: #ffffff; padding: 12px 14px; border-radius: 8px; border: 1px solid #cbd5e1;">
+              <strong>📝 สรุปความคืบหน้า (${actorName}):</strong><br>
+              ${actionSummary}
+            </div>
+
+            ${
+              dueDate
+                ? `
+              <div style="margin-top: 10px; font-size: 12px; color: #e11d48; font-weight: 600;">
+                📅 กำหนดส่ง (Due Date): ${dueDate}
+              </div>
+            `
+                : ''
+            }
+
+            ${
+              imageUrl
+                ? `
+              <div style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                <span style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 8px;">🖼️ รูปภาพสรุปผลงาน:</span>
+                <img src="${imageUrl}" alt="Report Attachment" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #cbd5e1; display: block;" />
+                <a href="${imageUrl}" target="_blank" style="display: inline-block; font-size: 11px; color: #2563eb; margin-top: 6px; text-decoration: none; font-weight: 600;">🔍 ดูภาพความละเอียดสูง (Full Resolution)</a>
+              </div>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- 1-Click Action Buttons -->
+          <div style="text-align: center; margin-top: 24px; display: flex; justify-content: center; gap: 12px;">
+            <a href="${cardUrl}" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-weight: 700; font-size: 13px; text-decoration: none;">🔍 เปิดตรวจสอบ Ticket</a>
+            ${
+              magicApproveUrl
+                ? `
+              <a href="${magicApproveUrl}" style="display: inline-block; background: #10b981; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-weight: 700; font-size: 13px; text-decoration: none; box-shadow: 0 4px 12px rgba(16,185,129,0.25);">✅ 1-Click อนุมัติงาน</a>
+            `
+                : ''
+            }
+          </div>
+
+          <div style="text-align: center; margin-top: 14px;">
+            <span style="font-size: 11px; color: #94a3b8;">💡 ท่านสามารถกด <strong>Reply ในแอปเมลนี้</strong> เพื่อส่งคำสั่งการกลับเข้ามาได้ทันที</span>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          🔒 รายงานส่งตรงถึงผู้บริหารผ่านระบบ EFL Workflow System
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Pattern 3: FYI Notification HTML (In-the-loop Notification)
+ */
+export function buildFyiEmailHtml({
+  cardTitle,
+  boardTitle,
+  columnTitle,
+  inviterName,
+  cardId,
+  recipientName
+}: {
+  cardTitle: string;
+  boardTitle: string;
+  columnTitle: string;
+  inviterName: string;
+  cardId: string;
+  recipientName: string;
+}) {
+  const cardUrl = `${APP_BASE_URL}?cardId=${cardId}`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
+        <div style="background: #0284c7; padding: 20px 24px; border-bottom: 3px solid #38bdf8;">
+          <span style="color: #e0f2fe; font-weight: 800; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;">📢 FYI • แจ้งเพื่อทราบ</span>
+          <h1 style="color: #ffffff; margin: 4px 0 0 0; font-size: 16px; font-weight: 700;">คุณถูกเพิ่มเป็นผู้รับทราบใน Ticket</h1>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 13px; color: #475569;">เรียน <strong>${recipientName}</strong>,</p>
+          <p style="font-size: 13px; color: #334155; line-height: 1.6; margin: 0 0 16px 0;">
+            <strong>${inviterName}</strong> ได้เพิ่มคุณเข้าสู่สถานะ <strong>FYI (ผู้ร่วมรับทราบ)</strong> สำหรับงานนี้ เพื่อให้คุณติดตามความคืบหน้าของงานในโปรเจกต์:
+          </p>
+
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+            <div style="font-size: 11px; color: #64748b; font-weight: 600;">📁 ${boardTitle} • 📋 ${columnTitle}</div>
+            <h3 style="margin: 4px 0 0 0; font-size: 15px; font-weight: 700; color: #0f172a;">${cardTitle}</h3>
+          </div>
+
+          <div style="background: #f0f9ff; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #0369a1; line-height: 1.5; margin-bottom: 24px;">
+            ℹ️ <em>คุณไม่จำเป็นต้องลงมือทำงานนี้ แต่จะได้รับอีเมลแจ้งเตือนเมื่อมีความคืบหน้าหรือการตอบกลับใน Ticket ครับ</em>
+          </div>
+
+          <div style="text-align: center;">
+            <a href="${cardUrl}" style="display: inline-block; background: #0284c7; color: #ffffff; padding: 11px 24px; border-radius: 10px; font-weight: 700; font-size: 13px; text-decoration: none;">📋 เปิดดูรายละเอียด Ticket</a>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          🔒 ระบบส่งอัตโนมัติจาก EFL Workflow System
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Universal Stakeholder Notification Dispatcher
+ */
+export async function sendStakeholderNotifications({
+  cardId,
+  actorUserId,
+  type,
+  comment,
+  actionSummary,
+  imageUrl
+}: {
+  cardId: string;
+  actorUserId?: string;
+  type: 'COMMENT' | 'REPORT_TO_ASSIGNED' | 'FYI_ASSIGNED' | 'COLUMN_MOVED';
+  comment?: { content: string; imageUrl?: string | null };
+  actionSummary?: string;
+  imageUrl?: string | null;
+}) {
+  try {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: {
+        column: { include: { board: true } },
+        assignees: { include: { user: true } },
+        createdBy: true
+      }
+    });
+
+    if (!card) return;
+
+    const actor = actorUserId ? await prisma.user.findUnique({ where: { id: actorUserId } }) : null;
+    const actorName = actor?.name || 'ทีมงาน EFL';
+
+    const assignees = card.assignees.filter((a) => a.type === 'ASSIGNEE' || !a.type);
+    const reportTos = card.assignees.filter((a) => a.type === 'REPORT_TO');
+    const fyis = card.assignees.filter((a) => a.type === 'FYI');
+
+    const stakeholderSummary = {
+      assignees: assignees.map((a) => a.user.name),
+      reportTo: reportTos.map((a) => a.user.name),
+      fyi: fyis.map((a) => a.user.name)
+    };
+
+    const replyToEmail = `reply+card-${card.id}@trello.eflworkspace.com`;
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+    for (const item of card.assignees) {
+      const user = item.user;
+      if (user.id === actorUserId) continue; // Don't notify the actor themself
+      if (!user.email || user.isActive === false) continue;
+
+      let subject = `[EFL] ${card.title}`;
+      let html = '';
+
+      if (type === 'COMMENT' && comment) {
+        const roleText = item.type === 'REPORT_TO' ? '👑 Report To' : item.type === 'FYI' ? '📢 FYI' : '🛠️ Assignee';
+        subject = `[EFL ${roleText}] ${actorName} ตอบกลับใน Ticket: "${card.title}"`;
+        html = buildCommentReplyEmailHtml({
+          cardTitle: card.title,
+          boardTitle: card.column.board.title,
+          columnTitle: card.column.title,
+          priority: card.priority,
+          commenterName: actorName,
+          commentContent: comment.content,
+          imageUrl: comment.imageUrl || imageUrl,
+          cardId: card.id,
+          recipientName: user.name,
+          recipientRoleText: roleText,
+          stakeholderSummary
+        });
+      } else if (item.type === 'REPORT_TO') {
+        subject = `[👑 Report To You] รายงานความคืบหน้า: "${card.title}"`;
+        const magicToken = generateMagicActionToken(card.id, user.id, 'approve');
+        const magicApproveUrl = `${APP_BASE_URL}/api/cards/magic-action/${magicToken}`;
+        html = buildReportToEmailHtml({
+          cardTitle: card.title,
+          boardTitle: card.column.board.title,
+          columnTitle: card.column.title,
+          priority: card.priority,
+          actionSummary: actionSummary || `มีการปรับปรุงสถานะหรือส่งมอบงานใน Ticket นี้`,
+          actorName,
+          dueDate: card.dueDate ? new Date(card.dueDate).toLocaleDateString('th-TH') : undefined,
+          imageUrl: imageUrl || comment?.imageUrl,
+          cardId: card.id,
+          managerName: user.name,
+          magicApproveUrl
+        });
+      } else if (item.type === 'FYI') {
+        subject = `[📢 FYI] แจ้งเพื่อทราบ: "${card.title}"`;
+        html = buildFyiEmailHtml({
+          cardTitle: card.title,
+          boardTitle: card.column.board.title,
+          columnTitle: card.column.title,
+          inviterName: actorName,
+          cardId: card.id,
+          recipientName: user.name
+        });
+      } else {
+        // Standard Assignee Task Notification
+        subject = `[🛠️ Task Assigned] "${card.title}"`;
+        html = buildCommentReplyEmailHtml({
+          cardTitle: card.title,
+          boardTitle: card.column.board.title,
+          columnTitle: card.column.title,
+          priority: card.priority,
+          commenterName: actorName,
+          commentContent: actionSummary || `คุณได้รับมอบหมายให้ดูแลการ์ดงานนี้`,
+          imageUrl: imageUrl || null,
+          cardId: card.id,
+          recipientName: user.name,
+          recipientRoleText: '🛠️ Assignee',
+          stakeholderSummary
+        });
+      }
+
+      // Send via Resend API
+      if (RESEND_API_KEY && RESEND_API_KEY !== 'placeholder_resend_api_key') {
+        fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'EFL-Workflow <notifications@efl.org>',
+            reply_to: replyToEmail,
+            to: [user.email],
+            subject,
+            html
+          })
+        })
+        .then(async (res) => {
+          const resData = await res.json();
+          await prisma.notificationLog.create({
+            data: {
+              userId: user.id,
+              channel: 'EMAIL',
+              title: subject,
+              message: comment?.content || actionSummary || '',
+              status: res.ok ? 'SENT' : 'FAILED',
+              details: resData
+            }
+          });
+        })
+        .catch((err) => console.error('[Resend Email Error]:', err.message));
+      }
+    }
+  } catch (err: any) {
+    console.error('[sendStakeholderNotifications Error]:', err.message);
+  }
+}
+
 export async function sendNotification({
   userId,
   email,
@@ -250,53 +715,51 @@ export async function sendNotification({
   const promises: Promise<any>[] = [];
 
   // 1. Email Notification via Resend
-  if (email) {
-    if (RESEND_API_KEY && RESEND_API_KEY !== 'placeholder_resend_api_key') {
-      const emailPromise = fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'EFL-Workflow <notifications@efl.org>',
-          to: [email],
-          subject: title,
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-              <div style="background: #047857; padding: 20px; text-align: left;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 1px;">EFL WORKFLOW ALERT</h1>
-              </div>
-              <div style="padding: 24px;">
-                <h2 style="font-size: 16px; font-weight: 700; color: #111827; margin-top: 0;">${title}</h2>
-                <p style="font-size: 14px; line-height: 1.6; color: #4b5563;">${message}</p>
-                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
-                  <a href="http://localhost:3010" style="display: inline-block; background: #059669; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">เปิดดูการ์ดงาน</a>
-                </div>
+  if (email && RESEND_API_KEY && RESEND_API_KEY !== 'placeholder_resend_api_key') {
+    const emailPromise = fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'EFL-Workflow <notifications@efl.org>',
+        to: [email],
+        subject: title,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="background: #047857; padding: 20px; text-align: left;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 1px;">EFL WORKFLOW ALERT</h1>
+            </div>
+            <div style="padding: 24px;">
+              <h2 style="font-size: 16px; font-weight: 700; color: #111827; margin-top: 0;">${title}</h2>
+              <p style="font-size: 14px; line-height: 1.6; color: #4b5563;">${message}</p>
+              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
+                <a href="${APP_BASE_URL}" style="display: inline-block; background: #059669; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">เปิดดูการ์ดงาน</a>
               </div>
             </div>
-          `
-        })
+          </div>
+        `
       })
-      .then(async (res) => {
-        const data = await res.json();
-        await prisma.notificationLog.create({
-          data: {
-            userId,
-            channel: 'EMAIL',
-            title,
-            message,
-            status: res.ok ? 'SENT' : 'FAILED',
-            details: data
-          }
-        });
-      })
-      .catch(async (err) => {
-        console.error('[Resend Error]', err);
+    })
+    .then(async (res) => {
+      const data = await res.json();
+      await prisma.notificationLog.create({
+        data: {
+          userId,
+          channel: 'EMAIL',
+          title,
+          message,
+          status: res.ok ? 'SENT' : 'FAILED',
+          details: data
+        }
       });
+    })
+    .catch((err) => {
+      console.error('[Resend Error]', err);
+    });
 
-      promises.push(emailPromise);
-    }
+    promises.push(emailPromise);
   }
 
   // 2. LINE Messaging API (Flex Message)
@@ -340,23 +803,11 @@ export async function sendNotification({
           }
         });
       })
-      .catch(async (err) => {
+      .catch((err) => {
         console.error('[LINE API Error]', err);
       });
 
       promises.push(linePromise);
-    } else {
-      // Mock / Simulation Log
-      await prisma.notificationLog.create({
-        data: {
-          userId,
-          channel: 'LINE_FLEX_CARD',
-          title,
-          message,
-          status: 'SENT (Simulated Flex Card)',
-          details: flexMessage
-        }
-      });
     }
   }
 

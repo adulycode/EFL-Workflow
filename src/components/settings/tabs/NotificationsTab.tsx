@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { Bell, Check, Mail, Clock, AtSign, UserCheck, Sparkles, ShieldCheck, CornerDownLeft, Inbox } from 'lucide-react';
+import { Bell, Check, Mail, Clock, AtSign, UserCheck, Sparkles, ShieldCheck, CornerDownLeft, Inbox, MessageSquare } from 'lucide-react';
 
 export const NotificationsTab: React.FC = () => {
   const { currentUser, updateProfile } = useAuthStore();
@@ -8,6 +8,7 @@ export const NotificationsTab: React.FC = () => {
   const [notifyAssigned, setNotifyAssigned] = useState(currentUser?.notifyAssigned ?? true);
   const [notifyDueDate, setNotifyDueDate] = useState(currentUser?.notifyDueDate ?? true);
   const [notifyMention, setNotifyMention] = useState(currentUser?.notifyMention ?? true);
+  const [notifyComment, setNotifyComment] = useState(currentUser?.notifyComment ?? true);
   const [notifyEmail, setNotifyEmail] = useState(currentUser?.notifyEmail ?? true);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -24,6 +25,7 @@ export const NotificationsTab: React.FC = () => {
       notifyAssigned,
       notifyDueDate,
       notifyMention,
+      notifyComment,
       notifyEmail
     });
 
@@ -179,10 +181,29 @@ export const NotificationsTab: React.FC = () => {
             <div className="flex-1">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
                 <AtSign size={15} className="text-sky-500" />
-                <span>เมื่อมีคน @mention ในคอมเมนต์ หรือตอบกลับการ์ดของฉัน</span>
+                <span>เมื่อมีคน @mention แท็กชื่อฉันในการ์ดงาน (Mentions in Comments)</span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                รับการแจ้งเตือนเมื่อเพื่อนร่วมทีมแท็กชื่อคุณ หรือมีความคิดเห็นใหม่ในการ์ดที่คุณดูแล
+                รับการแจ้งเตือนด่วนทันทีเมื่อเพื่อนร่วมทีมพิมพ์ @ระบุชื่อคุณในการสนทนา
+              </p>
+            </div>
+          </label>
+
+          {/* New Comments on My Cards (Every reply alert) */}
+          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <input
+              type="checkbox"
+              checked={notifyComment}
+              onChange={(e) => setNotifyComment(e.target.checked)}
+              className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
+                <MessageSquare size={15} className="text-teal-500" />
+                <span>เมื่อมีใครคอมเมนต์ตอบกลับบนการ์ดที่ฉันดูแล (New Comments on My Cards)</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                ส่งอีเมลแจ้งเตือนทุกครั้งที่มีเพื่อนร่วมทีมตอบข้อความบน Ticket (ยกเว้นคอมเมนต์ที่คุณพิมพ์เอง)
               </p>
             </div>
           </label>

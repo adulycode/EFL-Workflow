@@ -591,109 +591,43 @@ export async function sendStakeholderNotifications({
       fyi: fyis.map((a) => a.user.name)
     };
 
-    const replyToEmail = `reply+card-${card.id}@trello.eflworkspace.com`;
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    const { sendCardNotificationEmail } = await import('./emailService');
 
     for (const item of card.assignees) {
       const user = item.user;
       if (user.id === actorUserId) continue; // Don't notify the actor themself
       if (!user.email || user.isActive === false) continue;
 
-      let subject = `[EFL] ${card.title}`;
-      let html = '';
+      // Check Master Email Switch & Specific Preference
+      if (user.notifyEmail === false) continue;
+      if (type === 'COMMENT' && (user as any).notifyComment === false) continue;
+      if (type === 'REPORT_TO_ASSIGNED' && user.notifyAssigned === false) continue;
+      if (type === 'FYI_ASSIGNED' && user.notifyAssigned === false) continue;
 
-      if (type === 'COMMENT' && comment) {
-        const roleText = item.type === 'REPORT_TO' ? '👑 Report To' : item.type === 'FYI' ? '📢 FYI' : '🛠️ Assignee';
-        subject = `[EFL ${roleText}] ${actorName} ตอบกลับใน Ticket: "${card.title}"`;
-        html = buildCommentReplyEmailHtml({
-          cardTitle: card.title,
-          boardTitle: card.column.board.title,
-          columnTitle: card.column.title,
-          priority: card.priority,
-          commenterName: actorName,
-          commentContent: comment.content,
-          imageUrl: comment.imageUrl || imageUrl,
-          cardId: card.id,
-          recipientName: user.name,
-          recipientRoleText: roleText,
-          stakeholderSummary
-        });
-      } else if (item.type === 'REPORT_TO') {
-        subject = `[👑 Report To You] รายงานความคืบหน้า: "${card.title}"`;
-        const magicToken = generateMagicActionToken(card.id, user.id, 'approve');
-        const magicApproveUrl = `${APP_BASE_URL}/api/cards/magic-action/${magicToken}`;
-        html = buildReportToEmailHtml({
-          cardTitle: card.title,
-          boardTitle: card.column.board.title,
-          columnTitle: card.column.title,
-          priority: card.priority,
-          actionSummary: actionSummary || `มีการปรับปรุงสถานะหรือส่งมอบงานใน Ticket นี้`,
-          actorName,
-          dueDate: card.dueDate ? new Date(card.dueDate).toLocaleDateString('th-TH') : undefined,
-          imageUrl: imageUrl || comment?.imageUrl,
-          cardId: card.id,
-          managerName: user.name,
-          magicApproveUrl
-        });
-      } else if (item.type === 'FYI') {
-        subject = `[📢 FYI] แจ้งเพื่อทราบ: "${card.title}"`;
-        html = buildFyiEmailHtml({
-          cardTitle: card.title,
-          boardTitle: card.column.board.title,
-          columnTitle: card.column.title,
-          inviterName: actorName,
-          cardId: card.id,
-          recipientName: user.name
-        });
-      } else {
-        // Standard Assignee Task Notification
-        subject = `[🛠️ Task Assigned] "${card.title}"`;
-        html = buildCommentReplyEmailHtml({
-          cardTitle: card.title,
-          boardTitle: card.column.board.title,
-          columnTitle: card.column.title,
-          priority: card.priority,
-          commenterName: actorName,
-          commentContent: actionSummary || `คุณได้รับมอบหมายให้ดูแลการ์ดงานนี้`,
-          imageUrl: imageUrl || null,
-          cardId: card.id,
-          recipientName: user.name,
-          recipientRoleText: '🛠️ Assignee',
-          stakeholderSummary
-        });
-      }
+      const roleText = item.type === 'REPORT_TO' ? '👑 Report To' : item.type === 'FYI' ? '📢 FYI' : '🛠️ Assignee';
+      const notificationTitle = type === 'COMMENT' 
+        ? `💬 ${actorName} ตอบกลับในการ์ดงาน: "${card.title}"`
+        : `📌 คุณได้รับมอบหมายการ์ดงาน (${roleText}): "${card.title}"`;
 
-      // Send via Resend API
-      if (RESEND_API_KEY && RESEND_API_KEY !== 'placeholder_resend_api_key') {
-        fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            from: 'EFL-Workflow <notifications@efl.org>',
-            reply_to: replyToEmail,
-            to: [user.email],
-            subject,
-            html
-          })
-        })
-        .then(async (res) => {
-          const resData = await res.json();
-          await prisma.notificationLog.create({
-            data: {
-              userId: user.id,
-              channel: 'EMAIL',
-              title: subject,
-              message: comment?.content || actionSummary || '',
-              status: res.ok ? 'SENT' : 'FAILED',
-              details: resData
-            }
-          });
-        })
-        .catch((err) => console.error('[Resend Email Error]:', err.message));
-      }
+      const notificationMessage = type === 'COMMENT'
+        ? (comment?.content || 'มีความคิดเห็นใหม่ในการ์ดงานนี้')
+        : (actionSummary || `คุณได้รับการระบุเป็น ${roleText} ในการ์ดงานนี้`);
+
+      sendCardNotificationEmail({
+        to: user.email,
+        title: notificationTitle,
+        message: notificationMessage,
+        cardTitle: card.title,
+        boardTitle: card.column.board.title,
+        workspaceTitle: (card.column.board as any).workspace?.name || 'EFL Organization',
+        priority: card.priority,
+        dueDate: card.dueDate,
+        actorName,
+        cardId: card.id,
+        userId: user.id
+      }).catch((err) => {
+        console.error(`[Stakeholder Email Error to ${user.email}]:`, err.message);
+      });
     }
   } catch (err: any) {
     console.error('[sendStakeholderNotifications Error]:', err.message);

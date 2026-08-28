@@ -32,7 +32,8 @@ router.patch('/profile', async (req, res) => {
       notifyLine, 
       notifyAssigned, 
       notifyDueDate, 
-      notifyMention 
+      notifyMention,
+      notifyComment
     } = req.body;
 
     if (!userId) {
@@ -53,7 +54,8 @@ router.patch('/profile', async (req, res) => {
         ...(notifyLine !== undefined && { notifyLine }),
         ...(notifyAssigned !== undefined && { notifyAssigned }),
         ...(notifyDueDate !== undefined && { notifyDueDate }),
-        ...(notifyMention !== undefined && { notifyMention })
+        ...(notifyMention !== undefined && { notifyMention }),
+        ...(notifyComment !== undefined && { notifyComment })
       }
     });
 

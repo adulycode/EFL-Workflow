@@ -22,6 +22,7 @@ export interface User {
   notifyAssigned?: boolean;
   notifyDueDate?: boolean;
   notifyMention?: boolean;
+  notifyComment?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

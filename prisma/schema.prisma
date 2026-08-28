@@ -47,6 +47,7 @@ model User {
   notifyAssigned   Boolean           @default(true)
   notifyDueDate    Boolean           @default(true)
   notifyMention    Boolean           @default(true)
+  notifyComment    Boolean           @default(true) // Notify on all comments on cards user is involved in
   assignedCards    CardAssignee[]
   comments         Comment[]
   activityLogs     ActivityLog[]

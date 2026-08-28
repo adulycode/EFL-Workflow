@@ -1651,7 +1651,12 @@ export const CardDetailModal: React.FC = () => {
                 </label>
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
                   {users
-                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI'))
+                    .filter((u) => {
+                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
+                      const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
+                      const isEligible = u.isActive !== false && u.isAssignable !== false && !isBoss;
+                      return isEligible || isFyi;
+                    })
                     .map((u) => {
                       const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
                       const isInactive = u.isActive === false;

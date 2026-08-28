@@ -40,6 +40,7 @@ export const App: React.FC = () => {
       });
     } else {
       fetchUsers();
+      fetchWorkspaces();
     }
   }, [fetchUsers, fetchWorkspaces, loginWithSsoToken]);
 

@@ -16,16 +16,25 @@ router.get('/', async (req, res) => {
   try {
     const { userId } = req.query;
 
-    const whereClause = userId
-      ? {
-          OR: [
-            { ownerId: String(userId) },
-            { members: { some: { userId: String(userId) } } }
-          ]
-        }
-      : {};
+    let user = null;
+    if (userId) {
+      user = await prisma.user.findUnique({ where: { id: String(userId) } });
+    }
 
-    const workspaces = await prisma.workspace.findMany({
+    // Admins have company-wide access to all workspaces
+    const isGlobalAdmin = user?.role === 'ADMIN';
+
+    let whereClause: any = {};
+    if (userId && !isGlobalAdmin) {
+      whereClause = {
+        OR: [
+          { ownerId: String(userId) },
+          { members: { some: { userId: String(userId) } } }
+        ]
+      };
+    }
+
+    let workspaces = await prisma.workspace.findMany({
       where: whereClause,
       include: {
         owner: true,
@@ -50,6 +59,50 @@ router.get('/', async (req, res) => {
       },
       orderBy: { createdAt: 'asc' }
     });
+
+    // If 0 workspaces found for a valid user, auto-join them to the default company workspace
+    if (workspaces.length === 0 && userId && user) {
+      const defaultWorkspace = await prisma.workspace.findFirst({
+        include: {
+          owner: true,
+          members: { include: { user: true } },
+          boards: {
+            include: {
+              columns: {
+                orderBy: { position: 'asc' },
+                include: {
+                  cards: {
+                    include: {
+                      assignees: { include: { user: true } },
+                      labels: { include: { label: true } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (defaultWorkspace) {
+        await prisma.workspaceMember.upsert({
+          where: {
+            workspaceId_userId: {
+              workspaceId: defaultWorkspace.id,
+              userId: user.id
+            }
+          },
+          update: {},
+          create: {
+            workspaceId: defaultWorkspace.id,
+            userId: user.id,
+            role: user.role === 'ADMIN' ? 'OWNER' : 'COLLABORATOR'
+          }
+        });
+
+        workspaces = [defaultWorkspace];
+      }
+    }
 
     res.json(workspaces);
   } catch (err: any) {

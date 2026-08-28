@@ -475,3 +475,49 @@ export async function syncUserStatusFromSso(email: string, isActive: boolean) {
   console.log(`[SSO Service] Synced active status for user ${normalizedEmail} -> ${isActive}`);
   return updated;
 }
+
+/**
+ * Two-Way Sync: Sync user profile edits in Trello back to Central SSO
+ */
+export async function syncProfileToSSO(payload: {
+  ssoUserId?: string | null;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+}) {
+  const baseHosts = Array.from(new Set([
+    SSO_CONFIG.portalUrl,
+    'http://103.91.190.29:3050',
+    'http://host.docker.internal:3050',
+    'http://172.17.0.1:3050',
+    'http://localhost:3050'
+  ])).filter(Boolean);
+
+  for (const host of baseHosts) {
+    try {
+      const url = `${host.replace(/\/$/, '')}/api/users/sync-from-app`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sso-secret': SSO_CONFIG.sharedSecret
+        },
+        body: JSON.stringify({
+          secretKey: SSO_CONFIG.sharedSecret,
+          ssoUserId: payload.ssoUserId,
+          email: payload.email,
+          name: payload.name,
+          avatarUrl: payload.avatarUrl
+        })
+      });
+
+      if (res.ok) {
+        console.log(`[Two-Way SSO Sync] ✅ Synced profile update back to Central SSO at ${url}`);
+        return true;
+      }
+    } catch {
+      // try next host
+    }
+  }
+  return false;
+}

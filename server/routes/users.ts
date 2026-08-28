@@ -62,6 +62,18 @@ router.patch('/profile', async (req, res) => {
       io.emit('user:updated', updatedUser);
     }
 
+    // Two-Way Sync: Sync updated name or avatarUrl back to Central SSO in background
+    if (name !== undefined || avatarUrl !== undefined) {
+      import('../services/ssoService').then(({ syncProfileToSSO }) => {
+        syncProfileToSSO({
+          ssoUserId: updatedUser.ssoUserId,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          avatarUrl: updatedUser.avatarUrl || undefined
+        }).catch((err) => console.error('[Two-Way Sync Error]:', err.message));
+      });
+    }
+
     res.json(updatedUser);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

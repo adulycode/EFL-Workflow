@@ -23,6 +23,7 @@ interface AuthState {
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   updateUserRole: (userId: string, role: Role) => Promise<boolean>;
   updateUserStatus: (userId: string, isActive: boolean) => Promise<boolean>;
+  syncUsersFromSso: () => Promise<{ success: boolean; count: number }>;
   inviteUser: (email: string, name: string, role: Role, jobTitle?: string) => Promise<boolean>;
 }
 
@@ -217,6 +218,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       console.error('Failed to update user status:', err);
       return false;
+    }
+  },
+
+  syncUsersFromSso: async () => {
+    try {
+      set({ isLoading: true });
+      const res = await fetch('/api/users/sync-from-sso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users) {
+          set({ users: data.users, isLoading: false });
+          return { success: true, count: data.count || data.users.length };
+        }
+      }
+      set({ isLoading: false });
+      return { success: false, count: 0 };
+    } catch (err) {
+      console.error('Failed to sync users from SSO:', err);
+      set({ isLoading: false });
+      return { success: false, count: 0 };
     }
   },
 

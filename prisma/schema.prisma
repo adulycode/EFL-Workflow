@@ -35,6 +35,8 @@ model User {
   avatarUrl        String?
   role             Role              @default(STAFF)
   isActive         Boolean           @default(true)
+  ssoUserId        String?
+  linkToken        String?
   language         String            @default("th")
   theme            String            @default("dark")
   lineUserId       String?

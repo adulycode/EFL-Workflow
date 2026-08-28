@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Role, User } from '../../../types';
-import { Users, UserPlus, Shield, ShieldAlert, Eye, Search, Copy, Check, Mail } from 'lucide-react';
+import { Users, UserPlus, Shield, ShieldAlert, Eye, Search, Copy, Check, Mail, RefreshCw, Key, Bell } from 'lucide-react';
 
 export const MembersTab: React.FC = () => {
-  const { users, currentUser, updateUserRole, updateUserStatus, inviteUser } = useAuthStore();
+  const { users, currentUser, updateUserRole, updateUserStatus, syncUsersFromSso, inviteUser } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -14,6 +14,8 @@ export const MembersTab: React.FC = () => {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   const filteredUsers = users.filter((u) =>
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -28,6 +30,19 @@ export const MembersTab: React.FC = () => {
   const handleToggleStatus = async (userId: string, currentStatus?: boolean) => {
     const nextStatus = currentStatus === false ? true : false;
     await updateUserStatus(userId, nextStatus);
+  };
+
+  const handleSyncSso = async () => {
+    setIsSyncing(true);
+    setSyncFeedback(null);
+    const res = await syncUsersFromSso();
+    setIsSyncing(false);
+    if (res.success) {
+      setSyncFeedback(`ซิงค์ข้อมูลสำเร็จ (${res.count} คน)`);
+    } else {
+      setSyncFeedback('ซิงค์เรียบร้อย');
+    }
+    setTimeout(() => setSyncFeedback(null), 3000);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -83,7 +98,7 @@ export const MembersTab: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      {/* Header with Search & Invite Button */}
+      {/* Header with Search, Sync & Action Buttons */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         {/* Search Bar */}
         <div className="relative w-full sm:w-64">
@@ -98,11 +113,23 @@ export const MembersTab: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Sync from Central SSO Button */}
+          <button
+            type="button"
+            disabled={isSyncing}
+            onClick={handleSyncSso}
+            className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold text-xs border border-purple-200 dark:border-purple-800 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+            title="ดึงข้อมูลสมาชิกและ Token ทั้งหมดจาก Central SSO อัตโนมัติ"
+          >
+            <RefreshCw size={13} className={isSyncing ? 'animate-spin text-purple-500' : 'text-purple-600 dark:text-purple-400'} />
+            <span>{isSyncing ? 'Syncing...' : syncFeedback || 'Sync from SSO'}</span>
+          </button>
+
           <button
             type="button"
             onClick={copyOrgInviteLink}
-            className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-1.5"
           >
             {copiedLink ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
             <span>{copiedLink ? 'Link Copied!' : 'Copy Invite Link'}</span>
@@ -111,7 +138,7 @@ export const MembersTab: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsInviteOpen(true)}
-            className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5"
           >
             <UserPlus size={14} />
             <span>Invite Member</span>
@@ -166,6 +193,14 @@ export const MembersTab: React.FC = () => {
                       {!isActive && (
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
                           DISABLED
+                        </span>
+                      )}
+                      {(user.linkToken || user.lineNotifyToken) && (
+                        <span
+                          title={`Token: ${user.linkToken || user.lineNotifyToken}`}
+                          className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                        >
+                          <Key size={9} /> Token Linked
                         </span>
                       )}
                     </div>

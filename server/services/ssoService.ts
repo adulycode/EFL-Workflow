@@ -15,6 +15,7 @@ export const SSO_CONFIG = {
 export interface SsoUserPayload {
   userId?: string;
   id?: string;
+  ssoUserId?: string;
   email: string;
   name: string;
   avatarUrl?: string;
@@ -24,6 +25,10 @@ export interface SsoUserPayload {
   disabled?: boolean;
   isActive?: boolean;
   status?: string;
+  linkToken?: string;
+  lineNotifyToken?: string;
+  lineToken?: string;
+  lineUserId?: string;
   exp?: number;
   iat?: number;
 }
@@ -114,6 +119,11 @@ export async function consumeSsoToken(token: string) {
     }
   }
 
+  const ssoUserId = payload.ssoUserId || payload.userId || payload.id;
+  const linkToken = payload.linkToken;
+  const lineNotifyToken = payload.lineNotifyToken || payload.lineToken;
+  const lineUserId = payload.lineUserId;
+
   // Check active/disabled status
   const isExplicitlyDisabled = payload.disabled === true || payload.isActive === false || payload.status === 'INACTIVE' || payload.status === 'DISABLED';
   const isActive = !isExplicitlyDisabled;
@@ -134,6 +144,10 @@ export async function consumeSsoToken(token: string) {
         avatarUrl,
         role,
         isActive: true,
+        ssoUserId,
+        linkToken,
+        lineNotifyToken,
+        lineUserId,
         language: 'th',
         theme: 'dark'
       }
@@ -146,7 +160,11 @@ export async function consumeSsoToken(token: string) {
         name: name || user.name,
         avatarUrl: avatarUrl || user.avatarUrl,
         role: role || user.role,
-        isActive
+        isActive,
+        ...(ssoUserId && { ssoUserId }),
+        ...(linkToken && { linkToken }),
+        ...(lineNotifyToken && { lineNotifyToken }),
+        ...(lineUserId && { lineUserId })
       }
     });
     console.log(`[SSO Service] Updated local user from SSO: ${email} (${role}, active: ${isActive})`);
@@ -179,6 +197,163 @@ export async function consumeSsoToken(token: string) {
 }
 
 /**
+ * Upsert user from SSO Webhook or Sync payload
+ */
+export async function upsertUserFromSsoData(data: {
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  avatar?: string;
+  role?: string;
+  isActive?: boolean;
+  disabled?: boolean;
+  status?: string;
+  ssoUserId?: string;
+  userId?: string;
+  id?: string;
+  linkToken?: string;
+  lineNotifyToken?: string;
+  lineToken?: string;
+  lineUserId?: string;
+  jobTitle?: string;
+}) {
+  if (!data.email) return null;
+  const email = data.email.toLowerCase().trim();
+  const name = data.name || email.split('@')[0];
+  const avatarUrl = data.avatarUrl || data.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
+  
+  let role: any = 'STAFF';
+  if (data.role) {
+    const upperRole = data.role.toUpperCase();
+    if (['ADMIN', 'STAFF', 'VIEWER'].includes(upperRole)) {
+      role = upperRole;
+    }
+  }
+
+  const isExplicitlyDisabled = data.disabled === true || data.isActive === false || data.status === 'INACTIVE' || data.status === 'DISABLED';
+  const isActive = !isExplicitlyDisabled;
+  const ssoUserId = data.ssoUserId || data.userId || data.id;
+  const linkToken = data.linkToken;
+  const lineNotifyToken = data.lineNotifyToken || data.lineToken;
+  const lineUserId = data.lineUserId;
+  const jobTitle = data.jobTitle || 'Staff Member';
+
+  let user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        avatarUrl,
+        jobTitle,
+        role,
+        isActive,
+        ssoUserId,
+        linkToken,
+        lineNotifyToken,
+        lineUserId,
+        language: 'th',
+        theme: 'dark'
+      }
+    });
+    console.log(`[SSO Sync] Created user from SSO data: ${email} (${role})`);
+  } else {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: name || user.name,
+        avatarUrl: avatarUrl || user.avatarUrl,
+        role: role || user.role,
+        isActive,
+        ...(jobTitle && { jobTitle }),
+        ...(ssoUserId && { ssoUserId }),
+        ...(linkToken && { linkToken }),
+        ...(lineNotifyToken && { lineNotifyToken }),
+        ...(lineUserId && { lineUserId })
+      }
+    });
+    console.log(`[SSO Sync] Updated user from SSO data: ${email} (${role}, active: ${isActive})`);
+  }
+
+  // Ensure user is in default workspace
+  const defaultWorkspaceId = '00000000-0000-0000-0000-000000000001';
+  const defaultWs = await prisma.workspace.findUnique({ where: { id: defaultWorkspaceId } });
+  if (defaultWs) {
+    await prisma.workspaceMember.upsert({
+      where: {
+        workspaceId_userId: { workspaceId: defaultWorkspaceId, userId: user.id }
+      },
+      update: {
+        role: user.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'
+      },
+      create: {
+        workspaceId: defaultWorkspaceId,
+        userId: user.id,
+        role: user.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'
+      }
+    });
+  }
+
+  return user;
+}
+
+/**
+ * Pull all users from Central SSO Portal
+ */
+export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: number; users: any[] }> {
+  try {
+    const urls = [
+      `${SSO_CONFIG.portalUrl}/api/apps/${SSO_CONFIG.appId}/users`,
+      `${SSO_CONFIG.portalUrl}/api/users`
+    ];
+
+    let usersData: any[] = [];
+    for (const url of urls) {
+      try {
+        console.log(`[SSO Sync] Attempting to pull all users from ${url}...`);
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-sso-secret': SSO_CONFIG.sharedSecret,
+            'Authorization': `Bearer ${SSO_CONFIG.sharedSecret}`
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : data.users || data.data;
+          if (Array.isArray(list) && list.length > 0) {
+            usersData = list;
+            break;
+          }
+        }
+      } catch {
+        // try next endpoint
+      }
+    }
+
+    if (usersData.length === 0) {
+      console.log('[SSO Sync] No users returned from Central SSO portal endpoints.');
+      return { success: false, count: 0, users: [] };
+    }
+
+    const syncedUsers = [];
+    for (const u of usersData) {
+      const synced = await upsertUserFromSsoData(u);
+      if (synced) syncedUsers.push(synced);
+    }
+
+    console.log(`[SSO Sync] ✅ Successfully synced ${syncedUsers.length} users from Central SSO!`);
+    return { success: true, count: syncedUsers.length, users: syncedUsers };
+  } catch (err: any) {
+    console.error('[SSO Sync] Failed to pull users from Central SSO:', err.message);
+    return { success: false, count: 0, users: [] };
+  }
+}
+
+/**
  * Send Auto-Registration Signal to EFL Central SSO Portal on Server Startup
  */
 export async function registerWithCentralSSO(retryCount = 0) {
@@ -203,6 +378,9 @@ export async function registerWithCentralSSO(retryCount = 0) {
     if (res.ok) {
       const data = await res.json();
       console.log(`[EFL Central SSO] ✅ Successfully registered "${SSO_CONFIG.appName}" with Central SSO!`, data);
+      
+      // Auto pull all members on successful handshake
+      setTimeout(() => pullAllUsersFromSSO(), 1000);
       return true;
     } else {
       console.warn(`[EFL Central SSO] Registration response status: ${res.status}`);

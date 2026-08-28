@@ -9,7 +9,7 @@ interface NotificationPayload {
   title: string;
   message: string;
   cardId?: string;
-  actionType: string;
+  actionType?: string;
   cardDetails?: {
     title?: string;
     boardTitle?: string;

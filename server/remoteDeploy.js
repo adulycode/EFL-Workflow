@@ -2,7 +2,7 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Fixing git lock and building EFL-Workflow on VPS...');
+console.log('🚀 Deploying and testing Gmail SMTP Notification engine on VPS...');
 
 conn.on('ready', () => {
   const commands = [
@@ -25,7 +25,7 @@ conn.on('ready', () => {
     stream.on('close', (code) => {
       console.log(`\n🎉 Build finished with exit code: ${code}`);
       
-      // Test sending email
+      // Test sending live email to reyz@gmail.com
       const testCmd = 'docker exec efl-workflow-app npx tsx -e "\
         import(\'./server/services/emailService\').then(async m => {\
           console.log(\'📧 Sending test live email to reyz@gmail.com...\');\

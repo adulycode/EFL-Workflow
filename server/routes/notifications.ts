@@ -65,6 +65,7 @@ router.post('/test', async (req, res) => {
       lineUserId: user?.lineUserId || undefined,
       title: title || '📌 มอบหมายงาน: ตรวจสอบและพัฒนา EFL Workflow System',
       message: message || 'คุณได้รับมอบหมายให้ดูแลการ์ดงานนี้ในบอร์ด EFL Organization',
+      actionType: 'TEST_ALERT',
       cardDetails: {
         title: 'พัฒนาระบบแจ้งเตือน Realtime Notifications',
         priority: 'HIGH',

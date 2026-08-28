@@ -16,7 +16,7 @@ const SSO_EMPLOYEES = [
   },
   {
     ssoUserId: '2d38f855-ce2c-48f4-932d-580d0c573180',
-    email: 'yingefl@gmail.com',
+    email: 'info@efl.ac.th',
     name: 'Wilaiwan Wannachotpawet',
     nickname: 'Dr.Ying',
     employeeCode: 'EFL012',

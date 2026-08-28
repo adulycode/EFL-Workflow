@@ -1569,7 +1569,7 @@ export const CardDetailModal: React.FC = () => {
                 </label>
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
                   {users
-                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type)))
+                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type)))
                     .map((u) => {
                       const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
                       const isInactive = u.isActive === false;
@@ -1609,7 +1609,7 @@ export const CardDetailModal: React.FC = () => {
                   {users
                     .slice()
                     .sort((a, b) => (a.role === 'ADMIN' ? -1 : 1))
-                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO'))
+                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO'))
                     .map((u) => {
                       const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
                       const isInactive = u.isActive === false;
@@ -1649,7 +1649,7 @@ export const CardDetailModal: React.FC = () => {
                 </label>
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
                   {users
-                    .filter((u) => u.isActive !== false || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI'))
+                    .filter((u) => (u.isActive !== false && u.isAssignable !== false) || cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI'))
                     .map((u) => {
                       const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
                       const isInactive = u.isActive === false;

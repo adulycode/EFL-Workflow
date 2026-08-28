@@ -149,6 +149,28 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
+// Toggle User Assignable Status (Hide / Show in Task Pickers)
+router.patch('/:id/assignable', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isAssignable } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isAssignable: Boolean(isAssignable) }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user:updated', updatedUser);
+    }
+
+    res.json(updatedUser);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Central SSO Universal Webhook (Real-Time Push from SSO on user create/edit/delete/disable)
 router.post('/sso-sync', async (req, res) => {
   try {

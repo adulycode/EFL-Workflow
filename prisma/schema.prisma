@@ -35,6 +35,7 @@ model User {
   avatarUrl        String?
   role             Role              @default(STAFF)
   isActive         Boolean           @default(true)
+  isAssignable     Boolean           @default(true) // Whether user appears in Assignees/Report/FYI pickers
   ssoUserId        String?
   linkToken        String?
   language         String            @default("th")

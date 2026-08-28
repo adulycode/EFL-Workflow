@@ -351,8 +351,10 @@ export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: 
     }
 
     if (usersData.length === 0) {
-      console.log('[SSO Sync] No users returned from Central SSO portal endpoints.');
-      return { success: false, count: 0, users: [] };
+      console.log('[SSO Sync] Central SSO probe fallback to direct employee sync...');
+      const { syncAllSsoEmployees } = await import('./syncSsoEmployees');
+      const synced = await syncAllSsoEmployees();
+      return { success: true, count: synced.length, users: synced };
     }
 
     const syncedUsers = [];
@@ -365,7 +367,9 @@ export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: 
     return { success: true, count: syncedUsers.length, users: syncedUsers };
   } catch (err: any) {
     console.error('[SSO Sync] Failed to pull users from Central SSO:', err.message);
-    return { success: false, count: 0, users: [] };
+    const { syncAllSsoEmployees } = await import('./syncSsoEmployees');
+    const synced = await syncAllSsoEmployees();
+    return { success: true, count: synced.length, users: synced };
   }
 }
 

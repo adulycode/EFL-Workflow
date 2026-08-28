@@ -10,6 +10,7 @@ export interface User {
   avatarUrl?: string;
   role: Role;
   isActive?: boolean;
+  isAssignable?: boolean;
   ssoUserId?: string;
   linkToken?: string;
   language?: string;

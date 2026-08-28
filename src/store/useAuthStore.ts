@@ -23,6 +23,7 @@ interface AuthState {
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   updateUserRole: (userId: string, role: Role) => Promise<boolean>;
   updateUserStatus: (userId: string, isActive: boolean) => Promise<boolean>;
+  updateUserAssignable: (userId: string, isAssignable: boolean) => Promise<boolean>;
   syncUsersFromSso: () => Promise<{ success: boolean; count: number }>;
   inviteUser: (email: string, name: string, role: Role, jobTitle?: string) => Promise<boolean>;
 }
@@ -217,6 +218,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     } catch (err) {
       console.error('Failed to update user status:', err);
+      return false;
+    }
+  },
+
+  updateUserAssignable: async (userId, isAssignable) => {
+    try {
+      const res = await fetch(`/api/users/${userId}/assignable`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAssignable })
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        set({
+          users: get().users.map((u) => (u.id === updated.id ? updated : u)),
+          currentUser: get().currentUser?.id === updated.id ? updated : get().currentUser
+        });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update user assignable status:', err);
       return false;
     }
   },

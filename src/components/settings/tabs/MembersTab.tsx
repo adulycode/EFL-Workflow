@@ -4,7 +4,7 @@ import { Role, User } from '../../../types';
 import { Users, UserPlus, Shield, ShieldAlert, Eye, Search, Copy, Check, Mail, RefreshCw, Key, Bell } from 'lucide-react';
 
 export const MembersTab: React.FC = () => {
-  const { users, currentUser, updateUserRole, updateUserStatus, syncUsersFromSso, inviteUser } = useAuthStore();
+  const { users, currentUser, updateUserRole, updateUserStatus, updateUserAssignable, syncUsersFromSso, inviteUser } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -32,10 +32,16 @@ export const MembersTab: React.FC = () => {
     await updateUserStatus(userId, nextStatus);
   };
 
+  const handleToggleAssignable = async (userId: string, currentAssignable?: boolean) => {
+    const nextVal = currentAssignable === false ? true : false;
+    await updateUserAssignable(userId, nextVal);
+  };
+
   const handleSyncSso = async () => {
     setIsSyncing(true);
     setSyncFeedback(null);
     const res = await syncUsersFromSso();
+    setIsSyncing(false);
     setIsSyncing(false);
     if (res.success) {
       setSyncFeedback(`ซิงค์ข้อมูลสำเร็จ (${res.count} คน)`);
@@ -224,6 +230,22 @@ export const MembersTab: React.FC = () => {
                   </select>
 
                   {getRoleBadge(user.role)}
+
+                  {/* Assignable Visibility Toggle (Show/Hide in Task Pickers) */}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAssignable(user.id, user.isAssignable)}
+                      title={user.isAssignable !== false ? 'แสดงชื่อในช่องเลือกผู้รับผิดชอบงาน (คลิกเพื่อซ่อนชื่อ / บัญชีดูแลระบบ)' : 'ซ่อนชื่อจากช่องเลือกงานแล้ว (บัญชี System Admin)'}
+                      className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border flex items-center gap-1 transition-colors ${
+                        user.isAssignable !== false
+                          ? 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/80 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-600'
+                      }`}
+                    >
+                      <span>{user.isAssignable !== false ? '👁️ มอบหมายได้' : '🛡️ ซ่อน (System)'}</span>
+                    </button>
+                  )}
 
                   {/* Status Toggle Button for Admin */}
                   {isAdmin && !isSelf && (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { X, UserPlus, ShieldCheck, UserCheck, Trash2, Check } from 'lucide-react';
@@ -31,7 +32,7 @@ export const InviteMemberModal: React.FC<Props> = ({ onClose }) => {
 
     if (ok) {
       setSelectedUserId('');
-      setSuccessMessage('Member successfully added to workspace!');
+      setSuccessMessage('เพิ่มสมาชิกเข้า Workspace เรียบร้อยแล้ว!');
       setTimeout(() => setSuccessMessage(''), 3000);
     }
   };
@@ -40,9 +41,9 @@ export const InviteMemberModal: React.FC<Props> = ({ onClose }) => {
     await removeMember(currentWorkspace.id, userId);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-lg max-h-[85vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-neutral-900 rounded-3xl w-full max-w-lg shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -176,6 +177,7 @@ export const InviteMemberModal: React.FC<Props> = ({ onClose }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

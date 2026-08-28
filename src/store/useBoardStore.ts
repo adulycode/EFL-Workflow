@@ -40,7 +40,7 @@ interface BoardState {
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
-  updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[] }) => Promise<void>;
+  updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[]; assigneesData?: Array<{ userId: string; type: string }> }) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;

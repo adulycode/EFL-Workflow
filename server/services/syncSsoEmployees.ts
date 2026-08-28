@@ -95,16 +95,6 @@ const SSO_EMPLOYEES = [
     isAssignable: true
   },
   {
-    ssoUserId: '0e83344b-5e32-4c40-b7de-43e9593778d9',
-    email: 'sanhomefl@gmail.com',
-    name: 'Nan San Hom',
-    nickname: 'Hom',
-    employeeCode: 'EMP-0002',
-    role: 'STAFF',
-    jobTitle: 'Staff Member',
-    isAssignable: true
-  },
-  {
     ssoUserId: 'b5244c9d-7de8-4848-998a-abc76217b51c',
     email: 'sutitadapundon@gmail.com',
     name: 'Sutitada Pundon',

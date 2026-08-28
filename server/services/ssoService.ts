@@ -205,6 +205,7 @@ export async function consumeSsoToken(token: string) {
 export async function upsertUserFromSsoData(data: {
   email: string;
   name?: string;
+  nickname?: string;
   avatarUrl?: string;
   avatar?: string;
   role?: string;
@@ -224,14 +225,21 @@ export async function upsertUserFromSsoData(data: {
 }) {
   if (!data.email) return null;
   const email = data.email.toLowerCase().trim();
-  const name = data.name || email.split('@')[0];
+  const rawName = data.name || email.split('@')[0];
+  const name = data.nickname && !rawName.startsWith(`${data.nickname} (`)
+    ? `${data.nickname} (${rawName})`
+    : rawName;
   const avatarUrl = data.avatarUrl || data.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
   
   // If explicitly not granted access to efl-workflow
   const hasAppAccess = data.hasAccess !== false || data.isSuperAdmin === true;
+  const ssoUserId = data.ssoUserId || data.userId || data.id;
+
   if (!hasAppAccess) {
     // If user exists locally, deactivate them
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = ssoUserId
+      ? await prisma.user.findFirst({ where: { OR: [{ ssoUserId }, { email }] } })
+      : await prisma.user.findUnique({ where: { email } });
     if (existing) {
       await prisma.user.update({
         where: { id: existing.id },
@@ -252,13 +260,14 @@ export async function upsertUserFromSsoData(data: {
 
   const isExplicitlyDisabled = data.disabled === true || data.isActive === false || data.status === 'INACTIVE' || data.status === 'DISABLED';
   const isActive = !isExplicitlyDisabled;
-  const ssoUserId = data.ssoUserId || data.userId || data.id;
   const linkToken = data.linkToken;
   const lineNotifyToken = data.lineNotifyToken || data.lineToken;
   const lineUserId = data.lineUserId;
   const jobTitle = data.jobTitle || 'Staff Member';
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  let user = ssoUserId
+    ? await prisma.user.findFirst({ where: { OR: [{ ssoUserId }, { email }] } })
+    : await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
     user = await prisma.user.create({
@@ -282,6 +291,7 @@ export async function upsertUserFromSsoData(data: {
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
+        email, // updates email on existing user if changed in Central SSO
         name: name || user.name,
         avatarUrl: avatarUrl || user.avatarUrl,
         role: role || user.role,

@@ -150,7 +150,7 @@ export async function syncAllSsoEmployees() {
 
   for (const emp of SSO_EMPLOYEES) {
     const avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(emp.nickname || emp.name)}`;
-    const displayName = emp.nickname ? `${emp.name} (${emp.nickname})` : emp.name;
+    const displayName = emp.nickname ? `${emp.nickname} (${emp.name})` : emp.name;
 
     const user = await prisma.user.upsert({
       where: { email: emp.email.toLowerCase().trim() },

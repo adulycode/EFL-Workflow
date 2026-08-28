@@ -97,24 +97,9 @@ export const BoardHeader: React.FC = () => {
   return (
     <>
       <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-30">
-        {/* Left Section: Workspace Switcher & Board Title */}
-        <div className="flex items-center gap-4">
+        {/* Left Section: Unified Board & Space Switcher */}
+        <div className="flex items-center gap-3">
           <WorkspaceSwitcher />
-
-          <div className="h-4 w-[1px] bg-neutral-200 dark:border-neutral-800" />
-
-          <div>
-            <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              <span className="text-base">{board?.icon || '📋'}</span>
-              <span>{board?.title || 'Loading Board...'}</span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
-                Workspace Board
-              </span>
-            </h1>
-            <p className="text-[11px] text-neutral-400">
-              Collaborative Kanban & Planning • EFL Workflow
-            </p>
-          </div>
         </div>
 
         {/* Center: View Mode Switcher (Board, Table, Calendar, Overview) */}

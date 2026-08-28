@@ -323,7 +323,13 @@ router.get('/:id/details', async (req, res) => {
     const card = await prisma.card.findUnique({
       where: { id },
       include: {
-        column: true,
+        column: {
+          include: {
+            board: {
+              include: { workspace: true }
+            }
+          }
+        },
         assignees: { include: { user: true } },
         labels: { include: { label: true } },
         checklists: {

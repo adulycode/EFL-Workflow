@@ -15,7 +15,7 @@ conn.on('ready', () => {
     stream.on('data', (d) => process.stdout.write(d.toString()));
     stream.stderr.on('data', (d) => process.stderr.write(d.toString()));
     stream.on('close', () => {
-      console.log('\n✅ EFL-Workflow is up and running with lift physics!');
+      console.log('\n✅ EFL-Workflow is up and running!');
       conn.end();
     });
   });

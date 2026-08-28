@@ -37,10 +37,32 @@ export const App: React.FC = () => {
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
         fetchWorkspaces();
+        checkCardDeepLink();
       });
     } else {
       fetchUsers();
       fetchWorkspaces();
+      checkCardDeepLink();
+    }
+
+    function checkCardDeepLink() {
+      const cardMatch = window.location.pathname.match(/\/cards\/([^/]+)/);
+      const targetCardId = cardMatch ? cardMatch[1] : params.get('cardId') || params.get('card');
+
+      if (targetCardId) {
+        fetch(`/api/cards/${targetCardId}/details`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((cardData) => {
+            if (cardData) {
+              const ws = cardData.column?.board?.workspace;
+              if (ws) {
+                useWorkspaceStore.getState().setCurrentWorkspace(ws);
+              }
+              useBoardStore.getState().setSelectedCardId(targetCardId);
+            }
+          })
+          .catch((err) => console.error('Failed to deep link card:', err));
+      }
     }
   }, [fetchUsers, fetchWorkspaces, loginWithSsoToken]);
 

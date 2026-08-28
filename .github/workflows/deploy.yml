@@ -10,6 +10,7 @@ jobs:
   deploy:
     name: Deploy to Production VPS
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout Code
@@ -18,8 +19,8 @@ jobs:
       - name: Deploy via SSH to VPS
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ secrets.VPS_HOST || '103.91.190.29' }}
+          username: ${{ secrets.VPS_USER || 'serva' }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}

@@ -282,19 +282,23 @@ router.post('/:id/move', async (req, res) => {
         });
       }
 
-      if (['Review', 'Done'].includes(targetColumn.title)) {
-        for (const a of oldCard.assignees) {
-          sendNotification({
-            userId: a.user.id,
-            email: a.user.email,
-            lineUserId: a.user.lineUserId || undefined,
-            title: `Task Moved to [${targetColumn.title}]`,
-            message: `Task "${updated.title}" has been moved from "${oldCard.column.title}" to "${targetColumn.title}".`,
-            cardId: id,
-            actionType: 'MOVED_COLUMN'
-          });
-        }
-      }
+      // Notify stakeholders (Assignees, Report To, FYI) with full discussion timeline
+      const { sendStakeholderNotifications } = await import('../services/notificationService');
+      const isDone = /done|เสร็จ|complete|finish|success/i.test(targetColumn.title);
+      const isReview = /review|ตรวจ|อนุมัติ|approve/i.test(targetColumn.title);
+
+      const actionSummary = isDone
+        ? `🎉 การ์ดงานนี้ดำเนินการเสร็จสิ้นแล้ว (ย้ายไปยัง [${targetColumn.title}])`
+        : isReview
+        ? `🚀 ส่งตรวจงาน (ย้ายไปยัง [${targetColumn.title}])`
+        : `ย้ายการ์ดงานจาก [${oldCard.column.title}] ไปยัง [${targetColumn.title}]`;
+
+      sendStakeholderNotifications({
+        cardId: id,
+        actorUserId: userId,
+        type: 'COLUMN_MOVED',
+        actionSummary
+      });
     }
 
     emitRealtime(req, 'card:moved', { cardId: id, columnId, position, updated });

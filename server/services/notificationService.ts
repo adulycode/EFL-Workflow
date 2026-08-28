@@ -570,8 +570,12 @@ export async function sendStakeholderNotifications({
     const card = await prisma.card.findUnique({
       where: { id: cardId },
       include: {
-        column: { include: { board: true } },
+        column: { include: { board: { include: { workspace: true } } } },
         assignees: { include: { user: true } },
+        comments: {
+          include: { user: true },
+          orderBy: { createdAt: 'asc' }
+        },
         createdBy: true
       }
     });
@@ -605,9 +609,22 @@ export async function sendStakeholderNotifications({
       if (type === 'FYI_ASSIGNED' && user.notifyAssigned === false) continue;
 
       const roleText = item.type === 'REPORT_TO' ? '👑 Report To' : item.type === 'FYI' ? '📢 FYI' : '🛠️ Assignee';
-      const notificationTitle = type === 'COMMENT' 
-        ? `💬 ${actorName} ตอบกลับในการ์ดงาน: "${card.title}"`
-        : `📌 คุณได้รับมอบหมายการ์ดงาน (${roleText}): "${card.title}"`;
+      
+      let notificationTitle = `📌 อัปเดตการ์ดงาน: "${card.title}"`;
+      if (type === 'COMMENT') {
+        notificationTitle = `💬 ${actorName} ตอบกลับในการ์ดงาน: "${card.title}"`;
+      } else if (type === 'COLUMN_MOVED') {
+        const colTitle = card.column?.title || '';
+        const isDone = /done|เสร็จ|complete|finish|success/i.test(colTitle);
+        const isReview = /review|ตรวจ|อนุมัติ|approve/i.test(colTitle);
+        notificationTitle = isDone 
+          ? `🎉 งานเสร็จสิ้นแล้ว (Completed): "${card.title}"`
+          : isReview 
+          ? `🚀 ส่งตรวจงาน (Review): "${card.title}"`
+          : `📋 ${actorName} ย้ายการ์ดงานไปที่ [${colTitle}]: "${card.title}"`;
+      } else {
+        notificationTitle = `📌 คุณได้รับมอบหมายการ์ดงาน (${roleText}): "${card.title}"`;
+      }
 
       const notificationMessage = type === 'COMMENT'
         ? (comment?.content || 'มีความคิดเห็นใหม่ในการ์ดงานนี้')
@@ -624,7 +641,8 @@ export async function sendStakeholderNotifications({
         dueDate: card.dueDate || undefined,
         actorName,
         cardId: card.id,
-        userId: user.id
+        userId: user.id,
+        comments: card.comments
       }).catch((err) => {
         console.error(`[Stakeholder Email Error to ${user.email}]:`, err.message);
       });

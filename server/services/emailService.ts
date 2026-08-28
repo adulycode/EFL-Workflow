@@ -98,7 +98,8 @@ export async function sendCardNotificationEmail({
   dueDate,
   actorName,
   cardId,
-  userId
+  userId,
+  comments
 }: {
   to: string;
   title: string;
@@ -111,6 +112,7 @@ export async function sendCardNotificationEmail({
   actorName?: string;
   cardId?: string;
   userId?: string;
+  comments?: Array<{ content: string; createdAt: Date | string; user: { name: string } }>;
 }) {
   const cardUrl = cardId ? `${APP_URL}/cards/${cardId}` : APP_URL;
   const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString('th-TH', {
@@ -124,6 +126,9 @@ export async function sendCardNotificationEmail({
   const priorityColor = priority === 'URGENT' ? '#ef4444' :
                         priority === 'HIGH' ? '#f97316' :
                         priority === 'MEDIUM' ? '#eab308' : '#10b981';
+
+  // Format Discussion Timeline (last 5 comments)
+  const recentComments = comments && comments.length > 0 ? comments.slice(-6) : [];
 
   const html = `
 <!DOCTYPE html>
@@ -141,7 +146,7 @@ export async function sendCardNotificationEmail({
       <div style="display: flex; align-items: center; justify-content: space-between;">
         <span style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #a7f3d0; text-transform: uppercase;">EFL WORKFLOW NOTIFICATION</span>
       </div>
-      <h1 style="color: #ffffff; font-size: 20px; font-weight: 700; margin: 8px 0 0 0; line-height: 1.3;">${title}</h1>
+      <h1 style="color: #ffffff; font-size: 19px; font-weight: 700; margin: 8px 0 0 0; line-height: 1.3;">${title}</h1>
     </div>
 
     <!-- Body Content -->
@@ -157,11 +162,11 @@ export async function sendCardNotificationEmail({
 
       <!-- Card Details Box -->
       ${cardTitle ? `
-      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 28px;">
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
         <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">
           ${workspaceTitle || 'EFL Organization'} &bull; ${boardTitle || 'Kanban Board'}
         </div>
-        <div style="font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">
+        <div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">
           📌 ${cardTitle}
         </div>
 
@@ -181,6 +186,26 @@ export async function sendCardNotificationEmail({
             <strong style="color: #0f172a; margin-left: 4px;">⏰ ${formattedDueDate}</strong>
           </div>
           ` : ''}
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- Discussion Timeline Section (If comments exist) -->
+      ${recentComments.length > 0 ? `
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-bottom: 28px;">
+        <div style="font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">
+          📜 ประวัติการพูดคุย & สรุปความคืบหน้า (${comments?.length || recentComments.length} ข้อความ)
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${recentComments.map((c) => `
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 11px;">
+                <strong style="color: #0f172a; font-size: 12px;">💬 ${c.user?.name || 'ทีมงาน'}</strong>
+                <span style="color: #94a3b8; font-size: 10px;">${new Date(c.createdAt).toLocaleDateString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <p style="margin: 0; font-size: 13px; color: #334155; line-height: 1.5; white-space: pre-wrap;">${c.content}</p>
+            </div>
+          `).join('')}
         </div>
       </div>
       ` : ''}

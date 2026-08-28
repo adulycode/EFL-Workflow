@@ -143,75 +143,40 @@ export const ProfileTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Appearance & Language Preferences */}
-      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-4">
+      {/* Appearance Preferences */}
+      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-          Preferences (การแสดงผลและภาษา)
+          Theme & Display (โหมดการแสดงผล)
         </h4>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Theme Switcher */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-              Theme Mode (โหมดสี)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedTheme('dark')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
-                  selectedTheme === 'dark'
-                    ? 'bg-slate-900 border-emerald-500 text-emerald-400 shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <Moon size={15} /> Dark Mode
-              </button>
+        <div className="max-w-xs">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+            Theme Mode (โหมดสี)
+          </label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setSelectedTheme('dark')}
+              className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                selectedTheme === 'dark'
+                  ? 'bg-slate-900 border-emerald-500 text-emerald-400 shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+              }`}
+            >
+              <Moon size={15} /> Dark Mode
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setSelectedTheme('light')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
-                  selectedTheme === 'light'
-                    ? 'bg-white border-emerald-500 text-emerald-600 shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <Sun size={15} /> Light Mode
-              </button>
-            </div>
-          </div>
-
-          {/* Language Switcher */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-              System Language (ภาษาของระบบ)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedLang('th')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
-                  selectedLang === 'th'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <span className="text-base">🇹🇭</span> ภาษาไทย
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedLang('en')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
-                  selectedLang === 'en'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <span className="text-base">🇺🇸</span> English
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedTheme('light')}
+              className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                selectedTheme === 'light'
+                  ? 'bg-white border-emerald-500 text-emerald-600 shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+              }`}
+            >
+              <Sun size={15} /> Light Mode
+            </button>
           </div>
         </div>
       </div>

@@ -1,0 +1,56 @@
+name: Auto Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            echo "🚀 Starting Automated Deployment for EFL-Workflow..."
+            
+            # Find and enter project directory
+            if [ -d "$HOME/EFL-Workflow" ]; then
+              cd "$HOME/EFL-Workflow"
+            elif [ -d "/var/www/EFL-Workflow" ]; then
+              cd "/var/www/EFL-Workflow"
+            elif [ -d "$HOME/efl-workflow" ]; then
+              cd "$HOME/efl-workflow"
+            elif [ -d "/root/EFL-Workflow" ]; then
+              cd "/root/EFL-Workflow"
+            else
+              echo "⚠️ EFL-Workflow directory not found in standard paths. Cloning repository..."
+              git clone https://github.com/adulycode/EFL-Workflow.git "$HOME/EFL-Workflow"
+              cd "$HOME/EFL-Workflow"
+            fi
+
+            echo "📥 Pulling latest changes from GitHub main branch..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "🐳 Rebuilding and restarting Docker containers..."
+            docker compose down || true
+            docker compose up -d --build
+
+            echo "🔄 Synchronizing Database Schema with Prisma..."
+            sleep 5
+            docker compose exec -T efl-workflow-app npx prisma db push || true
+
+            echo "✅ EFL-Workflow successfully deployed and running on VPS!"

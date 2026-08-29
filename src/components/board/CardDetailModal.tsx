@@ -39,6 +39,7 @@ import { ConfirmModal } from '../common/ConfirmModal';
 import { LabelManagerModal } from './LabelManagerModal';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
+import { DueDatePicker } from '../common/DueDatePicker';
 
 const POPULAR_CARD_ICONS = [
   '📝', '📌', '🚀', '💡', '🔥', '✨', '🎯', '📊', '📈', '🛠️', 
@@ -158,7 +159,7 @@ export const CardDetailModal: React.FC = () => {
         setTitle(data.title);
         setDescription(data.description || '');
         setPriority(data.priority);
-        setDueDate(data.dueDate ? format(new Date(data.dueDate), 'yyyy-MM-dd') : '');
+        setDueDate(data.dueDate || '');
         setCoverColor(data.coverColor || null);
         setCoverImage(data.coverImage || null);
         setIcon(data.icon || '📝');
@@ -1575,19 +1576,18 @@ export const CardDetailModal: React.FC = () => {
 
               {/* Due Date */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1 flex items-center gap-1">
-                  <Calendar size={13} /> Due Date
+                <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-emerald-600 dark:text-emerald-400" />
+                  <span>กำหนดส่ง (Due Date)</span>
                 </label>
-                <input
-                  type="date"
+                <DueDatePicker
                   value={dueDate}
-                  onChange={(e) => {
-                    setDueDate(e.target.value);
+                  onChange={(isoStr) => {
+                    setDueDate(isoStr || '');
                     updateCard(selectedCardId, {
-                      dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined
+                      dueDate: isoStr ? isoStr : undefined
                     });
                   }}
-                  className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-2 text-neutral-800 dark:text-neutral-200 focus:outline-none"
                 />
               </div>
 

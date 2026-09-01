@@ -2,7 +2,7 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Deploying Mutually Exclusive Stakeholders to VPS...');
+console.log('🚀 Deploying Mutually Exclusive Stakeholders to VPS directly...');
 
 conn.on('ready', () => {
   const commands = [

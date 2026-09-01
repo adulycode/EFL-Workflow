@@ -16,6 +16,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   efl-workflow-app:
     build:
@@ -37,6 +42,11 @@ services:
     depends_on:
       efl-workflow-db:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
 volumes:
   efl_pgdata:

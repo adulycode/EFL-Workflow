@@ -42,6 +42,7 @@ import { LabelManagerModal } from './LabelManagerModal';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
 import { DueDatePicker } from '../common/DueDatePicker';
+import { LinkPreviewCard } from '../common/LinkPreviewCard';
 
 const POPULAR_CARD_ICONS = [
   '📝', '📌', '🚀', '💡', '🔥', '✨', '🎯', '📊', '📈', '🛠️', 
@@ -658,69 +659,121 @@ export const CardDetailModal: React.FC = () => {
     return <FileText size={18} className="text-neutral-500" />;
   };
 
-  // Helper to render comment text with clickable referenced file links (clean badge without long URLs)
+  // Helper to render comment text with clickable links and Rich Preview Cards
   const renderCommentContent = (content: string) => {
     // 1. Sanitize any accidentally pasted raw base64 data URLs in comments
     const sanitized = content
       .replace(/\(data:[A-Za-z-+\/0-9.]+;base64,[A-Za-z0-9+/=]+\)/g, '')
       .replace(/data:[A-Za-z-+\/0-9.]+;base64,[A-Za-z0-9+/=]{50,}/g, '');
 
-    // 2. Parse markdown link tokens: [label](target)
-    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    const parts = [];
+    // Extract all unique raw URLs in the comment for Link Preview Cards
+    const rawUrlRegex = /(https?:\/\/[^\s<>()"']+)/gi;
+    const detectedUrls: string[] = [];
+    let urlMatch;
+    while ((urlMatch = rawUrlRegex.exec(sanitized)) !== null) {
+      const u = urlMatch[1];
+      if (!detectedUrls.includes(u) && !u.startsWith('data:') && !u.startsWith('att:')) {
+        detectedUrls.push(u);
+      }
+    }
+
+    // 2. Parse text into segments (supporting markdown [label](target), raw URLs, and plain text with linebreaks)
+    const tokenRegex = /(\[([^\]]+)\]\(([^)]+)\)|https?:\/\/[^\s<>()"']+)/g;
+    const textElements: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
 
-    while ((match = linkRegex.exec(sanitized)) !== null) {
+    while ((match = tokenRegex.exec(sanitized)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(sanitized.substring(lastIndex, match.index));
+        textElements.push(sanitized.substring(lastIndex, match.index));
       }
 
-      const label = match[1];
-      const target = match[2];
+      const fullMatch = match[0];
+      if (fullMatch.startsWith('[')) {
+        // Markdown link [label](target)
+        const label = match[2];
+        const target = match[3];
 
-      // Resolve attachment if using att:id or url
-      let fileUrl = target;
-      let displayName = label.replace(/^[📎📄📊📽️📁]\s*/, '');
+        let fileUrl = target;
+        let displayName = label.replace(/^[📎📄📊📽️📁]\s*/, '');
 
-      if (target.startsWith('att:')) {
-        const attId = target.slice(4);
-        const foundAtt = cardDetails.attachments?.find((a: any) => a.id === attId);
-        if (foundAtt) {
-          fileUrl = foundAtt.fileUrl;
-          displayName = foundAtt.fileName;
+        if (target.startsWith('att:')) {
+          const attId = target.slice(4);
+          const foundAtt = cardDetails.attachments?.find((a: any) => a.id === attId);
+          if (foundAtt) {
+            fileUrl = foundAtt.fileUrl;
+            displayName = foundAtt.fileName;
+          }
+        } else if (target.startsWith('data:')) {
+          const foundAtt = cardDetails.attachments?.find((a: any) => a.fileName === displayName || a.fileUrl === target);
+          if (foundAtt) {
+            fileUrl = foundAtt.fileUrl;
+          }
         }
-      } else if (target.startsWith('data:')) {
-        const foundAtt = cardDetails.attachments?.find((a: any) => a.fileName === displayName || a.fileUrl === target);
-        if (foundAtt) {
-          fileUrl = foundAtt.fileUrl;
+
+        textElements.push(
+          <a
+            key={`md-${match.index}`}
+            href={fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={fileUrl.startsWith('data:') ? displayName : undefined}
+            title={`Click to open ${displayName}`}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-0.5 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg border border-blue-200/90 dark:border-blue-900/60 shadow-xs transition-all cursor-pointer"
+          >
+            <Paperclip size={11} className="shrink-0" />
+            <span className="truncate max-w-[200px]">{displayName}</span>
+            <ExternalLink size={9} className="shrink-0 opacity-70" />
+          </a>
+        );
+      } else {
+        // Raw URL: format cleanly
+        const rawUrl = fullMatch;
+        let displayUrl = rawUrl;
+        try {
+          const parsed = new URL(rawUrl);
+          displayUrl = `${parsed.hostname}${parsed.pathname.length > 25 ? parsed.pathname.slice(0, 25) + '...' : parsed.pathname}`;
+        } catch {
+          displayUrl = rawUrl.length > 40 ? rawUrl.slice(0, 40) + '...' : rawUrl;
         }
+
+        textElements.push(
+          <a
+            key={`url-${match.index}`}
+            href={rawUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={rawUrl}
+            className="text-emerald-600 dark:text-emerald-400 font-semibold underline underline-offset-2 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors mx-0.5 break-all"
+          >
+            {displayUrl}
+          </a>
+        );
       }
-
-      parts.push(
-        <a
-          key={match.index}
-          href={fileUrl}
-          target="_blank"
-          rel="noreferrer"
-          download={fileUrl.startsWith('data:') ? displayName : undefined}
-          title={`Click to open ${displayName}`}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 mx-1 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl border border-blue-200/90 dark:border-blue-900/60 shadow-sm transition-all cursor-pointer"
-        >
-          <Paperclip size={12} className="shrink-0" />
-          <span className="truncate max-w-[200px]">{displayName}</span>
-          <ExternalLink size={10} className="shrink-0 opacity-70" />
-        </a>
-      );
 
       lastIndex = match.index + match[0].length;
     }
 
     if (lastIndex < sanitized.length) {
-      parts.push(sanitized.substring(lastIndex));
+      textElements.push(sanitized.substring(lastIndex));
     }
 
-    return parts.length > 0 ? parts : sanitized;
+    return (
+      <div className="space-y-2">
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {textElements.length > 0 ? textElements : sanitized}
+        </div>
+
+        {/* Rich Link Preview Cards (Limited to first 3 previews per comment for optimal performance) */}
+        {detectedUrls.length > 0 && (
+          <div className="pt-1 space-y-2">
+            {detectedUrls.slice(0, 3).map((u) => (
+              <LinkPreviewCard key={u} url={u} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (

@@ -13,6 +13,7 @@ import notificationsRouter from './routes/notifications';
 import usersRouter from './routes/users';
 import settingsRouter from './routes/settings';
 import inboundEmailRouter from './routes/inboundEmail';
+import utilsRouter from './routes/utils';
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use('/api/cards', cardsRouter);
 app.use('/api/cards', inboundEmailRouter);
 app.use('/api/webhooks', inboundEmailRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/utils', utilsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), app: 'EFL-Workflow' });

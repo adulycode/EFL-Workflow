@@ -32,7 +32,9 @@ import {
   Mail,
   UserCheck,
   Sparkles,
-  Image as CoverIcon
+  Image as CoverIcon,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -96,6 +98,8 @@ export const CardDetailModal: React.FC = () => {
     deleteCard, 
     archiveCard, 
     addComment, 
+    updateComment,
+    deleteComment,
     addAttachment, 
     deleteAttachment,
     labels 
@@ -119,6 +123,12 @@ export const CardDetailModal: React.FC = () => {
   const [showFileRefMenu, setShowFileRefMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedEmojiTab, setSelectedEmojiTab] = useState(0);
+
+  // Comment Editing and Deleting State
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const [isSavingCommentEdit, setIsSavingCommentEdit] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   // Notion-Style Features State
   const [showCardIconPicker, setShowCardIconPicker] = useState(false);
@@ -417,6 +427,52 @@ export const CardDetailModal: React.FC = () => {
     setAttachedImage(null);
     if (commentFileInputRef.current) commentFileInputRef.current.value = '';
     fetchDetails();
+  };
+
+  const handleStartEditComment = (c: any) => {
+    setEditingCommentId(c.id);
+    setEditingCommentText(c.content || '');
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const handleSaveEditComment = async (commentId: string) => {
+    if (!editingCommentText.trim()) return;
+    setIsSavingCommentEdit(true);
+    const success = await updateComment(selectedCardId, commentId, editingCommentText.trim(), currentUser?.id);
+    setIsSavingCommentEdit(false);
+    if (success) {
+      setCardDetails((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          comments: prev.comments?.map((c: any) =>
+            c.id === commentId ? { ...c, content: editingCommentText.trim(), updatedAt: new Date().toISOString() } : c
+          )
+        };
+      });
+      setEditingCommentId(null);
+      setEditingCommentText('');
+    }
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    const targetId = commentToDelete;
+    setCommentToDelete(null);
+    const success = await deleteComment(selectedCardId, targetId, currentUser?.id);
+    if (success) {
+      setCardDetails((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          comments: prev.comments?.filter((c: any) => c.id !== targetId)
+        };
+      });
+    }
   };
 
   // Confirm Actions
@@ -1231,53 +1287,141 @@ export const CardDetailModal: React.FC = () => {
 
                     {/* Comment List */}
                     <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                      {cardDetails.comments?.map((c: any) => (
-                        <div key={c.id} className="bg-neutral-50 dark:bg-neutral-800/40 p-3.5 rounded-2xl text-xs space-y-2 border border-neutral-200/60 dark:border-neutral-800">
-                          <div className="flex items-center justify-between text-[11px] text-neutral-400">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <img
-                                src={c.user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user?.name || 'User')}`}
-                                alt={c.user?.name}
-                                className="w-5 h-5 rounded-full object-cover shadow-sm"
-                              />
-                              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{c.user?.name}</span>
-                              {c.isEmailReply && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shadow-xs">
-                                  <Mail size={10} />
-                                  <span>via Email</span>
-                                </span>
-                              )}
-                            </div>
-                            <span>{format(new Date(c.createdAt), 'MMM d, HH:mm')}</span>
-                          </div>
+                      {cardDetails.comments?.map((c: any) => {
+                        const isAuthor = currentUser && (c.userId === currentUser.id || (c.user?.email && currentUser.email && c.user.email.toLowerCase() === currentUser.email.toLowerCase()));
+                        const isAdmin = currentUser?.role === 'ADMIN';
+                        const canEdit = isAuthor;
+                        const canDelete = isAuthor || isAdmin;
+                        const isEditing = editingCommentId === c.id;
+                        const isEdited = c.updatedAt && c.createdAt && Math.abs(new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime()) > 3000;
 
-                          {c.content && (
-                            <div className="text-neutral-800 dark:text-neutral-200 leading-relaxed pl-7 break-words">
-                              {renderCommentContent(c.content)}
-                            </div>
-                          )}
-
-                          {c.imageUrl && (
-                            <div className="pl-7 pt-1">
-                              <div className="relative group inline-block">
+                        return (
+                          <div key={c.id} className="group/comment bg-neutral-50 dark:bg-neutral-800/40 p-3.5 rounded-2xl text-xs space-y-2 border border-neutral-200/60 dark:border-neutral-800 transition-colors hover:border-neutral-300 dark:hover:border-neutral-700">
+                            <div className="flex items-center justify-between text-[11px] text-neutral-400">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <img
-                                  src={c.imageUrl}
-                                  alt="Comment attachment"
-                                  onClick={() => setLightboxImage(c.imageUrl)}
-                                  className="max-h-48 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity"
+                                  src={c.user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user?.name || 'User')}`}
+                                  alt={c.user?.name}
+                                  className="w-5 h-5 rounded-full object-cover shadow-sm"
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => setLightboxImage(c.imageUrl)}
-                                  className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <Maximize2 size={12} />
-                                </button>
+                                <span className="font-semibold text-neutral-800 dark:text-neutral-200">{c.user?.name}</span>
+                                {c.isEmailReply && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shadow-xs">
+                                    <Mail size={10} />
+                                    <span>via Email</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span>{format(new Date(c.createdAt), 'MMM d, HH:mm')}</span>
+                                {isEdited && (
+                                  <span className="text-[10px] text-neutral-400 italic" title={`แก้ไขล่าสุด ${format(new Date(c.updatedAt), 'MMM d, HH:mm')}`}>
+                                    (แก้ไขแล้ว)
+                                  </span>
+                                )}
+
+                                {/* Action buttons (Edit / Delete) */}
+                                {(canEdit || canDelete) && !isEditing && (
+                                  <div className="flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditComment(c)}
+                                        className="p-1 text-neutral-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md hover:bg-neutral-200/70 dark:hover:bg-neutral-700/70 transition-colors"
+                                        title="แก้ไขข้อความ"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                    )}
+                                    {canDelete && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setCommentToDelete(c.id)}
+                                        className="p-1 text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                        title="ลบคอมเมนต์"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      ))}
+
+                            {isEditing ? (
+                              <div className="pl-7 space-y-2 pt-1">
+                                <textarea
+                                  value={editingCommentText}
+                                  onChange={(e) => setEditingCommentText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                      e.preventDefault();
+                                      handleSaveEditComment(c.id);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      handleCancelEditComment();
+                                    }
+                                  }}
+                                  autoFocus
+                                  rows={3}
+                                  className="w-full text-xs p-2.5 rounded-xl border border-emerald-500/50 dark:border-emerald-500/50 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 shadow-inner resize-none"
+                                  placeholder="แก้ไขข้อความคอมเมนต์..."
+                                />
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] text-neutral-400">Ctrl+Enter เพื่อบันทึก, Esc เพื่อยกเลิก</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditComment}
+                                      className="px-2.5 py-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+                                    >
+                                      ยกเลิก
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={!editingCommentText.trim() || isSavingCommentEdit}
+                                      onClick={() => handleSaveEditComment(c.id)}
+                                      className="flex items-center gap-1 px-3 py-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+                                    >
+                                      <Check size={12} />
+                                      <span>{isSavingCommentEdit ? 'กำลังบันทึก...' : 'บันทึก'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {c.content && (
+                                  <div className="text-neutral-800 dark:text-neutral-200 leading-relaxed pl-7 break-words">
+                                    {renderCommentContent(c.content)}
+                                  </div>
+                                )}
+
+                                {c.imageUrl && (
+                                  <div className="pl-7 pt-1">
+                                    <div className="relative group inline-block">
+                                      <img
+                                        src={c.imageUrl}
+                                        alt="Comment attachment"
+                                        onClick={() => setLightboxImage(c.imageUrl)}
+                                        className="max-h-48 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setLightboxImage(c.imageUrl)}
+                                        className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <Maximize2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1879,6 +2023,18 @@ export const CardDetailModal: React.FC = () => {
         cancelText="Cancel"
         onConfirm={handleConfirmDeleteAttachment}
         onCancel={() => setAttachmentToDelete(null)}
+      />
+
+      {/* Confirmation Modal for Delete Comment */}
+      <ConfirmModal
+        isOpen={Boolean(commentToDelete)}
+        type="danger"
+        title="ยืนยันการลบคอมเมนต์"
+        message="คุณต้องการลบคอมเมนต์นี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้"
+        confirmText="ลบคอมเมนต์"
+        cancelText="ยกเลิก"
+        onConfirm={handleConfirmDeleteComment}
+        onCancel={() => setCommentToDelete(null)}
       />
 
       {/* Label Manager Modal */}

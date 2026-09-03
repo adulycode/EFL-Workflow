@@ -45,6 +45,8 @@ interface BoardState {
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;
   addComment: (cardId: string, content: string, imageUrl?: string, userId?: string) => Promise<void>;
+  updateComment: (cardId: string, commentId: string, content: string, userId?: string) => Promise<boolean>;
+  deleteComment: (cardId: string, commentId: string, userId?: string) => Promise<boolean>;
 
   // Attachment Operations
   addAttachment: (cardId: string, data: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number; userId?: string }) => Promise<void>;
@@ -299,6 +301,40 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to add comment:', err);
+    }
+  },
+
+  updateComment: async (cardId, commentId, content, userId) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments/${commentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, userId })
+      });
+      if (res.ok) {
+        get().fetchBoard();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update comment:', err);
+      return false;
+    }
+  },
+
+  deleteComment: async (cardId, commentId, userId) => {
+    try {
+      const res = await fetch(`/api/cards/${cardId}/comments/${commentId}?userId=${encodeURIComponent(userId || '')}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        get().fetchBoard();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+      return false;
     }
   },
 

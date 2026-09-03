@@ -419,6 +419,104 @@ router.post('/:id/comments', async (req, res) => {
   }
 });
 
+// Update/Edit Comment
+router.patch('/:id/comments/:commentId', async (req, res) => {
+  try {
+    const { id, commentId } = req.params;
+    const { content, userId } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Comment content cannot be empty' });
+    }
+
+    const existingComment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { user: true }
+    });
+
+    if (!existingComment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    if (userId) {
+      const requester = await prisma.user.findUnique({ where: { id: userId } });
+      const isOwner = existingComment.userId === userId;
+      const isAdmin = requester?.role === 'ADMIN';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'You do not have permission to edit this comment' });
+      }
+    }
+
+    const updated = await prisma.comment.update({
+      where: { id: commentId },
+      data: { content: content.trim() },
+      include: { user: true }
+    });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId,
+          actionType: 'EDITED_COMMENT',
+          details: { preview: (content || '').slice(0, 50) }
+        }
+      });
+    }
+
+    emitRealtime(req, 'comment:updated', { cardId: id, comment: updated });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Comment
+router.delete('/:id/comments/:commentId', async (req, res) => {
+  try {
+    const { id, commentId } = req.params;
+    const { userId } = (req.query as { userId?: string }) || (req.body as { userId?: string }) || {};
+
+    const existingComment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { user: true }
+    });
+
+    if (!existingComment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    if (userId) {
+      const requester = await prisma.user.findUnique({ where: { id: userId } });
+      const isOwner = existingComment.userId === userId;
+      const isAdmin = requester?.role === 'ADMIN';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'You do not have permission to delete this comment' });
+      }
+    }
+
+    await prisma.comment.delete({ where: { id: commentId } });
+
+    if (userId) {
+      await prisma.activityLog.create({
+        data: {
+          cardId: id,
+          userId,
+          actionType: 'DELETED_COMMENT',
+          details: { preview: (existingComment.content || '').slice(0, 50) }
+        }
+      });
+    }
+
+    emitRealtime(req, 'comment:deleted', { cardId: id, commentId });
+    res.json({ success: true, commentId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================= ATTACHMENTS CRUD =================
 
 // Add Attachment (Files, PDFs, Images, Documents, Google Drive)

@@ -2,20 +2,14 @@ const { Client } = require('ssh2');
 
 const conn = new Client();
 
-console.log('🚀 Connecting to VPS from container...');
-
 conn.on('ready', () => {
-  console.log('✅ SSH Connected! Deploying and checking containers on VPS...');
   const commands = [
     'cd /home/serva/EFL-Workflow',
-    'git fetch origin main && git reset --hard origin/main',
-    'docker compose up -d --build',
+    'git pull origin main',
+    'docker compose build efl-workflow-app',
+    'docker compose up -d --no-deps efl-workflow-app',
     'sleep 3',
-    'docker compose exec -T efl-workflow-app npx prisma db push --accept-data-loss || true',
-    'docker image prune -f',
-    'docker builder prune -f --keep-storage 2GB',
-    'docker ps --filter "name=efl"',
-    'curl -I http://localhost:3010 || true'
+    'curl -I http://localhost:3010'
   ].join(' && ');
 
   conn.exec(commands, (err, stream) => {
@@ -27,10 +21,6 @@ conn.on('ready', () => {
       conn.end();
     });
   });
-});
-
-conn.on('error', err => {
-  console.error('SSH Error:', err);
 });
 
 conn.connect({

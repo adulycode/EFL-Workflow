@@ -1286,7 +1286,7 @@ export const CardDetailModal: React.FC = () => {
                     </form>
 
                     {/* Comment List */}
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    <div className="space-y-3">
                       {cardDetails.comments?.map((c: any) => {
                         const isAuthor = currentUser && (c.userId === currentUser.id || (c.user?.email && currentUser.email && c.user.email.toLowerCase() === currentUser.email.toLowerCase()));
                         const isAdmin = currentUser?.role === 'ADMIN';
@@ -1471,7 +1471,7 @@ export const CardDetailModal: React.FC = () => {
                     </div>
 
                     {/* Attachment List */}
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                    <div className="space-y-2">
                       {cardDetails.attachments && cardDetails.attachments.length > 0 ? (
                         cardDetails.attachments.map((att: any) => {
                           const isDrive = isGoogleDriveAttachment(att);
@@ -1565,7 +1565,7 @@ export const CardDetailModal: React.FC = () => {
 
                 {/* Tab 3: Activity History */}
                 {activeTab === 'activity' && (
-                  <div className="space-y-2 max-h-56 overflow-y-auto">
+                  <div className="space-y-2">
                     {cardDetails.activities?.map((act: any) => (
                       <div key={act.id} className="flex items-start gap-2.5 text-xs text-neutral-500 py-1.5 border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
                         <Clock size={13} className="shrink-0 mt-0.5 text-neutral-400" />

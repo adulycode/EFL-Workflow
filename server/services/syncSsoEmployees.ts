@@ -24,16 +24,7 @@ const SSO_EMPLOYEES = [
     jobTitle: 'Director / Executive Manager',
     isAssignable: true
   },
-  {
-    ssoUserId: '472d20c8-4bb4-40bd-9627-3fe1e9f2ad19',
-    email: 'reyz@gmail.com',
-    name: 'Adul Nupong',
-    nickname: 'Tu',
-    employeeCode: 'EMP-0004',
-    role: 'ADMIN',
-    jobTitle: 'IT & System Lead',
-    isAssignable: true
-  },
+
   {
     ssoUserId: 'a52d6a10-dba2-414a-b5d6-954948c60748',
     email: 'santoonmoon@gmail.com',
@@ -169,10 +160,10 @@ const SSO_EMPLOYEES = [
 export async function syncAllSsoEmployees() {
   console.log('🔄 Starting Direct Sync of all Central SSO Employees...');
 
-  // 1. Delete duplicate unlinked notification accounts if any
+  // 1. Delete duplicate unlinked notification / redundant accounts if any
   await prisma.user.deleteMany({
     where: {
-      email: { in: ['efl.notify@gmail.com'] }
+      email: { in: ['efl.notify@gmail.com', 'reyz@gmail.com'] }
     }
   });
 

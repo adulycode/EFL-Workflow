@@ -7,7 +7,7 @@ conn.on('ready', () => {
     'cd /home/serva/EFL-Workflow',
     'git pull origin main',
     'docker compose exec -T efl-workflow-app npx tsx /app/server/services/syncSsoEmployees.ts',
-    'docker compose exec -T efl-workflow-app node -e \'const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); prisma.user.findMany({ select: { id: true, email: true, name: true, role: true, isAssignable: true } }).then(u => { console.log("Current Users in VPS DB:", u.length); console.table(u); }).finally(() => prisma.$disconnect());\''
+    'docker compose exec -T efl-workflow-app node -e \'const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); prisma.user.findMany({ select: { id: true, email: true, name: true, role: true, isAssignable: true } }).then(u => { console.log("\n=== FINAL USERS IN VPS DB ==="); console.table(u); }).finally(() => prisma.$disconnect());\''
   ].join(' && ');
 
   conn.exec(commands, (err, stream) => {
@@ -15,7 +15,7 @@ conn.on('ready', () => {
     stream.on('data', d => process.stdout.write(d.toString()));
     stream.stderr.on('data', d => process.stderr.write(d.toString()));
     stream.on('close', code => {
-      console.log(`\n🎉 VPS Sync completed with code: ${code}`);
+      console.log(`\n🎉 VPS Final Sync completed with code: ${code}`);
       conn.end();
     });
   });

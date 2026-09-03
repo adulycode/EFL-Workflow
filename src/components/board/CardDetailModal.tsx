@@ -1657,6 +1657,9 @@ export const CardDetailModal: React.FC = () => {
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-amber-200/80 dark:border-amber-950/60 shadow-sm">
                   {(() => {
                     const filteredBosses = users.filter((u) => {
+                      // Hide current logged-in user from Report To (cannot report to oneself)
+                      if (currentUser && u.id === currentUser.id) return false;
+
                       const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
                       const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
                       const isEligible = u.isActive !== false && u.isAssignable !== false;
@@ -1715,6 +1718,9 @@ export const CardDetailModal: React.FC = () => {
                 <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
                   {(() => {
                     const filteredFyi = users.filter((u) => {
+                      // Hide current logged-in user from FYI (cannot FYI oneself)
+                      if (currentUser && u.id === currentUser.id) return false;
+
                       const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
                       const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
                       const isEligible = u.isActive !== false && u.isAssignable !== false && !isBoss;

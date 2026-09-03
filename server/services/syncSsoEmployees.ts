@@ -26,7 +26,7 @@ const SSO_EMPLOYEES = [
   },
   {
     ssoUserId: '472d20c8-4bb4-40bd-9627-3fe1e9f2ad19',
-    email: 'efl.notify@gmail.com',
+    email: 'reyz@gmail.com',
     name: 'Adul Nupong',
     nickname: 'Tu',
     employeeCode: 'EMP-0004',
@@ -133,11 +133,48 @@ const SSO_EMPLOYEES = [
     role: 'STAFF',
     jobTitle: 'Staff Member',
     isAssignable: true
+  },
+  {
+    ssoUserId: '0e83344b-5e32-4c40-b7de-43e9593778d9',
+    email: 'sanhomefl@gmail.com',
+    name: 'Nan San Hom',
+    nickname: 'Hom',
+    employeeCode: 'EMP-0002',
+    role: 'STAFF',
+    jobTitle: 'Operations & Staff',
+    isAssignable: true
+  },
+  {
+    ssoUserId: 'ab5ff0ce-8d9b-4acf-bb1f-ed6a592cb92f',
+    email: 'shouvik@seetefl.com',
+    name: 'Shouvik',
+    nickname: 'Shouvik',
+    employeeCode: '',
+    role: 'STAFF',
+    jobTitle: 'Academic Staff',
+    isAssignable: true
+  },
+  {
+    ssoUserId: '7a5bbb0b-6aae-4808-ab33-487698186036',
+    email: 'info@seetefl.com',
+    name: 'John Quinn',
+    nickname: 'John',
+    employeeCode: '',
+    role: 'STAFF',
+    jobTitle: 'Senior Academic Advisor',
+    isAssignable: true
   }
 ];
 
 export async function syncAllSsoEmployees() {
-  console.log('🔄 Starting Direct Sync of all 14 Central SSO Employees...');
+  console.log('🔄 Starting Direct Sync of all Central SSO Employees...');
+
+  // 1. Delete duplicate unlinked notification accounts if any
+  await prisma.user.deleteMany({
+    where: {
+      email: { in: ['efl.notify@gmail.com'] }
+    }
+  });
 
   const defaultWorkspaceId = '00000000-0000-0000-0000-000000000001';
   let defaultWs = await prisma.workspace.findUnique({ where: { id: defaultWorkspaceId } });

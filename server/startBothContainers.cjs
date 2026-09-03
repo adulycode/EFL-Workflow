@@ -5,7 +5,9 @@ const conn = new Client();
 conn.on('ready', () => {
   const commands = [
     'cd /home/serva/EFL-Workflow',
-    'docker compose logs --tail=30 efl-workflow-app'
+    'docker compose up -d',
+    'sleep 4',
+    'curl -I http://localhost:3010'
   ].join(' && ');
 
   conn.exec(commands, (err, stream) => {
@@ -13,7 +15,7 @@ conn.on('ready', () => {
     stream.on('data', d => process.stdout.write(d.toString()));
     stream.stderr.on('data', d => process.stderr.write(d.toString()));
     stream.on('close', code => {
-      console.log(`\nLog check code: ${code}`);
+      console.log(`\n🎉 VPS Up completed with code: ${code}`);
       conn.end();
     });
   });

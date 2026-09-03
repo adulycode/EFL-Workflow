@@ -24,6 +24,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setCurrentWorkspace: (workspace) => {
     set({ currentWorkspace: workspace });
+    const currentUserId = useAuthStore.getState().currentUser?.id;
+    if (currentUserId && workspace?.id) {
+      try {
+        localStorage.setItem(`efl_last_active_workspace_${currentUserId}`, workspace.id);
+      } catch (e) {}
+    }
     useBoardStore.getState().fetchBoard(workspace.id);
   },
 
@@ -37,7 +43,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       if (res.ok) {
         const data: Workspace[] = await res.json();
         const active = get().currentWorkspace;
-        const matched = active ? data.find((w) => w.id === active.id) : data[0];
+        
+        let targetWs: Workspace | undefined;
+        if (currentUserId) {
+          const prefWs = localStorage.getItem(`efl_pref_landing_workspace_${currentUserId}`) || 'LAST_VISITED';
+          if (prefWs === 'LAST_VISITED') {
+            const lastActiveId = localStorage.getItem(`efl_last_active_workspace_${currentUserId}`);
+            if (lastActiveId) {
+              targetWs = data.find((w) => w.id === lastActiveId);
+            }
+          } else if (prefWs && prefWs !== 'LAST_VISITED') {
+            targetWs = data.find((w) => w.id === prefWs);
+          }
+        }
+
+        const matched = active ? data.find((w) => w.id === active.id) : (targetWs || data[0]);
 
         set({
           workspaces: data,

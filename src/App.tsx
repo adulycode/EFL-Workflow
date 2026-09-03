@@ -32,6 +32,8 @@ export const App: React.FC = () => {
       loginWithSsoToken(ssoToken).then((success) => {
         if (success) {
           console.log('[SSO Handshake] Successfully logged in via EFL Central SSO');
+          const uid = useAuthStore.getState().currentUser?.id;
+          if (uid) useBoardStore.getState().initLandingPreferences(uid);
         }
         // Remove token from address bar for security & cleanliness
         const newUrl = window.location.pathname;
@@ -40,6 +42,8 @@ export const App: React.FC = () => {
         checkCardDeepLink();
       });
     } else {
+      const uid = useAuthStore.getState().currentUser?.id;
+      if (uid) useBoardStore.getState().initLandingPreferences(uid);
       fetchUsers();
       fetchWorkspaces();
       checkCardDeepLink();

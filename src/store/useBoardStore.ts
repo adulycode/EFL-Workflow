@@ -29,6 +29,7 @@ interface BoardState {
   setViewMode: (mode: ViewMode) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   resetFilters: () => void;
+  initLandingPreferences: (userId: string) => void;
   fetchBoard: (workspaceId?: string) => Promise<void>;
   fetchArchivedCards: () => Promise<void>;
 
@@ -84,9 +85,50 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setBoard: (board) => set({ board }),
   setActiveCard: (card) => set({ activeCard: card }),
   setSelectedCardId: (id) => set({ selectedCardId: id }),
-  setViewMode: (viewMode) => set({ viewMode }),
+  setViewMode: (viewMode) => {
+    set({ viewMode });
+    try {
+      const saved = localStorage.getItem('efl_sso_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u?.id) {
+          localStorage.setItem(`efl_last_active_view_${u.id}`, viewMode);
+        }
+      }
+    } catch (e) {}
+  },
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
   resetFilters: () => set({ filters: DEFAULT_FILTERS }),
+
+  initLandingPreferences: (userId: string) => {
+    if (!userId) return;
+    try {
+      const prefView = localStorage.getItem(`efl_pref_landing_view_${userId}`) || 'LAST_VISITED';
+      let targetView: ViewMode = 'board';
+
+      if (prefView === 'LAST_VISITED') {
+        const lastActiveView = localStorage.getItem(`efl_last_active_view_${userId}`) as ViewMode;
+        if (lastActiveView && ['board', 'table', 'calendar', 'overview'].includes(lastActiveView)) {
+          targetView = lastActiveView;
+        }
+      } else if (['board', 'table', 'calendar', 'overview'].includes(prefView)) {
+        targetView = prefView as ViewMode;
+      }
+
+      const prefFilter = localStorage.getItem(`efl_pref_landing_filter_${userId}`) || 'DEFAULT';
+      const onlyMyTasks = prefFilter === 'MY_TASKS';
+
+      set((state) => ({
+        viewMode: targetView,
+        filters: {
+          ...state.filters,
+          onlyMyTasks: onlyMyTasks || state.filters.onlyMyTasks
+        }
+      }));
+    } catch (e) {
+      console.error('Failed to init landing preferences:', e);
+    }
+  },
 
   fetchBoard: async (workspaceId?: string) => {
     try {

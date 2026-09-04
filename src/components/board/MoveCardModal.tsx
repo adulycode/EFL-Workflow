@@ -7,9 +7,10 @@ import { X, ArrowRightLeft, Folder, Layout, Columns, AlertCircle, Sparkles } fro
 interface MoveCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  cardId: string;
-  cardTitle: string;
-  currentColumnId: string;
+  cardId?: string;
+  cardTitle?: string;
+  cardIds?: string[];
+  currentColumnId?: string;
   currentBoardId?: string;
   currentWorkspaceId?: string;
   onSuccess?: (targetWorkspaceId: string, targetBoardId: string) => void;
@@ -20,13 +21,14 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
   onClose,
   cardId,
   cardTitle,
+  cardIds,
   currentColumnId,
   currentBoardId,
   currentWorkspaceId,
   onSuccess
 }) => {
   const { workspaces, setCurrentWorkspace } = useWorkspaceStore();
-  const { moveCardToBoard } = useBoardStore();
+  const { moveCardToBoard, batchMoveCards } = useBoardStore();
   const { currentUser } = useAuthStore();
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
@@ -89,7 +91,8 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
     setErrorMsg(null);
   };
 
-  const isSameLocation = selectedColumnId === currentColumnId;
+  const isBatch = Boolean(cardIds && cardIds.length > 0);
+  const isSameLocation = !isBatch && selectedColumnId === currentColumnId;
 
   const handleMove = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +102,11 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      await moveCardToBoard(cardId, selectedColumnId, position);
+      if (isBatch && cardIds && cardIds.length > 0) {
+        await batchMoveCards(cardIds, selectedColumnId, position);
+      } else if (cardId) {
+        await moveCardToBoard(cardId, selectedColumnId, position);
+      }
 
       // If moved to a different workspace/board, notify parent
       if (onSuccess && selectedWorkspaceId && selectedBoardId) {
@@ -125,10 +132,10 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                ย้ายการ์ด (Move Card)
+                {isBatch ? `ย้ายการ์ดชุด (${cardIds?.length} รายการ)` : 'ย้ายการ์ด (Move Card)'}
               </h3>
               <p className="text-[11px] text-neutral-500 truncate max-w-[260px]">
-                {cardTitle}
+                {isBatch ? 'ย้ายการ์ดที่เลือกไปยังบอร์ดหรือคอลัมน์เป้าหมาย' : cardTitle}
               </p>
             </div>
           </div>
@@ -269,7 +276,7 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
               ) : (
                 <>
                   <ArrowRightLeft size={13} />
-                  <span>ย้ายการ์ดทันที</span>
+                  <span>{isBatch ? `ย้ายทั้งหมด (${cardIds?.length}) ทันที` : 'ย้ายการ์ดทันที'}</span>
                 </>
               )}
             </button>

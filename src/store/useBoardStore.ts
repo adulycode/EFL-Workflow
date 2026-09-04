@@ -43,6 +43,8 @@ interface BoardState {
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
   moveCardToBoard: (cardId: string, destColumnId: string, destPosition?: 'top' | 'bottom') => Promise<boolean>;
+  batchMoveCards: (cardIds: string[], destColumnId: string, destPosition?: 'top' | 'bottom') => Promise<number>;
+  batchArchiveCards: (cardIds: string[]) => Promise<number>;
   updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[]; assigneesData?: Array<{ userId: string; type: string }> }) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
@@ -250,6 +252,60 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to move card to board:', err);
+      throw err;
+    }
+  },
+
+  batchMoveCards: async (cardIds, destColumnId, destPosition = 'bottom') => {
+    const currentUserId = useAuthStore.getState().currentUser?.id;
+    try {
+      const res = await fetch('/api/cards/batch-move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardIds,
+          columnId: destColumnId,
+          position: destPosition,
+          userId: currentUserId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await get().fetchBoard();
+        return data.count || cardIds.length;
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to batch move cards');
+      }
+    } catch (err) {
+      console.error('Failed to batch move cards:', err);
+      throw err;
+    }
+  },
+
+  batchArchiveCards: async (cardIds) => {
+    const currentUserId = useAuthStore.getState().currentUser?.id;
+    try {
+      const res = await fetch('/api/cards/batch-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardIds,
+          userId: currentUserId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await get().fetchBoard();
+        return data.count || cardIds.length;
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to batch archive cards');
+      }
+    } catch (err) {
+      console.error('Failed to batch archive cards:', err);
       throw err;
     }
   },

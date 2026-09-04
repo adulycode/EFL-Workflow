@@ -6,11 +6,13 @@ import {
   Plus, Calendar, CheckSquare, Clock, User, Tag, 
   ChevronDown, ArrowUpDown, Filter, Sparkles, MoreHorizontal,
   Trash2, Archive, MessageSquare, Paperclip, Check,
-  Eye, EyeOff, AlertTriangle, Flame, UserX, RotateCcw
+  Eye, EyeOff, AlertTriangle, Flame, UserX, RotateCcw,
+  ArrowRightLeft, X
 } from 'lucide-react';
 import { format, isPast, isToday, isThisWeek } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { MoveCardModal } from '../board/MoveCardModal';
 
 export const TableView: React.FC = () => {
   const { 
@@ -19,6 +21,8 @@ export const TableView: React.FC = () => {
     updateCard, 
     deleteCard, 
     archiveCard, 
+    batchArchiveCards,
+    batchMoveCards,
     setSelectedCardId,
     filters 
   } = useBoardStore();
@@ -30,6 +34,11 @@ export const TableView: React.FC = () => {
   const [sortField, setSortField] = useState<'title' | 'priority' | 'dueDate' | 'column'>('column');
   const [sortAsc, setSortAsc] = useState(true);
   const [cardToArchive, setCardToArchive] = useState<{ id: string; title: string } | null>(null);
+
+  // Multi-card Selection States
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [isBatchMoveModalOpen, setIsBatchMoveModalOpen] = useState(false);
+  const [isBatchArchiveConfirmOpen, setIsBatchArchiveConfirmOpen] = useState(false);
 
   // In-Table Quick Filter States
   const [selectedColumnFilter, setSelectedColumnFilter] = useState<string>('ALL');
@@ -192,8 +201,40 @@ export const TableView: React.FC = () => {
 
   const isAnyFilterActive = selectedColumnFilter !== 'ALL' || hideCompleted || quickChipFilter !== 'ALL';
 
+  // Multi-card Selection Helpers
+  const toggleSelectCard = (cardId: string) => {
+    setSelectedCardIds(prev => 
+      prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const visibleIds = allCards.map(c => c.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedCardIds.includes(id));
+    if (allSelected) {
+      setSelectedCardIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      setSelectedCardIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedCardIds([]);
+  };
+
+  const handleBatchArchive = async () => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      await batchArchiveCards(selectedCardIds);
+      setSelectedCardIds([]);
+      setIsBatchArchiveConfirmOpen(false);
+    } catch (err) {
+      console.error('Batch archive failed:', err);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-950 overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-950 overflow-hidden relative">
       {/* Table Action & Notion Status Chips Bar */}
       <div className="px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Status / Column Filter Tabs */}
@@ -335,7 +376,25 @@ export const TableView: React.FC = () => {
           {/* Table Header */}
           <thead className="bg-slate-100/80 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 backdrop-blur">
             <tr className="text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
-              <th className="py-3 px-4 w-12 text-center">#</th>
+              <th className="py-3 px-3 w-16 text-center">
+                <div className="flex items-center justify-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                    checked={allCards.length > 0 && allCards.every(c => selectedCardIds.includes(c.id))}
+                    ref={el => {
+                      if (el) {
+                        const someSelected = allCards.some(c => selectedCardIds.includes(c.id));
+                        const allSelected = allCards.length > 0 && allCards.every(c => selectedCardIds.includes(c.id));
+                        el.indeterminate = someSelected && !allSelected;
+                      }
+                    }}
+                    onChange={toggleSelectAll}
+                    title={allCards.length > 0 && allCards.every(c => selectedCardIds.includes(c.id)) ? 'ยกเลิกการเลือกทั้งหมด' : 'เลือกทั้งหมด'}
+                  />
+                  <span className="font-mono text-[10px] text-slate-400">#</span>
+                </div>
+              </th>
               <th 
                 className="py-3 px-4 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
                 onClick={() => toggleSort('title')}
@@ -401,11 +460,28 @@ export const TableView: React.FC = () => {
               return (
                 <tr 
                   key={card.id}
-                  className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors group"
+                  className={`transition-colors group ${
+                    selectedCardIds.includes(card.id)
+                      ? 'bg-emerald-50/80 dark:bg-emerald-950/40'
+                      : 'hover:bg-slate-50/80 dark:hover:bg-slate-900/50'
+                  }`}
                 >
-                  {/* Row Number */}
-                  <td className="py-2.5 px-4 text-center font-mono text-[11px] text-slate-400">
-                    {index + 1}
+                  {/* Selection Checkbox & Row Number */}
+                  <td className="py-2.5 px-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                        checked={selectedCardIds.includes(card.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectCard(card.id);
+                        }}
+                      />
+                      <span className="font-mono text-[11px] text-slate-400 select-none">
+                        {index + 1}
+                      </span>
+                    </div>
                   </td>
 
                   {/* Title & Emoji Icon */}
@@ -657,7 +733,54 @@ export const TableView: React.FC = () => {
         </div>
       </div>
 
-      {/* Confirm Archive Modal */}
+      {/* Floating Bottom Action Bar for Multi-card Selection */}
+      {selectedCardIds.length > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-neutral-900/95 dark:bg-neutral-800/95 text-white backdrop-blur-md px-5 py-2.5 rounded-2xl shadow-2xl border border-neutral-700/80 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-2 pr-3 border-r border-neutral-700">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-bold text-neutral-100 whitespace-nowrap">
+              เลือกอยู่ <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-extrabold border border-emerald-500/30">{selectedCardIds.length}</span> รายการ
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Move Batch Button */}
+            <button
+              type="button"
+              onClick={() => setIsBatchMoveModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
+            >
+              <ArrowRightLeft size={13} />
+              <span>ย้ายไปบอร์ดอื่น (Move Batch)</span>
+            </button>
+
+            {/* Archive Batch Button */}
+            <button
+              type="button"
+              onClick={() => setIsBatchArchiveConfirmOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white font-semibold text-xs border border-neutral-700 transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
+            >
+              <Archive size={13} />
+              <span>เก็บเข้ากรุ ({selectedCardIds.length})</span>
+            </button>
+
+            {/* Deselect Button */}
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded-lg transition-colors ml-1"
+              title="ยกเลิกการเลือกทั้งหมด"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Single Card Confirm Archive Modal */}
       <ConfirmModal
         isOpen={cardToArchive !== null}
         onCancel={() => setCardToArchive(null)}
@@ -670,6 +793,33 @@ export const TableView: React.FC = () => {
         title="ยืนยันการเก็บการ์ดเข้ากรุ (Archive Card)"
         message={`คุณแน่ใจหรือไม่ว่าต้องการเก็บการ์ด "${cardToArchive?.title}" เข้ากรุ? การ์ดจะถูกซ่อนจากมุมมองหลัก แต่คุณสามารถเรียกดูและกู้คืน (Restore) ได้ตลอดเวลา`}
         confirmText="เก็บเข้ากรุ (Archive)"
+        cancelText="ยกเลิก"
+        type="warning"
+      />
+
+      {/* Batch Move Modal */}
+      {isBatchMoveModalOpen && (
+        <MoveCardModal
+          isOpen={isBatchMoveModalOpen}
+          onClose={() => setIsBatchMoveModalOpen(false)}
+          cardIds={selectedCardIds}
+          currentBoardId={board.id}
+          currentWorkspaceId={board.workspaceId}
+          onSuccess={() => {
+            setSelectedCardIds([]);
+            setIsBatchMoveModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* Batch Archive Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isBatchArchiveConfirmOpen}
+        onCancel={() => setIsBatchArchiveConfirmOpen(false)}
+        onConfirm={handleBatchArchive}
+        title={`ยืนยันการเก็บการ์ดเข้ากรุ (${selectedCardIds.length} รายการ)`}
+        message={`คุณแน่ใจหรือไม่ว่าต้องการเก็บการ์ดที่เลือกทั้งหมด ${selectedCardIds.length} รายการเข้ากรุพร้อมกัน? การ์ดเหล่านี้สามารถกู้คืนได้ภายหลังจากเมนูเก็บเข้ากรุ`}
+        confirmText={`เก็บเข้ากรุ ${selectedCardIds.length} รายการ`}
         cancelText="ยกเลิก"
         type="warning"
       />

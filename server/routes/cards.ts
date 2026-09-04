@@ -373,6 +373,138 @@ router.post('/:id/move', async (req, res) => {
   }
 });
 
+// Batch Move Cards
+router.post('/batch-move', async (req, res) => {
+  try {
+    const { cardIds, columnId, position, userId } = req.body;
+
+    if (!Array.isArray(cardIds) || cardIds.length === 0 || !columnId) {
+      return res.status(400).json({ error: 'cardIds and columnId are required' });
+    }
+
+    const targetColumn = await prisma.column.findUnique({
+      where: { id: columnId },
+      include: {
+        board: {
+          include: { workspace: true }
+        }
+      }
+    });
+
+    if (!targetColumn) {
+      return res.status(404).json({ error: 'Target column not found' });
+    }
+
+    let user = null;
+    if (userId) {
+      user = await prisma.user.findUnique({ where: { id: userId } });
+    }
+    const isAdmin = user?.role === 'ADMIN';
+
+    const cards = await prisma.card.findMany({
+      where: { id: { in: cardIds } },
+      include: {
+        column: {
+          include: {
+            board: {
+              include: { workspace: true }
+            }
+          }
+        },
+        assignees: true
+      }
+    });
+
+    let movedCount = 0;
+    const { sendStakeholderNotifications } = await import('../services/notificationService');
+
+    for (const card of cards) {
+      const isOwner = card.column.board.workspace.ownerId === userId;
+      const isCreator = card.createdById === userId;
+      const isAssigned = card.assignees.some((a) => a.userId === userId);
+
+      if (!isAdmin && !isOwner && !isCreator && !isAssigned) {
+        continue;
+      }
+
+      const isCrossBoard = card.column.boardId !== targetColumn.boardId;
+      const cardPosition = position === 'top' ? 100 : 999999 + movedCount * 10;
+
+      await prisma.card.update({
+        where: { id: card.id },
+        data: { columnId, position: cardPosition }
+      });
+
+      movedCount++;
+
+      if (isCrossBoard) {
+        if (userId) {
+          await prisma.activityLog.create({
+            data: {
+              cardId: card.id,
+              userId,
+              actionType: 'MOVED_BOARD',
+              details: {
+                fromBoard: card.column.board.title,
+                toBoard: targetColumn.board.title,
+                fromColumn: card.column.title,
+                toColumn: targetColumn.title,
+                fromWorkspace: card.column.board.workspace.name,
+                toWorkspace: targetColumn.board.workspace.name
+              }
+            }
+          });
+        }
+        sendStakeholderNotifications({
+          cardId: card.id,
+          actorUserId: userId,
+          type: 'BOARD_MOVED',
+          actionSummary: `📦 ย้ายการ์ดงานเป็นชุดจากบอร์ด [${card.column.board.title}] ไปยังบอร์ด [${targetColumn.board.title}] (คอลัมน์ [${targetColumn.title}])`
+        });
+      } else if (card.columnId !== columnId) {
+        if (userId) {
+          await prisma.activityLog.create({
+            data: {
+              cardId: card.id,
+              userId,
+              actionType: 'MOVED_COLUMN',
+              details: {
+                fromColumn: card.column.title,
+                toColumn: targetColumn.title
+              }
+            }
+          });
+        }
+      }
+    }
+
+    emitRealtime(req, 'cards:batch-moved', { cardIds, columnId });
+    res.json({ success: true, count: movedCount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Batch Archive Cards
+router.post('/batch-archive', async (req, res) => {
+  try {
+    const { cardIds, userId } = req.body;
+    if (!Array.isArray(cardIds) || cardIds.length === 0) {
+      return res.status(400).json({ error: 'cardIds are required' });
+    }
+
+    await prisma.card.updateMany({
+      where: { id: { in: cardIds } },
+      data: { isArchived: true }
+    });
+
+    emitRealtime(req, 'cards:batch-archived', { cardIds });
+    res.json({ success: true, count: cardIds.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Delete Card
 router.delete('/:id', async (req, res) => {
   try {

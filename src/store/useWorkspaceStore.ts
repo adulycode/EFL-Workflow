@@ -11,6 +11,7 @@ interface WorkspaceState {
   setCurrentWorkspace: (workspace: Workspace) => void;
   fetchWorkspaces: (userId?: string) => Promise<void>;
   createWorkspace: (data: { name: string; description?: string; icon?: string; color?: string; ownerId: string }) => Promise<Workspace | null>;
+  updateWorkspace: (id: string, data: { name?: string; description?: string; icon?: string; color?: string }) => Promise<Workspace | null>;
   inviteMember: (workspaceId: string, userId: string, role?: string) => Promise<boolean>;
   inviteMembersBatch: (workspaceId: string, userIds: string[], role?: string) => Promise<boolean>;
   removeMember: (workspaceId: string, userId: string) => Promise<boolean>;
@@ -90,6 +91,28 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to create workspace:', err);
+    }
+    return null;
+  },
+
+  updateWorkspace: async (id, data) => {
+    try {
+      const currentUserId = useAuthStore.getState().currentUser?.id;
+      const res = await fetch(`/api/workspaces/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, userId: currentUserId })
+      });
+      if (res.ok) {
+        const updated: Workspace = await res.json();
+        set((state) => ({
+          workspaces: state.workspaces.map((w) => (w.id === id ? { ...w, ...updated } : w)),
+          currentWorkspace: state.currentWorkspace?.id === id ? { ...state.currentWorkspace, ...updated } : state.currentWorkspace
+        }));
+        return updated;
+      }
+    } catch (err) {
+      console.error('Failed to update workspace:', err);
     }
     return null;
   },

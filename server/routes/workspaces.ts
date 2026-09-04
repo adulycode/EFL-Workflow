@@ -172,6 +172,66 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Update Workspace (Name, Description, Icon, Color)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, icon, color, userId } = req.body;
+
+    const existing = await prisma.workspace.findUnique({
+      where: { id },
+      include: { members: true }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const isOwner = existing.ownerId === userId;
+      const isAdmin = user?.role === 'ADMIN' || existing.members.some(m => m.userId === userId && m.role === 'ADMIN');
+      const isMember = existing.members.some(m => m.userId === userId);
+      if (!isOwner && !isAdmin && !isMember) {
+        return res.status(403).json({ error: 'Permission denied: Only workspace members, owners, or admins can edit this workspace' });
+      }
+    }
+
+    const updated = await prisma.workspace.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description.trim() }),
+        ...(icon !== undefined && { icon }),
+        ...(color !== undefined && { color })
+      },
+      include: {
+        owner: true,
+        members: { include: { user: true } },
+        boards: {
+          include: {
+            columns: {
+              include: {
+                cards: {
+                  include: {
+                    assignees: { include: { user: true } },
+                    labels: { include: { label: true } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    emitRealtime(req, 'workspace:updated', updated);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Invite member
 router.post('/:id/invite', async (req, res) => {
   try {

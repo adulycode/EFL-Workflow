@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { ChevronDown, Plus, Users, UserPlus, Check, Sparkles } from 'lucide-react';
+import { ChevronDown, Plus, Users, UserPlus, Check, Sparkles, Pencil } from 'lucide-react';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
+import { EditWorkspaceModal } from './EditWorkspaceModal';
 import { InviteMemberModal } from './InviteMemberModal';
 
 export const WorkspaceSwitcher: React.FC = () => {
@@ -10,6 +11,7 @@ export const WorkspaceSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<any>(null);
   const switcherRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(switcherRef, () => setIsOpen(false), isOpen);
@@ -63,13 +65,13 @@ export const WorkspaceSwitcher: React.FC = () => {
                 {workspaces.map((ws) => {
                   const isActive = currentWorkspace?.id === ws.id;
                   return (
-                    <button
+                    <div
                       key={ws.id}
                       onClick={() => {
                         setCurrentWorkspace(ws);
                         setIsOpen(false);
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-xs hover:bg-neutral-50 dark:hover:bg-neutral-800/80 transition-colors ${
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-xs hover:bg-neutral-50 dark:hover:bg-neutral-800/80 transition-colors group/row cursor-pointer ${
                         isActive ? 'bg-emerald-50/60 dark:bg-emerald-950/40 font-bold' : ''
                       }`}
                     >
@@ -84,23 +86,47 @@ export const WorkspaceSwitcher: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      {isActive && <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0 ml-2" />}
-                    </button>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOpen(false);
+                            setEditingWorkspace(ws);
+                          }}
+                          title="แก้ไข Workspace นี้ (ไอคอน, สี, ชื่อ)"
+                          className="opacity-0 group-hover/row:opacity-100 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-all"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        {isActive && <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
 
-              {/* Quick Invite Trigger within active space */}
-              <div className="p-2 border-t border-neutral-100 dark:border-neutral-800">
+              {/* Quick Actions within active space */}
+              <div className="p-2 border-t border-neutral-100 dark:border-neutral-800 grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    if (currentWorkspace) setEditingWorkspace(currentWorkspace);
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                >
+                  <Pencil size={12} />
+                  <span>แก้ไขบอร์ด</span>
+                </button>
                 <button
                   onClick={() => {
                     setIsOpen(false);
                     setShowInviteModal(true);
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200/60 dark:border-emerald-800/60 transition-colors"
+                  className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200/60 dark:border-emerald-800/60 transition-colors"
                 >
-                  <UserPlus size={13} />
-                  <span>เชิญสมาชิกเข้าบอร์ดนี้</span>
+                  <UserPlus size={12} />
+                  <span>เชิญสมาชิก</span>
                 </button>
               </div>
             </div>
@@ -120,6 +146,12 @@ export const WorkspaceSwitcher: React.FC = () => {
 
       {showCreateModal && <CreateWorkspaceModal onClose={() => setShowCreateModal(false)} />}
       {showInviteModal && <InviteMemberModal onClose={() => setShowInviteModal(false)} />}
+      {editingWorkspace && (
+        <EditWorkspaceModal
+          workspace={editingWorkspace}
+          onClose={() => setEditingWorkspace(null)}
+        />
+      )}
     </>
   );
 };

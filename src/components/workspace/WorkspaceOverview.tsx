@@ -15,9 +15,11 @@ import {
   FolderKanban, 
   ShieldCheck, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Pencil
 } from 'lucide-react';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
+import { EditWorkspaceModal } from './EditWorkspaceModal';
 import { InviteMemberModal } from './InviteMemberModal';
 import { format } from 'date-fns';
 
@@ -34,6 +36,7 @@ export const WorkspaceOverview: React.FC<Props> = ({ onSelectWorkspace }) => {
   const [filterTab, setFilterTab] = useState<'ALL' | 'OWNED' | 'MEMBER'>('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<any>(null);
 
   // Global metric aggregations
   const totalWorkspaces = workspaces.length;
@@ -264,12 +267,21 @@ export const WorkspaceOverview: React.FC<Props> = ({ onSelectWorkspace }) => {
                   {/* Card Header */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingWorkspace(ws);
+                        }}
+                        title="คลิกเพื่อเปลี่ยนไอคอนหรือสี Workspace"
                         style={{ backgroundColor: `${ws.color || '#16a34a'}15`, borderColor: ws.color || '#16a34a' }}
-                        className="h-11 w-11 rounded-2xl flex items-center justify-center text-xl border shadow-inner shrink-0"
+                        className="relative h-11 w-11 rounded-2xl flex items-center justify-center text-xl border shadow-inner shrink-0 group/icon hover:scale-105 transition-all cursor-pointer"
                       >
                         {ws.icon || '📁'}
-                      </div>
+                        <div className="absolute -bottom-1 -right-1 p-0.5 bg-white dark:bg-neutral-800 rounded-full border border-neutral-200 dark:border-neutral-700 shadow-xs opacity-0 group-hover/icon:opacity-100 transition-opacity">
+                          <Pencil size={10} className="text-neutral-600 dark:text-neutral-300" />
+                        </div>
+                      </button>
                       <div>
                         <h3 className="text-sm font-bold text-neutral-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                           {ws.name}
@@ -281,15 +293,28 @@ export const WorkspaceOverview: React.FC<Props> = ({ onSelectWorkspace }) => {
                       </div>
                     </div>
 
-                    {isOwner ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 shrink-0">
-                        Owner
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
-                        Member
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingWorkspace(ws);
+                        }}
+                        title="แก้ไข Workspace (ไอคอน, สี, ชื่อ)"
+                        className="p-1.5 rounded-xl text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      {isOwner ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400">
+                          Owner
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                          Member
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Description */}
@@ -449,6 +474,12 @@ export const WorkspaceOverview: React.FC<Props> = ({ onSelectWorkspace }) => {
 
       {showCreateModal && <CreateWorkspaceModal onClose={() => setShowCreateModal(false)} />}
       {showInviteModal && <InviteMemberModal onClose={() => setShowInviteModal(false)} />}
+      {editingWorkspace && (
+        <EditWorkspaceModal
+          workspace={editingWorkspace}
+          onClose={() => setEditingWorkspace(null)}
+        />
+      )}
     </>
   );
 };

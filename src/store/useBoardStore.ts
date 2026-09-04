@@ -213,11 +213,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   createCard: async (columnId: string, title: string, priority: Priority = 'MEDIUM') => {
+    const currentUserId = useAuthStore.getState().currentUser?.id;
     try {
       const res = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ columnId, title, priority })
+        body: JSON.stringify({ columnId, title, priority, userId: currentUserId })
       });
       if (res.ok) {
         get().fetchBoard();

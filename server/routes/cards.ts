@@ -25,6 +25,11 @@ router.post('/', async (req, res) => {
     });
     const position = lastCard ? lastCard.position + 1000 : 1000;
 
+    // Auto-assign the creator by default if no assignees specified
+    const effectiveAssigneeIds = (assigneeIds && assigneeIds.length > 0)
+      ? assigneeIds
+      : (userId ? [userId] : []);
+
     const card = await prisma.card.create({
       data: {
         columnId,
@@ -38,8 +43,8 @@ router.post('/', async (req, res) => {
         coverBanner: coverBanner || null,
         createdById: userId,
         position,
-        assignees: assigneeIds && assigneeIds.length > 0 ? {
-          create: assigneeIds.map((uid: string) => ({ userId: uid }))
+        assignees: effectiveAssigneeIds.length > 0 ? {
+          create: effectiveAssigneeIds.map((uid: string) => ({ userId: uid, type: 'ASSIGNEE' }))
         } : undefined,
         labels: labelIds && labelIds.length > 0 ? {
           create: labelIds.map((lid: string) => ({ labelId: lid }))

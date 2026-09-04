@@ -198,14 +198,53 @@ export const CardDetailModal: React.FC = () => {
       }
     };
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (lightboxImage) {
+          setLightboxImage(null);
+        } else if (showMoveModal) {
+          setShowMoveModal(false);
+        } else if (showDrivePicker) {
+          setShowDrivePicker(false);
+        } else if (showLabelManager) {
+          setShowLabelManager(false);
+        } else if (showCoverMenu) {
+          setShowCoverMenu(false);
+        } else if (showCardIconPicker) {
+          setShowCardIconPicker(false);
+        } else if (showBannerGallery) {
+          setShowBannerGallery(false);
+        } else if (showEmojiPicker) {
+          setShowEmojiPicker(false);
+        } else if (showFileRefMenu) {
+          setShowFileRefMenu(false);
+        } else {
+          setSelectedCardId(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('realtime:comment_added', handleRealtimeUpdate);
     window.addEventListener('realtime:card_updated', handleRealtimeUpdate);
 
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('realtime:comment_added', handleRealtimeUpdate);
       window.removeEventListener('realtime:card_updated', handleRealtimeUpdate);
     };
-  }, [selectedCardId]);
+  }, [
+    selectedCardId, 
+    lightboxImage, 
+    showMoveModal, 
+    showDrivePicker, 
+    showLabelManager, 
+    showCoverMenu, 
+    showCardIconPicker, 
+    showBannerGallery, 
+    showEmojiPicker, 
+    showFileRefMenu
+  ]);
 
   if (!selectedCardId || !cardDetails) return null;
 
@@ -839,8 +878,19 @@ export const CardDetailModal: React.FC = () => {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative">
+      <div 
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            setSelectedCardId(null);
+          }
+        }}
+      >
+        <div 
+          className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative cursor-default"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           
           {/* Card Top Cover Banner (Image, Gradient or Solid Color) */}
           {coverBanner ? (

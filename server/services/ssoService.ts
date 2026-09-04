@@ -110,7 +110,8 @@ export async function consumeSsoToken(token: string) {
 
   const email = payload.email.toLowerCase().trim();
   const name = payload.name || email.split('@')[0];
-  const avatarUrl = payload.avatarUrl || payload.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
+  const ssoAvatar = (payload.avatarUrl || payload.avatar)?.trim() || undefined;
+  const defaultAvatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
   
   // Normalize Role to valid enum
   let role: any = 'STAFF';
@@ -144,7 +145,7 @@ export async function consumeSsoToken(token: string) {
       data: {
         email,
         name,
-        avatarUrl,
+        avatarUrl: ssoAvatar || defaultAvatar,
         role,
         isActive: true,
         ssoUserId,
@@ -157,11 +158,14 @@ export async function consumeSsoToken(token: string) {
     });
     console.log(`[SSO Service] Created new local user from SSO: ${email} (${role})`);
   } else {
+    // Keep user's existing avatar if SSO does not supply a new custom avatar
+    const updatedAvatar = ssoAvatar ? ssoAvatar : (user.avatarUrl || defaultAvatar);
+
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
         name: name || user.name,
-        avatarUrl: avatarUrl || user.avatarUrl,
+        avatarUrl: updatedAvatar,
         role: role || user.role,
         isActive,
         ...(ssoUserId && { ssoUserId }),
@@ -229,7 +233,9 @@ export async function upsertUserFromSsoData(data: {
   const name = data.nickname && !rawName.startsWith(`${data.nickname} (`)
     ? `${data.nickname} (${rawName})`
     : rawName;
-  const avatarUrl = data.avatarUrl || data.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
+  const rawAvatar = data.avatarUrl || data.avatar;
+  const ssoAvatar = rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim() !== '' ? rawAvatar.trim() : undefined;
+  const defaultAvatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`;
   
   // If explicitly not granted access to efl-workflow
   const hasAppAccess = data.hasAccess !== false || data.isSuperAdmin === true;
@@ -274,7 +280,7 @@ export async function upsertUserFromSsoData(data: {
       data: {
         email,
         name,
-        avatarUrl,
+        avatarUrl: ssoAvatar || defaultAvatar,
         jobTitle,
         role,
         isActive,
@@ -288,12 +294,15 @@ export async function upsertUserFromSsoData(data: {
     });
     console.log(`[SSO Sync] Created user from SSO data: ${email} (${role})`);
   } else {
+    // NEVER overwrite custom user avatar with default dicebear avatar when Central SSO has no avatar
+    const updatedAvatar = ssoAvatar ? ssoAvatar : (user.avatarUrl || defaultAvatar);
+
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
         email, // updates email on existing user if changed in Central SSO
         name: name || user.name,
-        avatarUrl: avatarUrl || user.avatarUrl,
+        avatarUrl: updatedAvatar,
         role: role || user.role,
         isActive,
         ...(jobTitle && { jobTitle }),
@@ -493,27 +502,75 @@ export async function syncProfileToSSO(payload: {
     'http://localhost:3050'
   ])).filter(Boolean);
 
+  // Generate an admin token for Central SSO API
+  const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const tokenPayload = base64UrlEncode(JSON.stringify({
+    userId: '00000000-0000-0000-0000-000000000001',
+    email: 'admin@efl.com',
+    name: 'EFL-Workflow System',
+    isSuperAdmin: true,
+    iss: 'EFL-Central-SSO',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600
+  }));
+  const sig = base64UrlEncode(
+    crypto.createHmac('sha256', SSO_CONFIG.sharedSecret)
+      .update(`${header}.${tokenPayload}`)
+      .digest()
+  );
+  const adminToken = `${header}.${tokenPayload}.${sig}`;
+
   for (const host of baseHosts) {
     try {
-      const url = `${host.replace(/\/$/, '')}/api/users/sync-from-app`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-sso-secret': SSO_CONFIG.sharedSecret
-        },
-        body: JSON.stringify({
-          secretKey: SSO_CONFIG.sharedSecret,
-          ssoUserId: payload.ssoUserId,
-          email: payload.email,
-          name: payload.name,
-          avatarUrl: payload.avatarUrl
-        })
-      });
+      // 1. If ssoUserId is available, update directly via PUT /api/users/:ssoUserId
+      if (payload.ssoUserId) {
+        const updateUrl = `${host.replace(/\/$/, '')}/api/users/${payload.ssoUserId}`;
+        const updateRes = await fetch(updateUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify({
+            ...(payload.name && { name: payload.name }),
+            ...(payload.avatarUrl !== undefined && { avatarUrl: payload.avatarUrl })
+          })
+        });
+        if (updateRes.ok) {
+          console.log(`[Two-Way SSO Sync] ✅ Synced user profile to Central SSO at ${updateUrl}`);
+          return true;
+        }
+      }
 
-      if (res.ok) {
-        console.log(`[Two-Way SSO Sync] ✅ Synced profile update back to Central SSO at ${url}`);
-        return true;
+      // 2. Fallback: try finding user by email on Central SSO if ssoUserId was missing
+      if (!payload.ssoUserId && payload.email) {
+        const usersUrl = `${host.replace(/\/$/, '')}/api/users`;
+        const listRes = await fetch(usersUrl, {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (listRes.ok) {
+          const listData: any = await listRes.json();
+          const usersList = Array.isArray(listData) ? listData : listData.users || [];
+          const matched = usersList.find((u: any) => u.email?.toLowerCase() === payload.email.toLowerCase());
+          if (matched && matched.id) {
+            const updateUrl = `${host.replace(/\/$/, '')}/api/users/${matched.id}`;
+            const updateRes = await fetch(updateUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+              },
+              body: JSON.stringify({
+                ...(payload.name && { name: payload.name }),
+                ...(payload.avatarUrl !== undefined && { avatarUrl: payload.avatarUrl })
+              })
+            });
+            if (updateRes.ok) {
+              console.log(`[Two-Way SSO Sync] ✅ Synced user profile to Central SSO (matched by email) at ${updateUrl}`);
+              return true;
+            }
+          }
+        }
       }
     } catch {
       // try next host

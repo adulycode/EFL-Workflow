@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { X, User, Bell, Mail, MessageSquare, Shield, Check, Save } from 'lucide-react';
+import { X, User, Bell, Mail, MessageSquare, Shield, Check, Save, Camera } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -18,6 +18,19 @@ export const UserSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [isSaved, setIsSaved] = useState(false);
 
   if (!isOpen || !currentUser) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,11 +87,18 @@ export const UserSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
         <form onSubmit={handleSave} className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
           {/* User Profile Card */}
           <div className="flex items-center gap-4 bg-neutral-50 dark:bg-neutral-950/50 p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800">
-            <img
-              src={avatarUrl || currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}`}
-              alt={currentUser.name}
-              className="w-14 h-14 rounded-2xl object-cover ring-2 ring-emerald-500/30"
-            />
+            <div className="relative group w-14 h-14 shrink-0">
+              <img
+                src={avatarUrl || currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}`}
+                alt={currentUser.name}
+                className="w-14 h-14 rounded-2xl object-cover ring-2 ring-emerald-500/30"
+              />
+              <label className="absolute inset-0 bg-black/60 text-white rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity text-[9px] font-medium">
+                <Camera size={16} />
+                <span>Upload</span>
+                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+              </label>
+            </div>
             <div className="space-y-1 flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
@@ -110,13 +130,13 @@ export const UserSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
             <div>
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                Avatar Image URL
+                Avatar Image URL (or click photo above to upload)
               </label>
               <input
-                type="url"
+                type="text"
                 value={avatarUrl}
                 onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/..."
+                placeholder="https://images.unsplash.com/... or data:image/..."
                 className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
               />
             </div>

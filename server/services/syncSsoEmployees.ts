@@ -179,19 +179,25 @@ export async function syncAllSsoEmployees() {
   for (const emp of SSO_EMPLOYEES) {
     const avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(emp.nickname || emp.name)}`;
     const displayName = emp.nickname ? `${emp.nickname} (${emp.name})` : emp.name;
+    const targetEmail = emp.email.toLowerCase().trim();
+
+    const existing = await prisma.user.findUnique({
+      where: { email: targetEmail },
+      select: { avatarUrl: true }
+    });
 
     const user = await prisma.user.upsert({
-      where: { email: emp.email.toLowerCase().trim() },
+      where: { email: targetEmail },
       update: {
         name: displayName,
         role: emp.role as any,
         jobTitle: emp.jobTitle,
-        avatarUrl,
+        avatarUrl: existing?.avatarUrl || avatarUrl,
         ssoUserId: emp.ssoUserId,
         isActive: true
       },
       create: {
-        email: emp.email.toLowerCase().trim(),
+        email: targetEmail,
         name: displayName,
         role: emp.role as any,
         jobTitle: emp.jobTitle,

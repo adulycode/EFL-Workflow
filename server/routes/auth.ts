@@ -32,6 +32,22 @@ router.patch('/users/:id', async (req, res) => {
         notifyLine: notifyLine !== undefined ? Boolean(notifyLine) : undefined
       }
     });
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user:updated', updated);
+    }
+
+    if (name !== undefined || avatarUrl !== undefined) {
+      import('../services/ssoService').then(({ syncProfileToSSO }) => {
+        syncProfileToSSO({
+          ssoUserId: updated.ssoUserId,
+          email: updated.email,
+          name: updated.name,
+          avatarUrl: updated.avatarUrl || undefined
+        }).catch((err) => console.error('[Two-Way Sync Error]:', err.message));
+      });
+    }
+
     res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

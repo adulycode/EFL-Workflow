@@ -38,6 +38,13 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Ensure workspaces are loaded
+  useEffect(() => {
+    if (isOpen && workspaces.length === 0) {
+      useWorkspaceStore.getState().fetchWorkspaces();
+    }
+  }, [isOpen, workspaces.length]);
+
   // Initialize defaults on open
   useEffect(() => {
     if (isOpen && workspaces.length > 0) {
@@ -122,7 +129,7 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
       <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-md shadow-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">

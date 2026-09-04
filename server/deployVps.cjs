@@ -5,7 +5,8 @@ const conn = new Client();
 conn.on('ready', () => {
   const commands = [
     'cd /home/serva/EFL-Workflow',
-    'git pull origin main',
+    'git fetch origin main',
+    'git reset --hard origin/main',
     'docker compose build efl-workflow-app',
     'docker compose up -d efl-workflow-app',
     'sleep 3',

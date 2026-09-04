@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useBoardStore } from '../../store/useBoardStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Card, Column, Priority } from '../../types';
 import { 
   Plus, Calendar, CheckSquare, Clock, User, Tag, 
   ChevronDown, ArrowUpDown, Filter, Sparkles, MoreHorizontal,
-  Trash2, Archive, MessageSquare, Paperclip, Check
+  Trash2, Archive, MessageSquare, Paperclip, Check,
+  Eye, EyeOff, AlertTriangle, Flame, UserX, RotateCcw
 } from 'lucide-react';
-import { format, isPast, isToday } from 'date-fns';
+import { format, isPast, isToday, isThisWeek } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { ConfirmModal } from '../common/ConfirmModal';
 
@@ -20,6 +22,7 @@ export const TableView: React.FC = () => {
     setSelectedCardId,
     filters 
   } = useBoardStore();
+  const { currentUser } = useAuthStore();
 
   const [newCardTitle, setNewCardTitle] = useState('');
   const [newCardColumnId, setNewCardColumnId] = useState<string>('');
@@ -28,32 +31,91 @@ export const TableView: React.FC = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [cardToArchive, setCardToArchive] = useState<{ id: string; title: string } | null>(null);
 
+  // In-Table Quick Filter States
+  const [selectedColumnFilter, setSelectedColumnFilter] = useState<string>('ALL');
+  const [hideCompleted, setHideCompleted] = useState<boolean>(false);
+  const [quickChipFilter, setQuickChipFilter] = useState<'ALL' | 'OVERDUE' | 'URGENT_HIGH' | 'UNASSIGNED'>('ALL');
+
   if (!board) return null;
 
   const columns = board.columns || [];
   const defaultColId = columns[0]?.id || '';
 
-  // Flatten cards from all columns
-  let allCards: (Card & { columnTitle: string; columnId: string })[] = [];
-  columns.forEach(col => {
-    (col.cards || []).forEach(card => {
-      if (!card.isArchived) {
-        allCards.push({
-          ...card,
-          columnTitle: col.title,
-          columnId: col.id
-        });
-      }
-    });
-  });
+  // Flatten raw active cards from all columns
+  const rawCards = columns.flatMap(col => 
+    (col.cards || []).filter(c => !c.isArchived).map(card => ({
+      ...card,
+      columnTitle: col.title,
+      columnId: col.id
+    }))
+  );
 
-  // Apply filters
+  const totalRawCount = rawCards.length;
+  const overdueCount = rawCards.filter(c => c.dueDate && isPast(new Date(c.dueDate)) && !/done|complete|เสร็จ/i.test(c.columnTitle)).length;
+  const urgentHighCount = rawCards.filter(c => c.priority === 'URGENT' || c.priority === 'HIGH').length;
+  const unassignedCount = rawCards.filter(c => !c.assignees || c.assignees.length === 0).length;
+
+  let allCards = [...rawCards];
+
+  // 1. Search Query (Top Filter Bar)
   if (filters.searchQuery) {
     const q = filters.searchQuery.toLowerCase();
     allCards = allCards.filter(c => c.title.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q));
   }
+
+  // 2. Selected Priority (Top Filter Bar)
   if (filters.selectedPriority !== 'ALL') {
     allCards = allCards.filter(c => c.priority === filters.selectedPriority);
+  }
+
+  // 3. Selected Label (Top Filter Bar)
+  if (filters.selectedLabelId) {
+    allCards = allCards.filter(c => c.labels?.some(l => l.labelId === filters.selectedLabelId));
+  }
+
+  // 4. Selected Assignee (Top Filter Bar)
+  if (filters.selectedAssigneeId) {
+    allCards = allCards.filter(c => c.assignees?.some(a => a.userId === filters.selectedAssigneeId));
+  }
+
+  // 5. Due Date Status (Top Filter Bar)
+  if (filters.selectedDueDateStatus !== 'ALL') {
+    if (filters.selectedDueDateStatus === 'NO_DATE') {
+      allCards = allCards.filter(c => !c.dueDate);
+    } else {
+      allCards = allCards.filter(c => {
+        if (!c.dueDate) return false;
+        const date = new Date(c.dueDate);
+        if (filters.selectedDueDateStatus === 'OVERDUE') return isPast(date) && !/done|complete|เสร็จ/i.test(c.columnTitle);
+        if (filters.selectedDueDateStatus === 'TODAY') return isToday(date);
+        if (filters.selectedDueDateStatus === 'THIS_WEEK') return isThisWeek(date);
+        return true;
+      });
+    }
+  }
+
+  // 6. Only My Tasks (Top Filter Bar)
+  if (filters.onlyMyTasks && currentUser) {
+    allCards = allCards.filter(c => c.assignees?.some(a => a.userId === currentUser.id));
+  }
+
+  // 7. Table In-Line Filter: Hide Completed
+  if (hideCompleted) {
+    allCards = allCards.filter(c => !/done|complete|เสร็จ/i.test(c.columnTitle));
+  }
+
+  // 8. Table In-Line Filter: Column / Status Tabs
+  if (selectedColumnFilter !== 'ALL') {
+    allCards = allCards.filter(c => c.columnId === selectedColumnFilter);
+  }
+
+  // 9. Table In-Line Filter: Quick Chips
+  if (quickChipFilter === 'OVERDUE') {
+    allCards = allCards.filter(c => c.dueDate && isPast(new Date(c.dueDate)) && !/done|complete|เสร็จ/i.test(c.columnTitle));
+  } else if (quickChipFilter === 'URGENT_HIGH') {
+    allCards = allCards.filter(c => c.priority === 'URGENT' || c.priority === 'HIGH');
+  } else if (quickChipFilter === 'UNASSIGNED') {
+    allCards = allCards.filter(c => !c.assignees || c.assignees.length === 0);
   }
 
   // Apply Sorting
@@ -108,15 +170,14 @@ export const TableView: React.FC = () => {
       case 'URGENT':
         return <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">🔴 Urgent</span>;
       case 'HIGH':
-        return <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">🟠 High</span>;
+        return <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">🟠 High</span>;
       case 'MEDIUM':
-        return <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">🟢 Normal</span>;
-      default:
-        return <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">⚪ Low</span>;
+        return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">🟢 Normal</span>;
+      case 'LOW':
+        return <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">⚪ Low</span>;
     }
   };
 
-  // Calculate totals
   const totalCards = allCards.length;
   let completedChecklistItems = 0;
   let totalChecklistItems = 0;
@@ -129,28 +190,143 @@ export const TableView: React.FC = () => {
     });
   });
 
+  const isAnyFilterActive = selectedColumnFilter !== 'ALL' || hideCompleted || quickChipFilter !== 'ALL';
+
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-950 overflow-hidden">
-      {/* Table Action Bar */}
-      <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-emerald-500" />
-            <span>Notion Database View</span>
-            <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-              {totalCards} การ์ด
+      {/* Table Action & Notion Status Chips Bar */}
+      <div className="px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        {/* Status / Column Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+          <button
+            type="button"
+            onClick={() => setSelectedColumnFilter('ALL')}
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+              selectedColumnFilter === 'ALL'
+                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs'
+                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800'
+            }`}
+          >
+            <span>ทั้งหมด</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedColumnFilter === 'ALL' ? 'bg-white/20 dark:bg-black/20 text-white dark:text-black' : 'bg-neutral-200 dark:bg-neutral-800'}`}>
+              {totalRawCount}
             </span>
-          </span>
+          </button>
+
+          {columns.map(col => {
+            const isSelected = selectedColumnFilter === col.id;
+            const count = rawCards.filter(c => c.columnId === col.id).length;
+
+            return (
+              <button
+                key={col.id}
+                type="button"
+                onClick={() => setSelectedColumnFilter(col.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800'
+                }`}
+              >
+                <span>{col.title}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/25 text-white' : 'bg-neutral-200 dark:bg-neutral-800'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAdding(true)}
-          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
-        >
-          <Plus size={14} />
-          <span>New Row</span>
-        </button>
+        {/* Right Quick Toggles & Add Row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Hide Completed Toggle */}
+          <button
+            type="button"
+            onClick={() => setHideCompleted(!hideCompleted)}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border transition-all shrink-0 ${
+              hideCompleted
+                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 shadow-xs'
+                : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+            }`}
+            title="ซ่อนงานในคอลัมน์ Completed หรือ Done"
+          >
+            {hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+            <span>{hideCompleted ? 'ซ่อนงานเสร็จแล้ว' : 'แสดงทุกงาน'}</span>
+          </button>
+
+          {/* Quick Overdue Chip */}
+          {overdueCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setQuickChipFilter(quickChipFilter === 'OVERDUE' ? 'ALL' : 'OVERDUE')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border transition-all shrink-0 ${
+                quickChipFilter === 'OVERDUE'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-100'
+              }`}
+            >
+              <AlertTriangle size={12} />
+              <span>เลยกำหนด ({overdueCount})</span>
+            </button>
+          )}
+
+          {/* Quick Urgent/High Chip */}
+          {urgentHighCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setQuickChipFilter(quickChipFilter === 'URGENT_HIGH' ? 'ALL' : 'URGENT_HIGH')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border transition-all shrink-0 ${
+                quickChipFilter === 'URGENT_HIGH'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/60 hover:bg-amber-100'
+              }`}
+            >
+              <Flame size={12} />
+              <span>ด่วนมาก ({urgentHighCount})</span>
+            </button>
+          )}
+
+          {/* Quick Unassigned Chip */}
+          {unassignedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setQuickChipFilter(quickChipFilter === 'UNASSIGNED' ? 'ALL' : 'UNASSIGNED')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border transition-all shrink-0 ${
+                quickChipFilter === 'UNASSIGNED'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-900/60 hover:bg-purple-100'
+              }`}
+            >
+              <UserX size={12} />
+              <span>รอผู้รับผิดชอบ ({unassignedCount})</span>
+            </button>
+          )}
+
+          {/* Reset Quick Filters if active */}
+          {isAnyFilterActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedColumnFilter('ALL');
+                setHideCompleted(false);
+                setQuickChipFilter('ALL');
+              }}
+              className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex items-center gap-1 px-1.5 py-1 shrink-0"
+            >
+              <RotateCcw size={12} /> ล้างตาราง
+            </button>
+          )}
+
+          {/* New Row Button */}
+          <button
+            type="button"
+            onClick={() => setIsAdding(true)}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 shrink-0 ml-1"
+          >
+            <Plus size={14} />
+            <span>New Row</span>
+          </button>
+        </div>
       </div>
 
       {/* Spreadsheet Table Container */}
@@ -381,6 +557,35 @@ export const TableView: React.FC = () => {
                 </tr>
               );
             })}
+
+            {/* Empty Filter State */}
+            {allCards.length === 0 && !isAdding && (
+              <tr>
+                <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Filter size={24} className="opacity-40 text-slate-400" />
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      ไม่พบการ์ดงานที่ตรงกับเงื่อนไขตัวกรอง
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      ลองเปลี่ยนตัวกรอง หรือกดปุ่มด้านล่างเพื่อล้างตัวกรองและดูงานทั้งหมด
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedColumnFilter('ALL');
+                        setHideCompleted(false);
+                        setQuickChipFilter('ALL');
+                        useBoardStore.getState().resetFilters();
+                      }}
+                      className="mt-1 px-3 py-1.5 text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      ล้างตัวกรองทั้งหมด
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )}
 
             {/* Quick Add Row */}
             {isAdding ? (

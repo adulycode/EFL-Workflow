@@ -213,7 +213,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
         </div>
 
         {/* Cards Scrollable Area */}
-        <div className="flex-1 overflow-y-auto space-y-2.5 px-0.5 py-1 min-h-[60px]">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 px-0.5 py-1">
           <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
             {column.cards.map((card) => (
               <KanbanCard key={card.id} card={card} />

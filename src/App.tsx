@@ -94,10 +94,10 @@ export const App: React.FC = () => {
           </div>
         </div>
       ) : (
-        <>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <BoardFilters />
           <KanbanBoard />
-        </>
+        </div>
       )}
 
       <CardDetailModal />

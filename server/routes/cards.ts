@@ -245,15 +245,45 @@ router.post('/:id/move', async (req, res) => {
     const oldCard = await prisma.card.findUnique({
       where: { id },
       include: {
-        column: true,
+        column: {
+          include: {
+            board: {
+              include: { workspace: true }
+            }
+          }
+        },
         assignees: { include: { user: true } }
       }
     });
 
     if (!oldCard) return res.status(404).json({ error: 'Card not found' });
 
-    const targetColumn = await prisma.column.findUnique({ where: { id: columnId } });
+    // Option 1 Security: Staff can only move cards they created or are assigned to; Admins/Owners can move any card
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const isAdmin = user?.role === 'ADMIN';
+      const isOwner = oldCard.column.board.workspace.ownerId === userId;
+      const isCreator = oldCard.createdById === userId;
+      const isAssigned = oldCard.assignees.some((a) => a.userId === userId);
+
+      if (!isAdmin && !isOwner && !isCreator && !isAssigned) {
+        return res.status(403).json({
+          error: 'คุณไม่มีสิทธิ์ย้ายการ์ดนี้ (สามารถย้ายได้เฉพาะการ์ดที่ตนเองสร้างหรือได้รับมอบหมายเท่านั้น)'
+        });
+      }
+    }
+
+    const targetColumn = await prisma.column.findUnique({
+      where: { id: columnId },
+      include: {
+        board: {
+          include: { workspace: true }
+        }
+      }
+    });
+
     const isColumnChanged = oldCard.columnId !== columnId;
+    const isCrossBoard = targetColumn && oldCard.column.boardId !== targetColumn.boardId;
 
     const updated = await prisma.card.update({
       where: { id },
@@ -268,37 +298,67 @@ router.post('/:id/move', async (req, res) => {
     });
 
     if (isColumnChanged && targetColumn) {
-      if (userId) {
-        await prisma.activityLog.create({
-          data: {
-            cardId: id,
-            userId,
-            actionType: 'MOVED_COLUMN',
-            details: {
-              fromColumn: oldCard.column.title,
-              toColumn: targetColumn.title
+      const { sendStakeholderNotifications } = await import('../services/notificationService');
+
+      if (isCrossBoard) {
+        // Cross-board or cross-workspace move
+        if (userId) {
+          await prisma.activityLog.create({
+            data: {
+              cardId: id,
+              userId,
+              actionType: 'MOVED_BOARD',
+              details: {
+                fromBoard: oldCard.column.board.title,
+                toBoard: targetColumn.board.title,
+                fromColumn: oldCard.column.title,
+                toColumn: targetColumn.title,
+                fromWorkspace: oldCard.column.board.workspace.name,
+                toWorkspace: targetColumn.board.workspace.name
+              }
             }
-          }
+          });
+        }
+
+        const actionSummary = `📦 ย้ายการ์ดงานจากบอร์ด [${oldCard.column.board.title}] ไปยังบอร์ด [${targetColumn.board.title}] (คอลัมน์ [${targetColumn.title}])`;
+        sendStakeholderNotifications({
+          cardId: id,
+          actorUserId: userId,
+          type: 'BOARD_MOVED',
+          actionSummary
+        });
+      } else {
+        // Normal column move within the same board
+        if (userId) {
+          await prisma.activityLog.create({
+            data: {
+              cardId: id,
+              userId,
+              actionType: 'MOVED_COLUMN',
+              details: {
+                fromColumn: oldCard.column.title,
+                toColumn: targetColumn.title
+              }
+            }
+          });
+        }
+
+        const isDone = /done|เสร็จ|complete|finish|success/i.test(targetColumn.title);
+        const isReview = /review|ตรวจ|อนุมัติ|approve/i.test(targetColumn.title);
+
+        const actionSummary = isDone
+          ? `🎉 การ์ดงานนี้ดำเนินการเสร็จสิ้นแล้ว (ย้ายไปยัง [${targetColumn.title}])`
+          : isReview
+          ? `🚀 ส่งตรวจงาน (ย้ายไปยัง [${targetColumn.title}])`
+          : `ย้ายการ์ดงานจาก [${oldCard.column.title}] ไปยัง [${targetColumn.title}]`;
+
+        sendStakeholderNotifications({
+          cardId: id,
+          actorUserId: userId,
+          type: 'COLUMN_MOVED',
+          actionSummary
         });
       }
-
-      // Notify stakeholders (Assignees, Report To, FYI) with full discussion timeline
-      const { sendStakeholderNotifications } = await import('../services/notificationService');
-      const isDone = /done|เสร็จ|complete|finish|success/i.test(targetColumn.title);
-      const isReview = /review|ตรวจ|อนุมัติ|approve/i.test(targetColumn.title);
-
-      const actionSummary = isDone
-        ? `🎉 การ์ดงานนี้ดำเนินการเสร็จสิ้นแล้ว (ย้ายไปยัง [${targetColumn.title}])`
-        : isReview
-        ? `🚀 ส่งตรวจงาน (ย้ายไปยัง [${targetColumn.title}])`
-        : `ย้ายการ์ดงานจาก [${oldCard.column.title}] ไปยัง [${targetColumn.title}]`;
-
-      sendStakeholderNotifications({
-        cardId: id,
-        actorUserId: userId,
-        type: 'COLUMN_MOVED',
-        actionSummary
-      });
     }
 
     emitRealtime(req, 'card:moved', { cardId: id, columnId, position, updated });

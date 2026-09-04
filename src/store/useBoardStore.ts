@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Board, Column, Card, Label, Priority, ViewMode } from '../types';
+import { useAuthStore } from './useAuthStore';
 
 export type DueDateFilterStatus = 'ALL' | 'OVERDUE' | 'TODAY' | 'THIS_WEEK' | 'NO_DATE';
 export type { ViewMode };
@@ -41,6 +42,7 @@ interface BoardState {
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
   moveCard: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => Promise<void>;
+  moveCardToBoard: (cardId: string, destColumnId: string, destPosition?: 'top' | 'bottom') => Promise<boolean>;
   updateCard: (cardId: string, updates: Partial<Card> & { assigneeIds?: string[]; labelIds?: string[]; assigneesData?: Array<{ userId: string; type: string }> }) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
@@ -222,6 +224,32 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to create card:', err);
+    }
+  },
+
+  moveCardToBoard: async (cardId, destColumnId, destPosition = 'bottom') => {
+    const currentUserId = useAuthStore.getState().currentUser?.id;
+    try {
+      const res = await fetch(`/api/cards/${cardId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          columnId: destColumnId,
+          position: destPosition === 'top' ? 100 : 999999,
+          userId: currentUserId
+        })
+      });
+
+      if (res.ok) {
+        await get().fetchBoard();
+        return true;
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to move card');
+      }
+    } catch (err) {
+      console.error('Failed to move card to board:', err);
+      throw err;
     }
   },
 

@@ -34,7 +34,8 @@ import {
   Sparkles,
   Image as CoverIcon,
   Pencil,
-  Check
+  Check,
+  ArrowRightLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -43,6 +44,7 @@ import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
 import { DueDatePicker } from '../common/DueDatePicker';
 import { LinkPreviewCard } from '../common/LinkPreviewCard';
+import { MoveCardModal } from './MoveCardModal';
 
 const POPULAR_CARD_ICONS = [
   '📝', '📌', '🚀', '💡', '🔥', '✨', '🎯', '📊', '📈', '🛠️', 
@@ -103,10 +105,12 @@ export const CardDetailModal: React.FC = () => {
     deleteComment,
     addAttachment, 
     deleteAttachment,
-    labels 
+    labels,
+    board,
+    fetchBoard
   } = useBoardStore();
   const { users, currentUser } = useAuthStore();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, workspaces, setCurrentWorkspace } = useWorkspaceStore();
 
   const [cardDetails, setCardDetails] = useState<any>(null);
   const [title, setTitle] = useState('');
@@ -146,6 +150,7 @@ export const CardDetailModal: React.FC = () => {
   const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
 
   // Modal Triggers
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
   const [showCoverMenu, setShowCoverMenu] = useState(false);
@@ -2005,8 +2010,21 @@ export const CardDetailModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actions: Archive & Delete */}
+              {/* Actions: Move, Archive & Delete */}
               <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+                {(currentUser?.role === 'ADMIN' ||
+                  currentWorkspace?.ownerId === currentUser?.id ||
+                  cardDetails?.createdById === currentUser?.id ||
+                  cardDetails?.assignees?.some((a: any) => a.userId === currentUser?.id)) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMoveModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 p-2 rounded-xl transition-colors font-semibold"
+                  >
+                    <ArrowRightLeft size={14} /> Move Card (ย้ายไปบอร์ดอื่น)
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setShowArchiveConfirm(true)}
@@ -2180,6 +2198,31 @@ export const CardDetailModal: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Move Card Modal */}
+      {cardDetails && (
+        <MoveCardModal
+          isOpen={showMoveModal}
+          onClose={() => setShowMoveModal(false)}
+          cardId={cardDetails.id}
+          cardTitle={cardDetails.title}
+          currentColumnId={cardDetails.columnId}
+          currentBoardId={board?.id}
+          currentWorkspaceId={currentWorkspace?.id}
+          onSuccess={(targetWorkspaceId) => {
+            setShowMoveModal(false);
+            setSelectedCardId(null);
+            if (targetWorkspaceId !== currentWorkspace?.id) {
+              const targetWs = workspaces.find((w) => w.id === targetWorkspaceId);
+              if (targetWs) {
+                setCurrentWorkspace(targetWs);
+              }
+            } else {
+              fetchBoard();
+            }
+          }}
+        />
       )}
     </>
   );

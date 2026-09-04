@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useBoardStore } from '../../store/useBoardStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -31,6 +31,8 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
   const { moveCardToBoard, batchMoveCards } = useBoardStore();
   const { currentUser } = useAuthStore();
 
+  const isInitializedRef = useRef(false);
+
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [selectedColumnId, setSelectedColumnId] = useState<string>('');
@@ -45,9 +47,18 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
     }
   }, [isOpen, workspaces.length]);
 
-  // Initialize defaults on open
+  // Reset initialized flag when modal closes
   useEffect(() => {
-    if (isOpen && workspaces.length > 0) {
+    if (!isOpen) {
+      isInitializedRef.current = false;
+      setErrorMsg(null);
+    }
+  }, [isOpen]);
+
+  // Initialize defaults once when opened and workspaces are available
+  useEffect(() => {
+    if (isOpen && workspaces.length > 0 && !isInitializedRef.current) {
+      isInitializedRef.current = true;
       const activeWs = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0];
       setSelectedWorkspaceId(activeWs.id);
 
@@ -99,7 +110,10 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
   };
 
   const isBatch = Boolean(cardIds && cardIds.length > 0);
-  const isSameLocation = !isBatch && selectedColumnId === currentColumnId;
+  const isSameLocation = !isBatch && 
+    selectedColumnId === currentColumnId && 
+    (selectedBoardId && currentBoardId ? selectedBoardId === currentBoardId : true) &&
+    (selectedWorkspaceId && currentWorkspaceId ? selectedWorkspaceId === currentWorkspaceId : true);
 
   const handleMove = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,6 +294,8 @@ export const MoveCardModal: React.FC<MoveCardModalProps> = ({
             >
               {isSubmitting ? (
                 <span>กำลังย้าย...</span>
+              ) : isSameLocation ? (
+                <span>การ์ดอยู่ในคอลัมน์นี้แล้ว (เลือกที่ใหม่)</span>
               ) : (
                 <>
                   <ArrowRightLeft size={13} />

@@ -31,7 +31,7 @@ interface BoardState {
   setFilters: (filters: Partial<FilterState>) => void;
   resetFilters: () => void;
   initLandingPreferences: (userId: string) => void;
-  fetchBoard: (workspaceId?: string) => Promise<void>;
+  fetchBoard: (workspaceId?: string, boardId?: string) => Promise<void>;
   fetchArchivedCards: () => Promise<void>;
 
   // Column Operations
@@ -134,12 +134,20 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  fetchBoard: async (workspaceId?: string) => {
+  fetchBoard: async (workspaceId?: string, boardId?: string) => {
     try {
       set({ isLoading: true });
       const currentBoard = get().board;
       const targetWsId = workspaceId || currentBoard?.workspaceId;
-      const url = targetWsId ? `/api/boards?workspaceId=${targetWsId}` : '/api/boards';
+      const targetBoardId = boardId;
+
+      let url = '/api/boards';
+      if (targetBoardId) {
+        url = `/api/boards?boardId=${targetBoardId}`;
+        if (targetWsId) url += `&workspaceId=${targetWsId}`;
+      } else if (targetWsId) {
+        url = `/api/boards?workspaceId=${targetWsId}`;
+      }
 
       const res = await fetch(url);
       if (res.ok) {

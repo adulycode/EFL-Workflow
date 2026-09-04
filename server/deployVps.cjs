@@ -7,7 +7,7 @@ conn.on('ready', () => {
     'cd /home/serva/EFL-Workflow',
     'git pull origin main',
     'docker compose build efl-workflow-app',
-    'docker compose up -d --no-deps efl-workflow-app',
+    'docker compose up -d efl-workflow-app',
     'sleep 3',
     'curl -I http://localhost:3010'
   ].join(' && ');

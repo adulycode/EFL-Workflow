@@ -2208,16 +2208,24 @@ export const CardDetailModal: React.FC = () => {
           cardId={cardDetails.id}
           cardTitle={cardDetails.title}
           currentColumnId={cardDetails.columnId}
-          currentBoardId={board?.id}
-          currentWorkspaceId={currentWorkspace?.id}
-          onSuccess={(targetWorkspaceId) => {
+          currentBoardId={cardDetails?.column?.boardId || board?.id}
+          currentWorkspaceId={cardDetails?.column?.board?.workspace?.id || cardDetails?.column?.board?.workspaceId || currentWorkspace?.id}
+          onSuccess={(targetWorkspaceId, targetBoardId) => {
             setShowMoveModal(false);
             setSelectedCardId(null);
-            if (targetWorkspaceId !== currentWorkspace?.id) {
+            const activeWsId = cardDetails?.column?.board?.workspace?.id || cardDetails?.column?.board?.workspaceId || currentWorkspace?.id;
+            const activeBrdId = cardDetails?.column?.boardId || board?.id;
+
+            if (targetWorkspaceId && targetWorkspaceId !== activeWsId) {
               const targetWs = workspaces.find((w) => w.id === targetWorkspaceId);
               if (targetWs) {
                 setCurrentWorkspace(targetWs);
               }
+              if (targetBoardId) {
+                fetchBoard(targetWorkspaceId, targetBoardId);
+              }
+            } else if (targetBoardId && targetBoardId !== activeBrdId) {
+              fetchBoard(targetWorkspaceId || activeWsId, targetBoardId);
             } else {
               fetchBoard();
             }

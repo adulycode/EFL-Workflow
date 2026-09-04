@@ -35,7 +35,8 @@ import {
   Image as CoverIcon,
   Pencil,
   Check,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
@@ -682,6 +683,9 @@ export const CardDetailModal: React.FC = () => {
       }
     }
 
+    // Collect image previews for inline rendering
+    const detectedImages: { url: string; name: string }[] = [];
+
     // 2. Parse text into segments (supporting markdown [label](target), raw URLs, and plain text with linebreaks)
     const tokenRegex = /(\[([^\]]+)\]\(([^)]+)\)|https?:\/\/[^\s<>()"']+)/g;
     const textElements: React.ReactNode[] = [];
@@ -701,35 +705,62 @@ export const CardDetailModal: React.FC = () => {
 
         let fileUrl = target;
         let displayName = label.replace(/^[📎📄📊📽️📁]\s*/, '');
+        let isImage = false;
 
         if (target.startsWith('att:')) {
           const attId = target.slice(4);
+          fileUrl = `/api/attachments/${attId}/view`;
           const foundAtt = cardDetails.attachments?.find((a: any) => a.id === attId);
           if (foundAtt) {
-            fileUrl = foundAtt.fileUrl;
             displayName = foundAtt.fileName;
+            isImage = Boolean(foundAtt.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(foundAtt.fileName));
+          } else {
+            isImage = /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(displayName);
           }
-        } else if (target.startsWith('data:')) {
+        } else if (target.startsWith('data:image') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(displayName) || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(target)) {
+          isImage = true;
           const foundAtt = cardDetails.attachments?.find((a: any) => a.fileName === displayName || a.fileUrl === target);
           if (foundAtt) {
-            fileUrl = foundAtt.fileUrl;
+            fileUrl = `/api/attachments/${foundAtt.id}/view`;
+          }
+        } else if (cardDetails.attachments) {
+          const foundAtt = cardDetails.attachments.find((a: any) => a.fileName === displayName || a.fileUrl === target);
+          if (foundAtt) {
+            fileUrl = `/api/attachments/${foundAtt.id}/view`;
+            isImage = Boolean(foundAtt.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(foundAtt.fileName));
           }
         }
 
+        if (isImage) {
+          detectedImages.push({ url: fileUrl, name: displayName });
+        }
+
         textElements.push(
-          <a
+          <button
             key={`md-${match.index}`}
-            href={fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={fileUrl.startsWith('data:') ? displayName : undefined}
-            title={`Click to open ${displayName}`}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-0.5 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg border border-blue-200/90 dark:border-blue-900/60 shadow-xs transition-all cursor-pointer"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (isImage) {
+                setLightboxImage(fileUrl);
+              } else if (fileUrl.startsWith('data:')) {
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = displayName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              } else {
+                window.open(fileUrl, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            title={isImage ? `Click to view ${displayName}` : `Click to open ${displayName}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 mx-0.5 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg border border-blue-200/90 dark:border-blue-900/60 shadow-xs transition-all cursor-pointer"
           >
-            <Paperclip size={11} className="shrink-0" />
-            <span className="truncate max-w-[200px]">{displayName}</span>
-            <ExternalLink size={9} className="shrink-0 opacity-70" />
-          </a>
+            {isImage ? <ImageIcon size={12} className="shrink-0 text-blue-500" /> : <Paperclip size={12} className="shrink-0 text-neutral-500" />}
+            <span className="truncate max-w-[220px]">{displayName}</span>
+            {isImage ? <Maximize2 size={10} className="shrink-0 opacity-70" /> : <ExternalLink size={10} className="shrink-0 opacity-70" />}
+          </button>
         );
       } else {
         // Raw URL: format cleanly
@@ -768,6 +799,31 @@ export const CardDetailModal: React.FC = () => {
         <div className="whitespace-pre-wrap leading-relaxed">
           {textElements.length > 0 ? textElements : sanitized}
         </div>
+
+        {/* Render inline image previews for images referenced in comment */}
+        {detectedImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1.5">
+            {detectedImages.map((img, idx) => (
+              <div key={idx} className="relative group inline-block">
+                <img
+                  src={img.url}
+                  alt={img.name}
+                  onClick={() => setLightboxImage(img.url)}
+                  className="max-h-52 max-w-sm rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
+                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(img.url)}
+                  className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 hover:bg-black/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[11px] font-medium backdrop-blur-xs shadow"
+                  title="Zoom Image"
+                >
+                  <Maximize2 size={11} />
+                  <span>คลิกเพื่อดูรูป</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Rich Link Preview Cards (Limited to first 3 previews per comment for optimal performance) */}
         {detectedUrls.length > 0 && (
@@ -1588,16 +1644,37 @@ export const CardDetailModal: React.FC = () => {
                                     <span>Open</span>
                                   </a>
                                 ) : (
-                                  <a
-                                    href={att.fileUrl}
-                                    download={att.fileName}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                                    title="Download Attachment"
-                                  >
-                                    <Download size={15} />
-                                  </a>
+                                  <div className="flex items-center gap-1">
+                                    {(att.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(att.fileName)) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setLightboxImage(att.fileUrl?.startsWith('data:') ? att.fileUrl : `/api/attachments/${att.id}/view`)}
+                                        className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                                        title="View / Preview Image"
+                                      >
+                                        <Eye size={15} />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (att.fileUrl?.startsWith('data:')) {
+                                          const link = document.createElement('a');
+                                          link.href = att.fileUrl;
+                                          link.download = att.fileName;
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                        } else {
+                                          window.open(`/api/attachments/${att.id}/download`, '_blank');
+                                        }
+                                      }}
+                                      className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                                      title="Download Attachment"
+                                    >
+                                      <Download size={15} />
+                                    </button>
+                                  </div>
                                 )}
 
                                 <button
@@ -2183,19 +2260,46 @@ export const CardDetailModal: React.FC = () => {
           onClick={() => setLightboxImage(null)}
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-100"
         >
-          <div className="relative max-w-4xl max-h-[90vh]">
+          <div className="relative max-w-4xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <img
               src={lightboxImage}
               alt="Zoomed attachment"
-              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain"
+              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain mx-auto"
             />
-            <button
-              type="button"
-              onClick={() => setLightboxImage(null)}
-              className="absolute -top-3 -right-3 p-2 bg-neutral-900 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow"
-            >
-              <X size={16} />
-            </button>
+            <div className="absolute -top-3 -right-3 flex items-center gap-2">
+              <a
+                href={lightboxImage}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow"
+                title="Open in new tab"
+              >
+                <ExternalLink size={15} />
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = lightboxImage;
+                  link.download = 'attachment-image.jpg';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow cursor-pointer"
+                title="Download image"
+              >
+                <Download size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow cursor-pointer"
+                title="Close"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
         </div>
       )}

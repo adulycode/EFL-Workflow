@@ -46,6 +46,10 @@ app.use('/api/cards', inboundEmailRouter);
 app.use('/api/webhooks', inboundEmailRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/utils', utilsRouter);
+app.use('/api/attachments', (req, res, next) => {
+  req.url = '/attachments' + req.url;
+  cardsRouter(req, res, next);
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), app: 'EFL-Workflow' });

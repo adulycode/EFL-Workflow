@@ -795,6 +795,42 @@ router.delete('/:id/attachments/:attachmentId', async (req, res) => {
   }
 });
 
+// View / Download Attachment by ID (Universal across all cards)
+const serveAttachment = async (req: any, res: any, isDownload: boolean) => {
+  try {
+    const { attachmentId } = req.params;
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId }
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    if (attachment.fileUrl.startsWith('data:')) {
+      const matches = attachment.fileUrl.match(/^data:([A-Za-z-+\/0-9.]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mime = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', mime);
+        res.setHeader(
+          'Content-Disposition',
+          `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(attachment.fileName)}"`
+        );
+        return res.send(buffer);
+      }
+    }
+
+    return res.redirect(attachment.fileUrl);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+router.get('/attachments/:attachmentId', (req, res) => serveAttachment(req, res, false));
+router.get('/attachments/:attachmentId/view', (req, res) => serveAttachment(req, res, false));
+router.get('/attachments/:attachmentId/download', (req, res) => serveAttachment(req, res, true));
+
 // ================= CHECKLISTS CRUD =================
 
 // Create Checklist

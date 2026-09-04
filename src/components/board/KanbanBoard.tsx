@@ -242,7 +242,7 @@ export const KanbanBoard: React.FC = () => {
     : (!isCustomWallpaper ? 'bg-gradient-to-br from-emerald-950/80 via-teal-900/40 to-slate-950' : '');
 
   const bgStyle = isCustomWallpaper ? {
-    backgroundImage: `url("${currentBgId}")`,
+    backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.55)), url("${currentBgId}")`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundAttachment: 'fixed'
@@ -260,10 +260,6 @@ export const KanbanBoard: React.FC = () => {
         className={`flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden p-6 select-none relative h-full transition-all duration-300 ${bgClass}`}
         style={bgStyle}
       >
-        {isCustomWallpaper && (
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] pointer-events-none" />
-        )}
-
         <div className="relative z-10 flex gap-6 items-start h-full pb-2 min-w-max">
           {filteredColumns.map((column) => (
             <KanbanColumn key={column.id} column={column} />

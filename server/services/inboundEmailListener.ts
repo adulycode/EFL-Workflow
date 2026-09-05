@@ -19,32 +19,38 @@ export function setInboundSocketIO(io: any) {
 export function cleanEmailReply(rawText: string): string {
   if (!rawText) return '';
 
-  const markerIndex = rawText.search(/\r?\n\s*On\s+[\s\S]+?wrote:\s*/i);
-  let cleaned = markerIndex !== -1 ? rawText.slice(0, markerIndex) : rawText;
+  // 1. Strip quoted reply headers
+  const quotePatterns = [
+    /\r?\n\s*On\s+[\s\S]+?wrote:\s*/i,
+    /\r?\n\s*เมื่อ\s+[\s\S]+?เขียนว่า:\s*/i,
+    /\r?\n\s*ในวันที่\s+[\s\S]+?เขียนว่า:\s*/i,
+    /\r?\n\s*From:\s+/i,
+    /\r?\n\s*-----Original Message-----/i,
+    /\r?\n\s*--\s*\r?\n/
+  ];
 
-  const thaiIndex = cleaned.search(/\r?\n\s*เมื่อ\s+[\s\S]+?เขียนว่า:\s*/i);
-  if (thaiIndex !== -1) cleaned = cleaned.slice(0, thaiIndex);
+  let cleaned = rawText;
+  for (const pattern of quotePatterns) {
+    const idx = cleaned.search(pattern);
+    if (idx !== -1) {
+      cleaned = cleaned.slice(0, idx);
+    }
+  }
 
-  const fromIndex = cleaned.search(/\r?\n\s*From:\s+/i);
-  if (fromIndex !== -1) cleaned = cleaned.slice(0, fromIndex);
-
-  const dashIndex = cleaned.search(/\r?\n\s*--\s*\r?\n/);
-  if (dashIndex !== -1) cleaned = cleaned.slice(0, dashIndex);
-
-  // Strip lines starting with >
+  // 2. Strip quoted lines starting with >
   cleaned = cleaned
     .split('\n')
     .filter((line) => !line.trim().startsWith('>'))
     .join('\n');
 
-  // Strip mobile signatures
+  // 3. Strip mobile signatures (iOS, Android, etc.)
   cleaned = cleaned.replace(/(?:Sent from my|ส่งจาก)[\s\S]*$/i, '');
 
   return cleaned.trim() || rawText.trim();
 }
 
 /**
- * Extract Card ID from subject or body
+ * Extract Card ID from subject, text body, or HTML
  */
 export function extractCardIdFromEmail(subject: string, bodyText: string, htmlText: string): string | null {
   // 1. Search in subject: [card: clu123...] or [card:clu123...]
@@ -59,13 +65,17 @@ export function extractCardIdFromEmail(subject: string, bodyText: string, htmlTe
   const bodyMatch = bodyText.match(/\[card:\s*([a-zA-Z0-9_-]+)\]/i);
   if (bodyMatch && bodyMatch[1]) return bodyMatch[1].trim();
 
+  // 4. Search for URL link in body: /cards/clu123...
+  const urlMatch = (bodyText + ' ' + htmlText).match(/(?:https?:\/\/[^\/]+)?\/cards\/([a-zA-Z0-9_-]+)/i);
+  if (urlMatch && urlMatch[1]) return urlMatch[1].trim();
+
   return null;
 }
 
 /**
- * Process a single incoming email
+ * Process a single incoming email stream or parsed object
  */
-async function processIncomingEmail(stream: any) {
+async function processIncomingEmail(stream: any): Promise<boolean> {
   try {
     const parsed: any = await simpleParser(stream as any);
 
@@ -73,21 +83,20 @@ async function processIncomingEmail(stream: any) {
     const subject = parsed.subject || '';
     const textBody = parsed.text || '';
     const htmlBody = parsed.html || '';
+    const messageId = parsed.messageId || '';
 
-    console.log(`[Inbound Email Reader] 📥 New email received from: ${fromAddress} - Subject: "${subject}"`);
-
-    // Ignore self emails
+    // Ignore self emails from notification sender
     if (fromAddress === GMAIL_USER.toLowerCase()) {
-      return;
+      return false;
     }
 
     const cardId = extractCardIdFromEmail(subject, textBody, htmlBody);
     if (!cardId) {
-      console.log(`[Inbound Email Reader] ℹ️ No Card ID found in email subject "${subject}". Skipping.`);
-      return;
+      // Not a card reply email (could be notification failure, newsletter, etc.)
+      return false;
     }
 
-    // Verify card exists
+    // Verify card exists in database
     const card = await prisma.card.findUnique({
       where: { id: cardId },
       include: {
@@ -97,24 +106,66 @@ async function processIncomingEmail(stream: any) {
 
     if (!card) {
       console.warn(`[Inbound Email Reader] ⚠️ Card with ID "${cardId}" not found in database.`);
-      return;
+      return false;
     }
 
-    // Match sender to staff member
-    let user = await prisma.user.findFirst({
+    // Match sender to staff member in database
+    const user = await prisma.user.findFirst({
       where: { email: { equals: fromAddress, mode: 'insensitive' } }
     });
 
     if (!user) {
       console.warn(`[Inbound Email Reader] ⚠️ Sender ${fromAddress} is not registered in EFL-Workflow. Ignoring.`);
-      return;
+      return false;
     }
 
     const cleanedContent = cleanEmailReply(textBody);
     if (!cleanedContent) {
-      console.log(`[Inbound Email Reader] ℹ️ Empty reply body after cleaning. Skipping.`);
-      return;
+      console.log(`[Inbound Email Reader] ℹ️ Empty reply body after cleaning for card "${card.title}". Skipping.`);
+      return false;
     }
+
+    // --- Deduplication Check ---
+    // Check if this message was already processed into a comment
+    if (messageId) {
+      const alreadyLogged = await prisma.activityLog.findFirst({
+        where: {
+          cardId: card.id,
+          actionType: 'COMMENT_ADDED',
+          details: {
+            path: ['emailMessageId'],
+            equals: messageId
+          }
+        }
+      });
+      if (alreadyLogged) {
+        return false; // Already processed
+      }
+    }
+
+    // Check by content & user to prevent double posting
+    const alreadyCommented = await prisma.comment.findFirst({
+      where: {
+        cardId: card.id,
+        userId: user.id,
+        content: cleanedContent,
+        isEmailReply: true
+      }
+    });
+    if (alreadyCommented) {
+      return false; // Already posted
+    }
+
+    // Check for inline image attachment if present
+    let imageUrl: string | null = null;
+    if (parsed.attachments && parsed.attachments.length > 0) {
+      const imgAtt = parsed.attachments.find((a: any) => a.contentType?.startsWith('image/'));
+      if (imgAtt && imgAtt.content) {
+        imageUrl = `data:${imgAtt.contentType};base64,${imgAtt.content.toString('base64')}`;
+      }
+    }
+
+    const commentDate = parsed.date ? new Date(parsed.date) : new Date();
 
     // Insert Comment into Database
     const newComment = await prisma.comment.create({
@@ -122,7 +173,9 @@ async function processIncomingEmail(stream: any) {
         cardId: card.id,
         userId: user.id,
         content: cleanedContent,
-        isEmailReply: true
+        imageUrl,
+        isEmailReply: true,
+        createdAt: commentDate
       },
       include: {
         user: {
@@ -131,7 +184,7 @@ async function processIncomingEmail(stream: any) {
       }
     });
 
-    // Log Activity
+    // Log Activity with emailMessageId for reliable idempotency
     await prisma.activityLog.create({
       data: {
         cardId: card.id,
@@ -140,14 +193,17 @@ async function processIncomingEmail(stream: any) {
         details: {
           commentId: newComment.id,
           source: 'EMAIL_REPLY',
+          emailMessageId: messageId,
+          senderEmail: fromAddress,
           preview: cleanedContent.slice(0, 100)
-        }
+        },
+        createdAt: commentDate
       }
     });
 
-    console.log(`[Inbound Email Reader] 🎉 Successfully posted comment from ${user.name} on card: "${card.title}"`);
+    console.log(`[Inbound Email Reader] 🎉 Successfully posted comment from ${user.name} (${fromAddress}) on card: "${card.title}"`);
 
-    // Broadcast Real-time WebSocket to all clients
+    // Broadcast Real-time WebSocket to all connected clients
     if (ioInstance) {
       ioInstance.emit('comment:created', {
         cardId: card.id,
@@ -160,8 +216,10 @@ async function processIncomingEmail(stream: any) {
       });
     }
 
+    return true;
   } catch (err: any) {
     console.error(`[Inbound Email Reader] Error parsing email:`, err.message);
+    return false;
   }
 }
 
@@ -190,33 +248,62 @@ export function startInboundEmailListener(io?: any) {
     }
   });
 
-  function openInbox(cb: (err: Error | null, box?: Imap.Box) => void) {
-    imap.openBox('INBOX', false, cb);
-  }
+  let isSyncing = false;
 
-  function checkUnseenEmails() {
-    imap.search(['UNSEEN'], (err, results) => {
+  function syncRecentEmails() {
+    if (isSyncing || imap.state !== 'authenticated') return;
+    isSyncing = true;
+
+    // Search both UNSEEN and recent messages from ALL
+    imap.search(['ALL'], (err, allResults) => {
       if (err) {
         console.error('[Inbound Email Reader] Search error:', err.message);
+        isSyncing = false;
         return;
       }
 
-      if (!results || results.length === 0) {
+      if (!allResults || allResults.length === 0) {
+        isSyncing = false;
         return;
       }
 
-      console.log(`[Inbound Email Reader] 📬 Found ${results.length} new unread email(s) in INBOX. Processing...`);
+      // Check UNSEEN as well to combine sequence numbers
+      imap.search(['UNSEEN'], (unseenErr, unseenResults) => {
+        const targetSet = new Set<number>();
 
-      const f = imap.fetch(results, { bodies: '', markSeen: true });
+        // Always check the latest 35 messages in INBOX
+        const recentSlice = allResults.slice(-35);
+        recentSlice.forEach((seq) => targetSet.add(seq));
 
-      f.on('message', (msg) => {
-        msg.on('body', (stream) => {
-          processIncomingEmail(stream);
+        // Also add any UNSEEN messages
+        if (unseenResults && unseenResults.length > 0) {
+          unseenResults.forEach((seq) => targetSet.add(seq));
+        }
+
+        const targets = Array.from(targetSet);
+        if (targets.length === 0) {
+          isSyncing = false;
+          return;
+        }
+
+        const fetcher = imap.fetch(targets, { bodies: '', markSeen: true });
+
+        fetcher.on('message', (msg) => {
+          msg.on('body', (stream) => {
+            processIncomingEmail(stream);
+          });
         });
-      });
 
-      f.once('error', (fetchErr) => {
-        console.error('[Inbound Email Reader] Fetch error:', fetchErr.message);
+        fetcher.once('error', (fErr) => {
+          console.error('[Inbound Email Reader] Fetch error:', fErr.message);
+          isSyncing = false;
+        });
+
+        fetcher.once('end', () => {
+          setTimeout(() => {
+            isSyncing = false;
+          }, 2000);
+        });
       });
     });
   }
@@ -224,24 +311,26 @@ export function startInboundEmailListener(io?: any) {
   imap.once('ready', () => {
     console.log(`[Inbound Email Reader] 🚀 Connected to Gmail IMAP (${GMAIL_USER}) - Listening for replies!`);
 
-    openInbox((err) => {
+    imap.openBox('INBOX', false, (err, box) => {
       if (err) {
         console.error('[Inbound Email Reader] Failed to open INBOX:', err.message);
         return;
       }
 
-      // Check immediately
-      checkUnseenEmails();
+      console.log(`[Inbound Email Reader] 📬 INBOX opened (${box.messages.total} total messages). Starting email sync...`);
 
-      // Listen on new email events
+      // Initial sync on connection
+      syncRecentEmails();
+
+      // Listen on new email events from IMAP server
       imap.on('mail', () => {
-        checkUnseenEmails();
+        syncRecentEmails();
       });
 
-      // Regular polling fallback every 15s
+      // Regular polling fallback every 15s to catch any emails marked seen by other clients
       setInterval(() => {
         if (imap.state === 'authenticated') {
-          checkUnseenEmails();
+          syncRecentEmails();
         }
       }, 15000);
     });

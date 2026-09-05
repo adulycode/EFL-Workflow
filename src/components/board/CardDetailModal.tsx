@@ -391,6 +391,8 @@ export const CardDetailModal: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setActiveTab('attachments');
+
     const reader = new FileReader();
     reader.onload = async () => {
       const fileUrl = reader.result as string;
@@ -404,10 +406,12 @@ export const CardDetailModal: React.FC = () => {
       fetchDetails();
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Google Drive Attachment Handler
   const handleAttachGoogleDrive = async (data: { fileName: string; fileUrl: string; fileType: string; fileSize?: number }) => {
+    setActiveTab('attachments');
     await addAttachment(selectedCardId, {
       fileName: data.fileName,
       fileUrl: data.fileUrl,
@@ -1617,13 +1621,7 @@ export const CardDetailModal: React.FC = () => {
                           <span>Google Drive</span>
                         </button>
 
-                        {/* Local File Upload */}
-                        <input
-                          ref={attachmentFileInputRef}
-                          type="file"
-                          onChange={handleAttachmentUpload}
-                          className="hidden"
-                        />
+                        {/* Local File Upload Button */}
                         <button
                           type="button"
                           onClick={() => attachmentFileInputRef.current?.click()}
@@ -1856,9 +1854,20 @@ export const CardDetailModal: React.FC = () => {
                     <span>Add Checklist / To-Do</span>
                   </button>
 
+                  {/* Persistent Attachment File Input (always mounted regardless of activeTab) */}
+                  <input
+                    ref={attachmentFileInputRef}
+                    type="file"
+                    onChange={handleAttachmentUpload}
+                    className="hidden"
+                  />
+
                   <button
                     type="button"
-                    onClick={() => setShowDrivePicker(true)}
+                    onClick={() => {
+                      setActiveTab('attachments');
+                      setShowDrivePicker(true);
+                    }}
                     className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-blue-600 dark:text-blue-400 shadow-sm transition-all"
                   >
                     <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78" fill="currentColor">
@@ -1874,7 +1883,10 @@ export const CardDetailModal: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => attachmentFileInputRef.current?.click()}
+                    onClick={() => {
+                      setActiveTab('attachments');
+                      attachmentFileInputRef.current?.click();
+                    }}
                     className="w-full flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-sm transition-all"
                   >
                     <Paperclip size={14} className="text-neutral-500" />

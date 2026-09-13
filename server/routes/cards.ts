@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient, Priority } from '@prisma/client';
+import { format } from 'date-fns';
 import { sendNotification } from '../services/notificationService';
 import { uploadToGoogleDrive } from '../services/googleDrive';
 import { notifyAgentOffice } from '../services/agentOfficeSync';
@@ -586,6 +587,26 @@ router.post('/:id/comments', async (req, res) => {
       include: { user: true }
     });
 
+    // Auto-sync comment image to Card Attachments so it appears in the Photos Gallery
+    if (imageUrl) {
+      try {
+        const isPng = imageUrl.startsWith('data:image/png');
+        const ext = isPng ? 'png' : 'jpg';
+        const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
+        await prisma.attachment.create({
+          data: {
+            cardId: id,
+            fileName: `photo-${dateTag}.${ext}`,
+            fileUrl: imageUrl,
+            fileType: `image/${ext}`,
+            fileSize: Math.round(imageUrl.length * 0.75)
+          }
+        });
+      } catch (syncErr) {
+        console.error('Failed to auto-sync comment photo to attachments:', syncErr);
+      }
+    }
+
     if (finalUserId) {
       await prisma.activityLog.create({
         data: {
@@ -724,6 +745,12 @@ router.post('/:id/attachments', async (req, res) => {
 
     if (!fileName || !fileUrl) {
       return res.status(400).json({ error: 'fileName and fileUrl are required' });
+    }
+
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.msi', '.dll', '.scr'];
+    const fileExt = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')).toLowerCase() : '';
+    if (dangerousExtensions.includes(fileExt)) {
+      return res.status(400).json({ error: 'ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้ เพื่อความปลอดภัยของระบบ' });
     }
 
     let finalFileUrl = fileUrl;
@@ -913,13 +940,16 @@ router.post('/:id/checklists/:checklistId/items', async (req, res) => {
 router.patch('/:id/checklists/:checklistId/items/:itemId', async (req, res) => {
   try {
     const { id, checklistId, itemId } = req.params;
-    const { isCompleted, content } = req.body;
+    const { isCompleted, content, dueDate } = req.body;
 
     const updateData: any = {};
     if (content !== undefined) updateData.content = content.trim();
     if (isCompleted !== undefined) {
       updateData.isCompleted = Boolean(isCompleted);
       updateData.completedAt = Boolean(isCompleted) ? new Date() : null;
+    }
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate ? new Date(dueDate) : null;
     }
 
     const item = await prisma.checklistItem.update({

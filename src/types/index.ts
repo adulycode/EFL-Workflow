@@ -64,6 +64,7 @@ export interface ChecklistItem {
   content: string;
   isCompleted: boolean;
   completedAt?: string;
+  dueDate?: string;
   position: number;
 }
 

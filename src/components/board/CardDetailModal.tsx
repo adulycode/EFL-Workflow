@@ -36,9 +36,11 @@ import {
   Pencil,
   Check,
   ArrowRightLeft,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isPast, isToday } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { LabelManagerModal } from './LabelManagerModal';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
@@ -125,10 +127,20 @@ export const CardDetailModal: React.FC = () => {
   const [commentText, setCommentText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'comments' | 'attachments' | 'activity'>('comments');
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'comments' | 'photos' | 'attachments' | 'activity'>('comments');
   const [showFileRefMenu, setShowFileRefMenu] = useState(false);
+  const [showPhotoRefMenu, setShowPhotoRefMenu] = useState(false);
+  const [selectedRefPhotos, setSelectedRefPhotos] = useState<string[]>([]);
+  const [hoveredPhotoPreview, setHoveredPhotoPreview] = useState<{ url: string; name: string } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedEmojiTab, setSelectedEmojiTab] = useState(0);
+
+  // Advanced Checklist State (Inline Edit & Due Date)
+  const [editingChecklistItemId, setEditingChecklistItemId] = useState<string | null>(null);
+  const [editingChecklistItemText, setEditingChecklistItemText] = useState('');
+  const [activeChecklistDuePickerId, setActiveChecklistDuePickerId] = useState<string | null>(null);
 
   // Comment Editing and Deleting State
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -163,6 +175,7 @@ export const CardDetailModal: React.FC = () => {
 
   const commentFileInputRef = useRef<HTMLInputElement>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+  const photoUploadInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -218,9 +231,25 @@ export const CardDetailModal: React.FC = () => {
           setShowEmojiPicker(false);
         } else if (showFileRefMenu) {
           setShowFileRefMenu(false);
+        } else if (showPhotoRefMenu) {
+          setShowPhotoRefMenu(false);
+        } else if (activeChecklistDuePickerId) {
+          setActiveChecklistDuePickerId(null);
         } else {
           setSelectedCardId(null);
         }
+      } else if (e.key === 'ArrowLeft' && lightboxImage && lightboxImages.length > 1) {
+        setLightboxIndex((prev) => {
+          const nextIdx = prev > 0 ? prev - 1 : lightboxImages.length - 1;
+          setLightboxImage(lightboxImages[nextIdx]);
+          return nextIdx;
+        });
+      } else if (e.key === 'ArrowRight' && lightboxImage && lightboxImages.length > 1) {
+        setLightboxIndex((prev) => {
+          const nextIdx = prev < lightboxImages.length - 1 ? prev + 1 : 0;
+          setLightboxImage(lightboxImages[nextIdx]);
+          return nextIdx;
+        });
       }
     };
 
@@ -236,6 +265,7 @@ export const CardDetailModal: React.FC = () => {
   }, [
     selectedCardId, 
     lightboxImage, 
+    lightboxImages,
     showMoveModal, 
     showDrivePicker, 
     showLabelManager, 
@@ -243,10 +273,18 @@ export const CardDetailModal: React.FC = () => {
     showCardIconPicker, 
     showBannerGallery, 
     showEmojiPicker, 
-    showFileRefMenu
+    showFileRefMenu,
+    showPhotoRefMenu,
+    activeChecklistDuePickerId
   ]);
 
   if (!selectedCardId || !cardDetails) return null;
+
+  const cardAttachments: any[] = cardDetails.attachments || [];
+  const isImageAttachment = (att: any) =>
+    Boolean(att.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(att.fileName || ''));
+  const cardPhotos = cardAttachments.filter(isImageAttachment);
+  const cardDocs = cardAttachments.filter((att: any) => !isImageAttachment(att));
 
   const handleSaveBasic = async () => {
     await updateCard(selectedCardId, {
@@ -386,12 +424,61 @@ export const CardDetailModal: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  // File Upload Handler for Card Attachments
+  // Open Lightbox with Carousel array
+  const openLightbox = (images: string[], startIndex: number = 0) => {
+    if (!images || images.length === 0) return;
+    setLightboxImages(images);
+    const validIdx = startIndex >= 0 && startIndex < images.length ? startIndex : 0;
+    setLightboxIndex(validIdx);
+    setLightboxImage(images[validIdx]);
+  };
+
+  // Photo Upload Handler for Photos Gallery
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setActiveTab('photos');
+    Array.from(files).forEach((file) => {
+      const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.msi', '.dll', '.scr'];
+      const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
+      if (dangerousExtensions.includes(fileExt)) {
+        alert('ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้ เพื่อความปลอดภัยของระบบ');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const fileUrl = reader.result as string;
+        await addAttachment(selectedCardId, {
+          fileName: file.name,
+          fileUrl,
+          fileType: file.type || 'image/jpeg',
+          fileSize: file.size,
+          userId: currentUser?.id
+        });
+        fetchDetails();
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  // File Upload Handler for Card Attachments (Documents & Drive)
   const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setActiveTab('attachments');
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.msi', '.dll', '.scr'];
+    const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
+    if (dangerousExtensions.includes(fileExt)) {
+      alert('ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้ เพื่อความปลอดภัยของระบบ');
+      e.target.value = '';
+      return;
+    }
+
+    const isImg = file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(file.name);
+    setActiveTab(isImg ? 'photos' : 'attachments');
 
     const reader = new FileReader();
     reader.onload = async () => {
@@ -407,6 +494,67 @@ export const CardDetailModal: React.FC = () => {
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  // Save Checklist Item Content (Inline Edit)
+  const handleSaveChecklistItemContent = async (checklistId: string, itemId: string, newContent: string) => {
+    if (!newContent.trim()) {
+      setEditingChecklistItemId(null);
+      return;
+    }
+    const trimmed = newContent.trim();
+    setEditingChecklistItemId(null);
+
+    setCardDetails((prev: any) => ({
+      ...prev,
+      checklists: prev.checklists?.map((c: any) => {
+        if (c.id !== checklistId) return c;
+        return {
+          ...c,
+          items: c.items?.map((i: any) => (i.id === itemId ? { ...i, content: trimmed } : i))
+        };
+      })
+    }));
+
+    try {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: trimmed })
+      });
+      useBoardStore.getState().fetchBoard();
+    } catch (err) {
+      console.error('Failed to update checklist item content:', err);
+      fetchDetails();
+    }
+  };
+
+  // Save Checklist Item Due Date (Deadline)
+  const handleSaveChecklistItemDueDate = async (checklistId: string, itemId: string, newDueDate: string | null) => {
+    setActiveChecklistDuePickerId(null);
+
+    setCardDetails((prev: any) => ({
+      ...prev,
+      checklists: prev.checklists?.map((c: any) => {
+        if (c.id !== checklistId) return c;
+        return {
+          ...c,
+          items: c.items?.map((i: any) => (i.id === itemId ? { ...i, dueDate: newDueDate } : i))
+        };
+      })
+    }));
+
+    try {
+      await fetch(`/api/cards/${selectedCardId}/checklists/${checklistId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDate: newDueDate })
+      });
+      useBoardStore.getState().fetchBoard();
+    } catch (err) {
+      console.error('Failed to update checklist item due date:', err);
+      fetchDetails();
+    }
   };
 
   // Google Drive Attachment Handler
@@ -427,6 +575,36 @@ export const CardDetailModal: React.FC = () => {
     const refSnippet = `[📎 ${att.fileName}](att:${att.id}) `;
     setCommentText((prev) => (prev ? `${prev} ${refSnippet}` : refSnippet));
     setShowFileRefMenu(false);
+    setActiveTab('comments');
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Insert Selected Photo References into Comment Box
+  const handleInsertSelectedPhotos = () => {
+    if (selectedRefPhotos.length === 0) return;
+    const insertTexts = selectedRefPhotos.map((attId) => {
+      const found = cardDetails?.attachments?.find((a: any) => a.id === attId);
+      if (found) {
+        return `[🖼️ ${found.fileName}](att:${found.id})`;
+      }
+      return '';
+    }).filter(Boolean);
+
+    setCommentText((prev) => (prev ? `${prev} ${insertTexts.join(' ')} ` : `${insertTexts.join(' ')} `));
+    setSelectedRefPhotos([]);
+    setShowPhotoRefMenu(false);
+    setActiveTab('comments');
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Reference single photo from Photos tab in Comment Box
+  const handleRefPhotoInComment = (photo: any) => {
+    const textToInsert = `[🖼️ ${photo.fileName}](att:${photo.id}) `;
+    setCommentText((prev) => (prev ? `${prev} ${textToInsert}` : textToInsert));
     setActiveTab('comments');
     setTimeout(() => {
       commentInputRef.current?.focus();
@@ -708,6 +886,56 @@ export const CardDetailModal: React.FC = () => {
     return <FileText size={18} className="text-neutral-500" />;
   };
 
+  const getDocBadgeStyle = (fileName: string, fileType?: string) => {
+    const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')).toLowerCase() : '';
+    if (ext === '.pdf' || fileType?.includes('pdf')) {
+      return {
+        tag: 'PDF',
+        className: 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900 hover:bg-rose-100',
+        badgeClass: 'bg-rose-600 text-white',
+        icon: <FileText size={12} className="text-rose-600 dark:text-rose-400" />
+      };
+    }
+    if (['.doc', '.docx'].includes(ext) || fileType?.includes('word') || fileType?.includes('doc')) {
+      return {
+        tag: 'DOC',
+        className: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900 hover:bg-blue-100',
+        badgeClass: 'bg-blue-600 text-white',
+        icon: <FileText size={12} className="text-blue-600 dark:text-blue-400" />
+      };
+    }
+    if (['.xls', '.xlsx', '.csv'].includes(ext) || fileType?.includes('sheet') || fileType?.includes('excel')) {
+      return {
+        tag: 'XLS',
+        className: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900 hover:bg-emerald-100',
+        badgeClass: 'bg-emerald-600 text-white',
+        icon: <FileSpreadsheet size={12} className="text-emerald-600 dark:text-emerald-400" />
+      };
+    }
+    if (['.ppt', '.pptx'].includes(ext) || fileType?.includes('presentation') || fileType?.includes('powerpoint')) {
+      return {
+        tag: 'PPT',
+        className: 'bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-900 hover:bg-orange-100',
+        badgeClass: 'bg-orange-600 text-white',
+        icon: <Layers size={12} className="text-orange-600 dark:text-orange-400" />
+      };
+    }
+    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext) || fileType?.includes('zip') || fileType?.includes('compressed')) {
+      return {
+        tag: 'ZIP',
+        className: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900 hover:bg-amber-100',
+        badgeClass: 'bg-amber-600 text-white',
+        icon: <FileArchive size={12} className="text-amber-600 dark:text-amber-400" />
+      };
+    }
+    return {
+      tag: 'FILE',
+      className: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-200',
+      badgeClass: 'bg-neutral-600 text-white',
+      icon: <Paperclip size={12} className="text-neutral-500" />
+    };
+  };
+
   // Helper to render comment text with clickable links and Rich Preview Cards
   const renderCommentContent = (content: string) => {
     // 1. Sanitize any accidentally pasted raw base64 data URLs in comments
@@ -749,11 +977,13 @@ export const CardDetailModal: React.FC = () => {
         let fileUrl = target;
         let displayName = label.replace(/^[📎📄📊📽️📁]\s*/, '');
         let isImage = false;
+        let matchedAtt: any = null;
 
         if (target.startsWith('att:')) {
           const attId = target.slice(4);
           fileUrl = `/api/attachments/${attId}/view`;
           const foundAtt = cardDetails.attachments?.find((a: any) => a.id === attId);
+          matchedAtt = foundAtt;
           if (foundAtt) {
             displayName = foundAtt.fileName;
             isImage = Boolean(foundAtt.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(foundAtt.fileName));
@@ -763,11 +993,13 @@ export const CardDetailModal: React.FC = () => {
         } else if (target.startsWith('data:image') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(displayName) || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(target)) {
           isImage = true;
           const foundAtt = cardDetails.attachments?.find((a: any) => a.fileName === displayName || a.fileUrl === target);
+          matchedAtt = foundAtt;
           if (foundAtt) {
             fileUrl = `/api/attachments/${foundAtt.id}/view`;
           }
         } else if (cardDetails.attachments) {
           const foundAtt = cardDetails.attachments.find((a: any) => a.fileName === displayName || a.fileUrl === target);
+          matchedAtt = foundAtt;
           if (foundAtt) {
             fileUrl = `/api/attachments/${foundAtt.id}/view`;
             isImage = Boolean(foundAtt.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(foundAtt.fileName));
@@ -778,6 +1010,8 @@ export const CardDetailModal: React.FC = () => {
           detectedImages.push({ url: fileUrl, name: displayName });
         }
 
+        const badgeStyle = getDocBadgeStyle(displayName, matchedAtt?.fileType);
+
         textElements.push(
           <button
             key={`md-${match.index}`}
@@ -785,7 +1019,7 @@ export const CardDetailModal: React.FC = () => {
             onClick={(e) => {
               e.preventDefault();
               if (isImage) {
-                setLightboxImage(fileUrl);
+                openLightbox([fileUrl], 0);
               } else if (fileUrl.startsWith('data:')) {
                 const link = document.createElement('a');
                 link.href = fileUrl;
@@ -798,10 +1032,23 @@ export const CardDetailModal: React.FC = () => {
               }
             }}
             title={isImage ? `Click to view ${displayName}` : `Click to open ${displayName}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 mx-0.5 my-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg border border-blue-200/90 dark:border-blue-900/60 shadow-xs transition-all cursor-pointer"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 mx-0.5 my-0.5 text-xs font-semibold rounded-lg border shadow-2xs transition-all cursor-pointer ${
+              isImage 
+                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border-blue-200/90 dark:border-blue-900/60 hover:bg-blue-100'
+                : badgeStyle.className
+            }`}
           >
-            {isImage ? <ImageIcon size={12} className="shrink-0 text-blue-500" /> : <Paperclip size={12} className="shrink-0 text-neutral-500" />}
-            <span className="truncate max-w-[220px]">{displayName}</span>
+            {isImage ? (
+              <ImageIcon size={12} className="shrink-0 text-blue-500" />
+            ) : (
+              <>
+                <span className={`px-1 py-0.2 rounded text-[9px] font-extrabold tracking-wider ${badgeStyle.badgeClass}`}>
+                  {badgeStyle.tag}
+                </span>
+                {badgeStyle.icon}
+              </>
+            )}
+            <span className="truncate max-w-[200px]">{displayName}</span>
             {isImage ? <Maximize2 size={10} className="shrink-0 opacity-70" /> : <ExternalLink size={10} className="shrink-0 opacity-70" />}
           </button>
         );
@@ -843,28 +1090,49 @@ export const CardDetailModal: React.FC = () => {
           {textElements.length > 0 ? textElements : sanitized}
         </div>
 
-        {/* Render inline image previews for images referenced in comment */}
-        {detectedImages.length > 0 && (
+        {/* Render Dynamic Smart Image Layout for Images Referenced in Comment */}
+        {detectedImages.length === 1 && (
+          <div className="pt-1.5">
+            <div className="relative group inline-block">
+              <img
+                src={detectedImages[0].url}
+                alt={detectedImages[0].name}
+                onClick={() => openLightbox([detectedImages[0].url], 0)}
+                className="max-h-60 max-w-full rounded-2xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
+              />
+              <button
+                type="button"
+                onClick={() => openLightbox([detectedImages[0].url], 0)}
+                className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Maximize2 size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {detectedImages.length > 1 && (
           <div className="flex flex-wrap gap-2 pt-1.5">
-            {detectedImages.map((img, idx) => (
-              <div key={idx} className="relative group inline-block">
-                <img
-                  src={img.url}
-                  alt={img.name}
-                  onClick={() => setLightboxImage(img.url)}
-                  className="max-h-52 max-w-sm rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
-                />
-                <button
-                  type="button"
-                  onClick={() => setLightboxImage(img.url)}
-                  className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 hover:bg-black/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[11px] font-medium backdrop-blur-xs shadow"
-                  title="Zoom Image"
+            {detectedImages.slice(0, 5).map((img, idx) => {
+              const overflowCount = detectedImages.length - 4;
+              return (
+                <div
+                  key={idx}
+                  onMouseEnter={() => setHoveredPhotoPreview(img)}
+                  onMouseLeave={() => setHoveredPhotoPreview(null)}
+                  onClick={() => openLightbox(detectedImages.map((i) => i.url), idx)}
+                  className="relative w-18 h-18 sm:w-20 sm:h-20 aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 transition-all"
                 >
-                  <Maximize2 size={11} />
-                  <span>คลิกเพื่อดูรูป</span>
-                </button>
-              </div>
-            ))}
+                  <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                  {idx === 4 && overflowCount > 1 && (
+                    <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center text-white font-bold backdrop-blur-xs">
+                      <span className="text-sm leading-none">+{overflowCount}</span>
+                      <span className="text-[9px] text-neutral-300">รูปภาพ</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1141,49 +1409,178 @@ export const CardDetailModal: React.FC = () => {
 
                         {/* Checklist Items List */}
                         <div className="space-y-1.5 pt-1">
-                          {chk.items?.map((item: any) => (
-                            <div
-                              key={item.id}
-                              className="group flex items-center justify-between gap-2 p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-100 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all"
-                            >
-                              <label className="flex items-center gap-2.5 flex-1 cursor-pointer select-none min-w-0 mr-2">
-                                <input
-                                  type="checkbox"
-                                  checked={item.isCompleted}
-                                  onChange={() => handleToggleChecklistItem(chk.id, item.id, item.isCompleted)}
-                                  className="h-4 w-4 rounded border-neutral-300 text-neutral-900 dark:text-white focus:ring-0 cursor-pointer shrink-0"
-                                />
-                                <span
-                                  className={`text-xs truncate ${
-                                    item.isCompleted
-                                      ? 'line-through text-neutral-400 dark:text-neutral-500'
-                                      : 'text-neutral-800 dark:text-neutral-200'
-                                  }`}
-                                >
-                                  {item.content}
-                                </span>
-                              </label>
+                          {chk.items?.map((item: any) => {
+                            const isEditing = editingChecklistItemId === item.id;
+                            const hasDue = Boolean(item.dueDate);
+                            const isOverdue = hasDue && !item.isCompleted && isPast(new Date(item.dueDate)) && !isToday(new Date(item.dueDate));
+                            const isDueToday = hasDue && !item.isCompleted && isToday(new Date(item.dueDate));
 
-                              <div className="flex items-center gap-2 shrink-0">
-                                {/* Completed Timestamp Badge */}
-                                {item.isCompleted && item.completedAt && (
-                                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs">
-                                    <Clock size={10} />
-                                    <span>{format(new Date(item.completedAt), 'd MMM, HH:mm')}</span>
-                                  </span>
-                                )}
+                            return (
+                              <div
+                                key={item.id}
+                                className="group flex items-center justify-between gap-2 p-2 rounded-xl bg-white/70 dark:bg-neutral-900/70 border border-neutral-100 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all relative"
+                              >
+                                <div className="flex items-center gap-2.5 flex-1 select-none min-w-0 mr-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={item.isCompleted}
+                                    onChange={() => handleToggleChecklistItem(chk.id, item.id, item.isCompleted)}
+                                    className="h-4 w-4 rounded border-neutral-300 text-neutral-900 dark:text-white focus:ring-0 cursor-pointer shrink-0"
+                                  />
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1.5 flex-1">
+                                      <input
+                                        type="text"
+                                        autoFocus
+                                        value={editingChecklistItemText}
+                                        onChange={(e) => setEditingChecklistItemText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleSaveChecklistItemContent(chk.id, item.id, editingChecklistItemText);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingChecklistItemId(null);
+                                          }
+                                        }}
+                                        onBlur={() => handleSaveChecklistItemContent(chk.id, item.id, editingChecklistItemText)}
+                                        className="w-full text-xs px-2 py-1 rounded-lg border border-blue-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none"
+                                      />
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          handleSaveChecklistItemContent(chk.id, item.id, editingChecklistItemText);
+                                        }}
+                                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                                      >
+                                        <Check size={13} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <span
+                                        onClick={() => {
+                                          if (!item.isCompleted) {
+                                            setEditingChecklistItemId(item.id);
+                                            setEditingChecklistItemText(item.content);
+                                          }
+                                        }}
+                                        className={`text-xs truncate ${
+                                          item.isCompleted
+                                            ? 'line-through text-neutral-400 dark:text-neutral-500 cursor-default'
+                                            : 'text-neutral-800 dark:text-neutral-200 cursor-text hover:text-blue-600 dark:hover:text-blue-400'
+                                        }`}
+                                        title={item.isCompleted ? item.content : "Click to edit text"}
+                                      >
+                                        {item.content}
+                                      </span>
+                                      {!item.isCompleted && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingChecklistItemId(item.id);
+                                            setEditingChecklistItemText(item.content);
+                                          }}
+                                          className="opacity-0 group-hover:opacity-70 hover:opacity-100 p-0.5 text-neutral-400 hover:text-blue-500 transition-opacity"
+                                          title="Edit text"
+                                        >
+                                          <Pencil size={11} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteChecklistItem(chk.id, item.id)}
-                                  className="opacity-60 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
-                                  title="Remove item"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {/* Due Date Badge & Picker */}
+                                  <div className="relative">
+                                    {hasDue ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveChecklistDuePickerId(activeChecklistDuePickerId === item.id ? null : item.id)}
+                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-all ${
+                                          item.isCompleted
+                                            ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 border-neutral-200 dark:border-neutral-700'
+                                            : isOverdue
+                                            ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 animate-pulse'
+                                            : isDueToday
+                                            ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                            : 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900'
+                                        }`}
+                                        title="Change deadline"
+                                      >
+                                        <Calendar size={10} />
+                                        <span>{format(new Date(item.dueDate), 'd MMM')}</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveChecklistDuePickerId(activeChecklistDuePickerId === item.id ? null : item.id)}
+                                        className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded transition-all"
+                                        title="Add deadline"
+                                      >
+                                        <Calendar size={12} />
+                                      </button>
+                                    )}
+
+                                    {/* Date Picker Popover */}
+                                    {activeChecklistDuePickerId === item.id && (
+                                      <div 
+                                        className="absolute right-0 top-full mt-1.5 z-40 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-2.5 w-56 animate-in fade-in zoom-in-95 space-y-2"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className="flex items-center justify-between pb-1 border-b border-neutral-100 dark:border-neutral-800">
+                                          <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">กำหนดส่งงาน (Deadline)</span>
+                                          <button 
+                                            type="button"
+                                            onClick={() => setActiveChecklistDuePickerId(null)}
+                                            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                        <input
+                                          type="date"
+                                          defaultValue={item.dueDate ? format(new Date(item.dueDate), 'yyyy-MM-dd') : ''}
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              handleSaveChecklistItemDueDate(chk.id, item.id, new Date(e.target.value).toISOString());
+                                            }
+                                          }}
+                                          className="w-full text-xs p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+                                        />
+                                        {hasDue && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveChecklistItemDueDate(chk.id, item.id, null)}
+                                            className="w-full text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 py-1 rounded-lg transition-colors text-center"
+                                          >
+                                            ลบกำหนดส่ง
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Completed Timestamp Badge */}
+                                  {item.isCompleted && item.completedAt && (
+                                    <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs">
+                                      <Clock size={10} />
+                                      <span>{format(new Date(item.completedAt), 'd MMM, HH:mm')}</span>
+                                    </span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteChecklistItem(chk.id, item.id)}
+                                    className="opacity-60 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
+                                    title="Remove item"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
 
                         {/* Add Item Form */}
@@ -1237,11 +1634,11 @@ export const CardDetailModal: React.FC = () => {
 
               {/* Tabs for Comments / Attachments / Activity */}
               <div>
-                <div className="flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-2 mb-4">
+                <div className="flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-2 mb-4 overflow-x-auto">
                   <button
                     type="button"
                     onClick={() => setActiveTab('comments')}
-                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
+                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors shrink-0 ${
                       activeTab === 'comments'
                         ? 'text-neutral-900 dark:text-white'
                         : 'text-neutral-400 hover:text-neutral-600'
@@ -1256,15 +1653,31 @@ export const CardDetailModal: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => setActiveTab('photos')}
+                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors shrink-0 ${
+                      activeTab === 'photos'
+                        ? 'text-neutral-900 dark:text-white'
+                        : 'text-neutral-400 hover:text-neutral-600'
+                    }`}
+                  >
+                    <ImageIcon size={14} />
+                    Photos ({cardPhotos.length})
+                    {activeTab === 'photos' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white rounded-full -mb-2" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('attachments')}
-                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
+                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors shrink-0 ${
                       activeTab === 'attachments'
                         ? 'text-neutral-900 dark:text-white'
                         : 'text-neutral-400 hover:text-neutral-600'
                     }`}
                   >
                     <Paperclip size={14} />
-                    Files ({cardDetails.attachments?.length || 0})
+                    Files ({cardDocs.length})
                     {activeTab === 'attachments' && (
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900 dark:bg-white rounded-full -mb-2" />
                     )}
@@ -1273,7 +1686,7 @@ export const CardDetailModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab('activity')}
-                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors ${
+                    className={`flex items-center gap-1.5 text-xs font-semibold pb-1 relative transition-colors shrink-0 ${
                       activeTab === 'activity'
                         ? 'text-neutral-900 dark:text-white'
                         : 'text-neutral-400 hover:text-neutral-600'
@@ -1335,37 +1748,169 @@ export const CardDetailModal: React.FC = () => {
                         </span>
 
                         <div className="flex items-center gap-2 ml-auto">
-                          {/* Reference File Dropdown Trigger */}
-                          {cardDetails.attachments && cardDetails.attachments.length > 0 && (
+                          {/* Reference Photo Dropdown Trigger (with 1:1 Thumbnails & Multi-Select) */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPhotoRefMenu(!showPhotoRefMenu);
+                                setShowFileRefMenu(false);
+                                setShowEmojiPicker(false);
+                              }}
+                              title="Reference photos in comment (อ้างอิงรูปภาพในคอมเมนต์)"
+                              className={`px-2.5 py-1.5 rounded-xl transition-colors shrink-0 flex items-center gap-1.5 text-xs font-semibold border shadow-sm ${
+                                cardPhotos.length > 0
+                                  ? 'text-neutral-700 dark:text-neutral-200 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+                                  : 'text-neutral-400 hover:text-neutral-600 border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-50 dark:bg-neutral-900/50'
+                              }`}
+                            >
+                              <ImageIcon size={13} className="text-blue-500" />
+                              <span>Ref Photo</span>
+                              {cardPhotos.length > 0 && (
+                                <span className="px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded-full text-[10px] font-bold">
+                                  {cardPhotos.length}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Photo Ref Multi-Select Menu */}
+                            {showPhotoRefMenu && (
+                              <div className="absolute right-0 bottom-full mb-2 w-80 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-neutral-100 dark:border-neutral-800">
+                                  <p className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200">
+                                    เลือกรูปภาพอ้างอิง ({cardPhotos.length})
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => photoUploadInputRef.current?.click()}
+                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                  >
+                                    <Plus size={10} /> อัปโหลดใหม่
+                                  </button>
+                                </div>
+
+                                {cardPhotos.length > 0 ? (
+                                  <>
+                                    <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto p-1">
+                                      {cardPhotos.map((photo: any) => {
+                                        const isSelected = selectedRefPhotos.includes(photo.id);
+                                        const photoUrl = photo.fileUrl?.startsWith('data:') ? photo.fileUrl : `/api/attachments/${photo.id}/view`;
+
+                                        return (
+                                          <div
+                                            key={photo.id}
+                                            onClick={() => {
+                                              setSelectedRefPhotos((prev) =>
+                                                prev.includes(photo.id)
+                                                  ? prev.filter((id) => id !== photo.id)
+                                                  : [...prev, photo.id]
+                                              );
+                                            }}
+                                            onMouseEnter={() => setHoveredPhotoPreview({ url: photoUrl, name: photo.fileName })}
+                                            onMouseLeave={() => setHoveredPhotoPreview(null)}
+                                            className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all group ${
+                                              isSelected
+                                                ? 'border-blue-600 ring-2 ring-blue-500/40 shadow-sm'
+                                                : 'border-neutral-200 dark:border-neutral-700 hover:border-blue-400'
+                                            }`}
+                                          >
+                                            <img src={photoUrl} alt={photo.fileName} className="w-full h-full object-cover" />
+                                            {isSelected && (
+                                              <div className="absolute inset-0 bg-blue-600/30 flex items-center justify-center text-white">
+                                                <div className="bg-blue-600 rounded-full p-0.5 shadow">
+                                                  <Check size={12} />
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-neutral-100 dark:border-neutral-800">
+                                      <span className="text-[11px] text-neutral-500">
+                                        เลือก {selectedRefPhotos.length} รูป
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        {selectedRefPhotos.length > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedRefPhotos([])}
+                                            className="text-[11px] text-neutral-400 hover:text-neutral-600 px-2 py-1"
+                                          >
+                                            ล้าง
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          disabled={selectedRefPhotos.length === 0}
+                                          onClick={handleInsertSelectedPhotos}
+                                          className="text-xs font-semibold px-3 py-1.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+                                        >
+                                          แทรก {selectedRefPhotos.length > 0 ? `${selectedRefPhotos.length} รูป` : ''}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="text-center py-6 space-y-2">
+                                    <p className="text-xs text-neutral-400">ยังไม่มีรูปภาพใน Gallery ของการ์ดนี้</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => photoUploadInputRef.current?.click()}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400 transition-colors"
+                                    >
+                                      <Plus size={12} /> อัปโหลดรูปภาพ
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Reference File Dropdown Trigger (Filtered Non-Image Documents) */}
+                          {cardDocs.length > 0 && (
                             <div className="relative">
                               <button
                                 type="button"
-                                onClick={() => setShowFileRefMenu(!showFileRefMenu)}
+                                onClick={() => {
+                                  setShowFileRefMenu(!showFileRefMenu);
+                                  setShowPhotoRefMenu(false);
+                                  setShowEmojiPicker(false);
+                                }}
                                 title="Reference an uploaded file / Google Drive document in comment"
                                 className="px-2.5 py-1.5 text-neutral-600 dark:text-neutral-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors shrink-0 flex items-center gap-1.5 text-xs font-semibold border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm"
                               >
-                                <Paperclip size={13} className="text-blue-500" />
+                                <Paperclip size={13} className="text-neutral-500" />
                                 <span>Ref File</span>
+                                <span className="px-1.5 py-0.2 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-full text-[10px] font-bold">
+                                  {cardDocs.length}
+                                </span>
                               </button>
 
                               {/* File Ref Menu */}
                               {showFileRefMenu && (
-                                <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1 mb-1">
                                     Select file to reference:
                                   </p>
                                   <div className="max-h-48 overflow-y-auto space-y-1">
-                                    {cardDetails.attachments.map((att: any) => (
-                                      <button
-                                        key={att.id}
-                                        type="button"
-                                        onClick={() => handleInsertFileRef(att)}
-                                        className="w-full text-left p-1.5 rounded-lg text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition-colors truncate"
-                                      >
-                                        <div className="shrink-0">{getFileIcon(att.fileType)}</div>
-                                        <span className="truncate text-neutral-800 dark:text-neutral-200">{att.fileName}</span>
-                                      </button>
-                                    ))}
+                                    {cardDocs.map((att: any) => {
+                                      const badge = getDocBadgeStyle(att.fileName, att.fileType);
+                                      return (
+                                        <button
+                                          key={att.id}
+                                          type="button"
+                                          onClick={() => handleInsertFileRef(att)}
+                                          className="w-full text-left p-1.5 rounded-lg text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition-colors truncate"
+                                        >
+                                          <span className={`px-1 py-0.2 rounded text-[9px] font-extrabold tracking-wider ${badge.badgeClass}`}>
+                                            {badge.tag}
+                                          </span>
+                                          <span className="truncate text-neutral-800 dark:text-neutral-200 flex-1">{att.fileName}</span>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
@@ -1572,12 +2117,12 @@ export const CardDetailModal: React.FC = () => {
                                       <img
                                         src={c.imageUrl}
                                         alt="Comment attachment"
-                                        onClick={() => setLightboxImage(c.imageUrl)}
+                                        onClick={() => openLightbox([c.imageUrl], 0)}
                                         className="max-h-48 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity"
                                       />
                                       <button
                                         type="button"
-                                        onClick={() => setLightboxImage(c.imageUrl)}
+                                        onClick={() => openLightbox([c.imageUrl], 0)}
                                         className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                                       >
                                         <Maximize2 size={12} />
@@ -1594,7 +2139,132 @@ export const CardDetailModal: React.FC = () => {
                   </div>
                 )}
 
-                {/* Tab 2: Document & Google Drive Attachments */}
+                {/* Tab 2: Photos Gallery (1:1 Square Grid with Lightbox Carousel) */}
+                {activeTab === 'photos' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-neutral-200/80 dark:border-neutral-800 flex-wrap gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
+                          Photos Gallery ({cardPhotos.length})
+                        </h4>
+                        <p className="text-[11px] text-neutral-400">
+                          รูปภาพที่อัปโหลดที่นี่หรือส่งในคอมเมนต์จะถูกจัดเก็บไว้ใน Gallery อัตโนมัติ
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={photoUploadInputRef}
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => photoUploadInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+                        >
+                          <ImageIcon size={13} /> อัปโหลดรูปภาพ
+                        </button>
+                      </div>
+                    </div>
+
+                    {cardPhotos.length > 0 ? (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        {cardPhotos.map((photo: any, pIdx: number) => {
+                          const pUrl = photo.fileUrl?.startsWith('data:') ? photo.fileUrl : `/api/attachments/${photo.id}/view`;
+                          const allPhotoUrls = cardPhotos.map((p: any) =>
+                            p.fileUrl?.startsWith('data:') ? p.fileUrl : `/api/attachments/${p.id}/view`
+                          );
+
+                          return (
+                            <div
+                              key={photo.id}
+                              className="group relative aspect-square rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 shadow-2xs hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                              onClick={() => openLightbox(allPhotoUrls, pIdx)}
+                            >
+                              <img
+                                src={pUrl}
+                                alt={photo.fileName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+
+                              {/* Hover Action Overlay */}
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRefPhotoInComment(photo);
+                                    }}
+                                    title="Ref in Comment (อ้างอิงในแชท)"
+                                    className="p-1.5 bg-black/60 hover:bg-black/90 text-white rounded-lg transition-colors"
+                                  >
+                                    <AtSign size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (photo.fileUrl?.startsWith('data:')) {
+                                        const link = document.createElement('a');
+                                        link.href = photo.fileUrl;
+                                        link.download = photo.fileName;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      } else {
+                                        window.open(`/api/attachments/${photo.id}/download`, '_blank');
+                                      }
+                                    }}
+                                    title="Download Photo"
+                                    className="p-1.5 bg-black/60 hover:bg-black/90 text-white rounded-lg transition-colors"
+                                  >
+                                    <Download size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAttachmentToDelete(photo.id);
+                                    }}
+                                    title="Delete Photo"
+                                    className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition-colors"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+
+                                <div className="text-white">
+                                  <p className="text-[10px] font-semibold truncate leading-tight">{photo.fileName}</p>
+                                  <p className="text-[9px] text-neutral-300">
+                                    {photo.fileSize > 0 ? formatFileSize(photo.fileSize) : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-2">
+                        <ImageIcon size={32} className="mx-auto text-neutral-400" />
+                        <p className="text-xs text-neutral-500">ยังไม่มีรูปภาพในการ์ดนี้</p>
+                        <button
+                          type="button"
+                          onClick={() => photoUploadInputRef.current?.click()}
+                          className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                        >
+                          อัปโหลดรูปภาพแรก
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 3: Document & Google Drive Attachments */}
                 {activeTab === 'attachments' && (
                   <div className="space-y-4">
                     {/* Upload / Google Drive buttons */}
@@ -1634,9 +2304,10 @@ export const CardDetailModal: React.FC = () => {
 
                     {/* Attachment List */}
                     <div className="space-y-2">
-                      {cardDetails.attachments && cardDetails.attachments.length > 0 ? (
-                        cardDetails.attachments.map((att: any) => {
+                      {cardDocs.length > 0 ? (
+                        cardDocs.map((att: any) => {
                           const isDrive = isGoogleDriveAttachment(att);
+                          const docBadge = getDocBadgeStyle(att.fileName, att.fileType);
 
                           return (
                             <div
@@ -1648,11 +2319,14 @@ export const CardDetailModal: React.FC = () => {
                               }`}
                             >
                               <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
-                                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-sm">
-                                  {getFileIcon(att.fileType)}
+                                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-sm shrink-0">
+                                  {docBadge.icon}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-1.5">
+                                    <span className={`px-1 py-0.2 rounded text-[9px] font-extrabold tracking-wider ${docBadge.badgeClass}`}>
+                                      {docBadge.tag}
+                                    </span>
                                     <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
                                       {att.fileName}
                                     </h5>
@@ -1693,16 +2367,6 @@ export const CardDetailModal: React.FC = () => {
                                   </a>
                                 ) : (
                                   <div className="flex items-center gap-1">
-                                    {(att.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(att.fileName)) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setLightboxImage(att.fileUrl?.startsWith('data:') ? att.fileUrl : `/api/attachments/${att.id}/view`)}
-                                        className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
-                                        title="View / Preview Image"
-                                      >
-                                        <Eye size={15} />
-                                      </button>
-                                    )}
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1739,7 +2403,7 @@ export const CardDetailModal: React.FC = () => {
                         })
                       ) : (
                         <div className="text-center py-8 text-neutral-400 text-xs">
-                          No file attachments uploaded yet.
+                          ยังไม่มีไฟล์เอกสารที่อัปโหลดในการ์ดนี้
                         </div>
                       )}
                     </div>
@@ -2316,53 +2980,101 @@ export const CardDetailModal: React.FC = () => {
         </div>
       )}
 
-      {/* Lightbox Zoom Modal */}
+      {/* Lightbox Zoom Modal (Carousel with Prev/Next & Keyboard Arrows) */}
       {lightboxImage && (
         <div
           onClick={() => setLightboxImage(null)}
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-100"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-100 select-none"
         >
-          <div className="relative max-w-4xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
             <img
               src={lightboxImage}
               alt="Zoomed attachment"
-              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain mx-auto"
+              className="max-h-[80vh] max-w-full rounded-2xl shadow-2xl object-contain mx-auto transition-transform"
             />
-            <div className="absolute -top-3 -right-3 flex items-center gap-2">
+
+            {/* Prev / Next buttons if multiple images */}
+            {lightboxImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = lightboxIndex > 0 ? lightboxIndex - 1 : lightboxImages.length - 1;
+                    setLightboxIndex(nextIdx);
+                    setLightboxImage(lightboxImages[nextIdx]);
+                  }}
+                  className="absolute left-2 sm:-left-12 top-1/2 -translate-y-1/2 p-2.5 bg-black/60 hover:bg-black/90 text-white rounded-full border border-white/20 shadow-xl transition-all cursor-pointer"
+                  title="Previous image (Left Arrow ◀)"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = lightboxIndex < lightboxImages.length - 1 ? lightboxIndex + 1 : 0;
+                    setLightboxIndex(nextIdx);
+                    setLightboxImage(lightboxImages[nextIdx]);
+                  }}
+                  className="absolute right-2 sm:-right-12 top-1/2 -translate-y-1/2 p-2.5 bg-black/60 hover:bg-black/90 text-white rounded-full border border-white/20 shadow-xl transition-all cursor-pointer"
+                  title="Next image (Right Arrow ▶)"
+                >
+                  <ChevronRight size={22} />
+                </button>
+              </>
+            )}
+
+            {/* Bottom bar indicator & controls */}
+            <div className="mt-3 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 text-white text-xs shadow-lg">
+              {lightboxImages.length > 1 && (
+                <span className="font-semibold text-neutral-300">
+                  {lightboxIndex + 1} / {lightboxImages.length}
+                </span>
+              )}
+              {lightboxImages.length > 1 && <span className="text-neutral-600">|</span>}
               <a
                 href={lightboxImage}
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow"
+                className="p-1 hover:text-blue-400 transition-colors"
                 title="Open in new tab"
               >
-                <ExternalLink size={15} />
+                <ExternalLink size={14} />
               </a>
               <button
                 type="button"
                 onClick={() => {
                   const link = document.createElement('a');
                   link.href = lightboxImage;
-                  link.download = 'attachment-image.jpg';
+                  link.download = `photo-${Date.now()}.jpg`;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
                 }}
-                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow cursor-pointer"
+                className="p-1 hover:text-blue-400 transition-colors cursor-pointer"
                 title="Download image"
               >
-                <Download size={15} />
+                <Download size={14} />
               </button>
               <button
                 type="button"
                 onClick={() => setLightboxImage(null)}
-                className="p-2 bg-neutral-900/90 text-white rounded-full border border-neutral-700 hover:bg-neutral-800 shadow cursor-pointer"
-                title="Close"
+                className="p-1 hover:text-rose-400 transition-colors cursor-pointer"
+                title="Close (Esc)"
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Hover Photo Preview for thumbnails */}
+      {hoveredPhotoPreview && (
+        <div className="fixed pointer-events-none z-60 bottom-16 right-16 p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 animate-in fade-in zoom-in-95 max-w-xs">
+          <img src={hoveredPhotoPreview.url} alt={hoveredPhotoPreview.name} className="max-h-56 max-w-full rounded-xl object-contain mx-auto" />
+          <p className="text-[11px] font-bold text-neutral-700 dark:text-neutral-200 text-center truncate mt-1.5">
+            {hoveredPhotoPreview.name}
+          </p>
         </div>
       )}
 

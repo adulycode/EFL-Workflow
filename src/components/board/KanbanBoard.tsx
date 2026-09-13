@@ -77,13 +77,14 @@ export const KanbanBoard: React.FC = () => {
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, []);
+  }, [board?.id]);
 
   // Drag-to-Scroll on empty space (Click & hold background to pan/scroll horizontally)
   const isPanningRef = useRef(false);
   const panStartXRef = useRef(0);
   const scrollLeftStartRef = useRef(0);
   const hasMovedRef = useRef(false);
+  const momentumFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = boardMainRef.current;
@@ -96,7 +97,7 @@ export const KanbanBoard: React.FC = () => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // Ignore if clicking interactive elements, inputs, buttons, or cards
+      // Ignore if clicking interactive elements, inputs, buttons, cards, or custom non-pan triggers
       if (
         target.closest(
           'button, input, textarea, a, select, [role="button"], [data-kanban-card="true"], [data-no-pan="true"]'
@@ -105,34 +106,80 @@ export const KanbanBoard: React.FC = () => {
         return;
       }
 
+      // Cancel any running momentum
+      if (momentumFrameRef.current) {
+        cancelAnimationFrame(momentumFrameRef.current);
+        momentumFrameRef.current = null;
+      }
+
       isPanningRef.current = true;
       hasMovedRef.current = false;
-      panStartXRef.current = e.pageX;
+      panStartXRef.current = e.clientX;
       scrollLeftStartRef.current = el.scrollLeft;
 
-      document.body.style.cursor = 'grabbing';
-      document.body.style.userSelect = 'none';
+      // Prevent native browser text selection and HTML5 dragstart
+      e.preventDefault();
+
+      let lastX = e.clientX;
+      let lastTime = performance.now();
+      let velocityX = 0;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         if (!isPanningRef.current) return;
-        const deltaX = moveEvent.pageX - panStartXRef.current;
-        if (Math.abs(deltaX) > 4) {
-          hasMovedRef.current = true;
+
+        // If mouse button was released outside the window
+        if (moveEvent.buttons === 0) {
+          handleMouseUp();
+          return;
         }
+
+        const deltaX = moveEvent.clientX - panStartXRef.current;
+        if (Math.abs(deltaX) > 3) {
+          hasMovedRef.current = true;
+          moveEvent.preventDefault();
+          document.body.style.cursor = 'grabbing';
+          document.body.style.userSelect = 'none';
+        }
+
         el.scrollLeft = scrollLeftStartRef.current - deltaX;
+
+        // Track velocity for inertia release
+        const now = performance.now();
+        const dt = now - lastTime;
+        if (dt > 0) {
+          velocityX = (moveEvent.clientX - lastX) / dt;
+        }
+        lastX = moveEvent.clientX;
+        lastTime = now;
       };
 
       const handleMouseUp = () => {
         if (!isPanningRef.current) return;
         isPanningRef.current = false;
+
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
+
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('blur', handleMouseUp);
+
+        // Smooth momentum scroll decay
+        if (hasMovedRef.current && Math.abs(velocityX) > 0.15) {
+          let momentum = -velocityX * 16;
+          const decay = () => {
+            if (Math.abs(momentum) < 0.5 || isPanningRef.current) return;
+            el.scrollLeft += momentum;
+            momentum *= 0.92;
+            momentumFrameRef.current = requestAnimationFrame(decay);
+          };
+          momentumFrameRef.current = requestAnimationFrame(decay);
+        }
       };
 
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('blur', handleMouseUp);
     };
 
     // Suppress accidental click if mouse moved during drag
@@ -148,10 +195,14 @@ export const KanbanBoard: React.FC = () => {
     el.addEventListener('click', handleClickCapture, true);
 
     return () => {
+      if (momentumFrameRef.current) {
+        cancelAnimationFrame(momentumFrameRef.current);
+        momentumFrameRef.current = null;
+      }
       el.removeEventListener('mousedown', handleMouseDown);
       el.removeEventListener('click', handleClickCapture, true);
     };
-  }, []);
+  }, [board?.id]);
 
   // Require deliberate movement on desktop and touch-hold on mobile/tablets
   const sensors = useSensors(
@@ -331,7 +382,7 @@ export const KanbanBoard: React.FC = () => {
     >
       <main 
         ref={boardMainRef}
-        className={`flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden p-6 select-none relative h-full transition-all duration-300 cursor-grab ${bgClass}`}
+        className={`flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden p-6 select-none relative h-full transition-colors duration-300 cursor-grab ${bgClass}`}
         style={bgStyle}
       >
         <div className="relative z-10 flex gap-6 items-start h-full pb-2 min-w-max">

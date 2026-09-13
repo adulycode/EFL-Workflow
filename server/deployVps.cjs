@@ -9,6 +9,7 @@ conn.on('ready', () => {
     'git reset --hard origin/main',
     'docker compose build efl-workflow-app',
     'docker compose up -d efl-workflow-app',
+    'docker compose exec -T efl-workflow-app npx prisma db push',
     'sleep 3',
     'curl -I http://localhost:3010'
   ].join(' && ');

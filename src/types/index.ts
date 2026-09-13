@@ -93,6 +93,7 @@ export interface Comment {
   content: string;
   imageUrl?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ActivityLog {

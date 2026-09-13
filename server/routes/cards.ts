@@ -657,10 +657,13 @@ router.post('/:id/comments', async (req, res) => {
 router.patch('/:id/comments/:commentId', async (req, res) => {
   try {
     const { id, commentId } = req.params;
-    const { content, userId } = req.body;
+    const { content, userId, imageUrls, imageUrl } = req.body;
 
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Comment content cannot be empty' });
+    const hasText = typeof content === 'string' && content.trim().length > 0;
+    const hasImages = (Array.isArray(imageUrls) && imageUrls.length > 0) || (typeof imageUrl === 'string' && imageUrl.trim().length > 0);
+
+    if (!hasText && !hasImages && imageUrls === undefined && imageUrl === undefined) {
+      return res.status(400).json({ error: 'Comment must have either text or image' });
     }
 
     const existingComment = await prisma.comment.findUnique({
@@ -682,9 +685,62 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
       }
     }
 
+    const updateData: any = {
+      content: (content || '').trim()
+    };
+
+    // If images were explicitly provided in request body
+    if (imageUrls !== undefined || imageUrl !== undefined) {
+      const rawImages: string[] = Array.isArray(imageUrls)
+        ? imageUrls.filter((u: any) => typeof u === 'string' && u.trim().length > 0)
+        : (imageUrl ? [imageUrl] : []);
+      const finalImages = rawImages.slice(0, 5);
+
+      if (finalImages.length === 0) {
+        updateData.imageUrl = null;
+      } else if (finalImages.length === 1) {
+        updateData.imageUrl = finalImages[0];
+      } else {
+        updateData.imageUrl = JSON.stringify(finalImages);
+      }
+
+      // Check if any brand new images were added and sync them to Attachments
+      const existingRaw: string[] = (() => {
+        if (!existingComment.imageUrl) return [];
+        try {
+          if (existingComment.imageUrl.startsWith('[')) {
+            const parsed = JSON.parse(existingComment.imageUrl);
+            return Array.isArray(parsed) ? parsed : [existingComment.imageUrl];
+          }
+        } catch {}
+        return [existingComment.imageUrl];
+      })();
+
+      const brandNewImages = finalImages.filter((img) => !existingRaw.includes(img));
+      for (let i = 0; i < brandNewImages.length; i++) {
+        const img = brandNewImages[i];
+        try {
+          const isPng = img.startsWith('data:image/png');
+          const ext = isPng ? 'png' : 'jpg';
+          const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
+          await prisma.attachment.create({
+            data: {
+              cardId: id,
+              fileName: `photo-${dateTag}-edit-${i + 1}.${ext}`,
+              fileUrl: img,
+              fileType: `image/${ext}`,
+              fileSize: Math.round(img.length * 0.75)
+            }
+          });
+        } catch (syncErr) {
+          console.error('Failed to sync edited comment photo to attachments:', syncErr);
+        }
+      }
+    }
+
     const updated = await prisma.comment.update({
       where: { id: commentId },
-      data: { content: content.trim() },
+      data: updateData,
       include: { user: true }
     });
 
@@ -694,7 +750,10 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
           cardId: id,
           userId,
           actionType: 'EDITED_COMMENT',
-          details: { preview: (content || '').slice(0, 50) }
+          details: {
+            preview: (content || '').slice(0, 50),
+            hasImage: !!updated.imageUrl
+          }
         }
       });
     }

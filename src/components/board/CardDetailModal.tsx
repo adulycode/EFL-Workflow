@@ -145,8 +145,10 @@ export const CardDetailModal: React.FC = () => {
   // Comment Editing and Deleting State
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState('');
+  const [editingCommentImages, setEditingCommentImages] = useState<string[]>([]);
   const [isSavingCommentEdit, setIsSavingCommentEdit] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const editCommentFileInputRef = useRef<HTMLInputElement>(null);
 
   // Notion-Style Features State
   const [showCardIconPicker, setShowCardIconPicker] = useState(false);
@@ -767,33 +769,106 @@ export const CardDetailModal: React.FC = () => {
     fetchDetails();
   };
 
+  const handleEditCommentImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const availableSlots = 5 - editingCommentImages.length;
+    if (availableSlots <= 0) {
+      alert('สามารถแนบรูปภาพในคอมเมนต์ได้สูงสุด 5 รูป');
+      e.target.value = '';
+      return;
+    }
+
+    const filesToProcess = Array.from(files).slice(0, availableSlots);
+    if (files.length > availableSlots) {
+      alert(`แนบได้สูงสุด 5 รูป (จะเลือก ${filesToProcess.length} รูปแรก)`);
+    }
+
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.msi', '.dll', '.scr'];
+
+    filesToProcess.forEach((file) => {
+      const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
+      if (dangerousExtensions.includes(fileExt)) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result) {
+          setEditingCommentImages((prev) => {
+            if (prev.length >= 5) return prev;
+            return [...prev, reader.result as string];
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = '';
+  };
+
+  const handleRemoveEditCommentImage = (index: number) => {
+    setEditingCommentImages((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
   const handleStartEditComment = (c: any) => {
     setEditingCommentId(c.id);
     setEditingCommentText(c.content || '');
+    let imgs: string[] = [];
+    if (c.imageUrl) {
+      if (c.imageUrl.startsWith('[') && c.imageUrl.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(c.imageUrl);
+          if (Array.isArray(parsed)) imgs = parsed;
+        } catch {}
+      }
+      if (imgs.length === 0) imgs = [c.imageUrl];
+    }
+    setEditingCommentImages(imgs);
   };
 
   const handleCancelEditComment = () => {
     setEditingCommentId(null);
     setEditingCommentText('');
+    setEditingCommentImages([]);
   };
 
   const handleSaveEditComment = async (commentId: string) => {
-    if (!editingCommentText.trim()) return;
+    if (!editingCommentText.trim() && editingCommentImages.length === 0) return;
     setIsSavingCommentEdit(true);
-    const success = await updateComment(selectedCardId, commentId, editingCommentText.trim(), currentUser?.id);
+    const success = await updateComment(
+      selectedCardId,
+      commentId,
+      editingCommentText.trim(),
+      currentUser?.id,
+      editingCommentImages
+    );
     setIsSavingCommentEdit(false);
     if (success) {
+      const storedImageUrl = editingCommentImages.length === 0
+        ? null
+        : editingCommentImages.length === 1
+        ? editingCommentImages[0]
+        : JSON.stringify(editingCommentImages);
+
       setCardDetails((prev: any) => {
         if (!prev) return prev;
         return {
           ...prev,
           comments: prev.comments?.map((c: any) =>
-            c.id === commentId ? { ...c, content: editingCommentText.trim(), updatedAt: new Date().toISOString() } : c
+            c.id === commentId
+              ? {
+                  ...c,
+                  content: editingCommentText.trim(),
+                  imageUrl: storedImageUrl,
+                  updatedAt: new Date().toISOString()
+                }
+              : c
           )
         };
       });
       setEditingCommentId(null);
       setEditingCommentText('');
+      setEditingCommentImages([]);
     }
   };
 
@@ -2269,6 +2344,38 @@ export const CardDetailModal: React.FC = () => {
                                 <textarea
                                   value={editingCommentText}
                                   onChange={(e) => setEditingCommentText(e.target.value)}
+                                  onPaste={(e) => {
+                                    const items = e.clipboardData.items;
+                                    const imageItems: DataTransferItem[] = [];
+                                    for (let i = 0; i < items.length; i++) {
+                                      if (items[i].type.indexOf('image') !== -1) {
+                                        imageItems.push(items[i]);
+                                      }
+                                    }
+                                    if (imageItems.length === 0) return;
+
+                                    const availableSlots = 5 - editingCommentImages.length;
+                                    if (availableSlots <= 0) {
+                                      alert('สามารถแนบรูปภาพในคอมเมนต์ได้สูงสุด 5 รูป');
+                                      return;
+                                    }
+
+                                    imageItems.slice(0, availableSlots).forEach((item) => {
+                                      const blob = item.getAsFile();
+                                      if (blob) {
+                                        const reader = new FileReader();
+                                        reader.onload = () => {
+                                          if (reader.result) {
+                                            setEditingCommentImages((prev) => {
+                                              if (prev.length >= 5) return prev;
+                                              return [...prev, reader.result as string];
+                                            });
+                                          }
+                                        };
+                                        reader.readAsDataURL(blob);
+                                      }
+                                    });
+                                  }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                                       e.preventDefault();
@@ -2281,10 +2388,65 @@ export const CardDetailModal: React.FC = () => {
                                   autoFocus
                                   rows={3}
                                   className="w-full text-xs p-2.5 rounded-xl border border-emerald-500/50 dark:border-emerald-500/50 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 shadow-inner resize-none"
-                                  placeholder="แก้ไขข้อความคอมเมนต์..."
+                                  placeholder="แก้ไขข้อความคอมเมนต์... (สามารถกด Ctrl+V เพื่อวางรูปภาพได้)"
                                 />
+
+                                {/* Hidden file input for edit comment */}
+                                <input
+                                  ref={editCommentFileInputRef}
+                                  type="file"
+                                  multiple
+                                  accept="image/*"
+                                  onChange={handleEditCommentImageFileChange}
+                                  className="hidden"
+                                />
+
+                                {/* Images in Editing Mode */}
+                                {editingCommentImages.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 items-center p-2 rounded-xl bg-neutral-100/90 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800">
+                                    {editingCommentImages.map((imgUrl, imgIdx) => (
+                                      <div key={imgIdx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-neutral-300 dark:border-neutral-700 bg-neutral-900 shrink-0 shadow-xs">
+                                        <img src={imgUrl} alt={`Edit preview ${imgIdx}`} className="w-full h-full object-cover" />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveEditCommentImage(imgIdx)}
+                                          title="ลบรูปนี้ออกจากคอมเมนต์"
+                                          className="absolute top-1 right-1 p-0.5 rounded-full bg-black/75 hover:bg-rose-600 text-white transition-colors"
+                                        >
+                                          <X size={11} />
+                                        </button>
+                                      </div>
+                                    ))}
+
+                                    {editingCommentImages.length < 5 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => editCommentFileInputRef.current?.click()}
+                                        className="w-14 h-14 rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 flex flex-col items-center justify-center text-neutral-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shrink-0"
+                                        title="เพิ่มรูปภาพ (สูงสุด 5 รูป)"
+                                      >
+                                        <Plus size={15} />
+                                        <span className="text-[9px] font-semibold">เพิ่มรูป</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Action Bar */}
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] text-neutral-400">Ctrl+Enter เพื่อบันทึก, Esc เพื่อยกเลิก</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={editingCommentImages.length >= 5}
+                                      onClick={() => editCommentFileInputRef.current?.click()}
+                                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-40"
+                                      title={`แนบรูปภาพเพิ่ม (${editingCommentImages.length}/5)`}
+                                    >
+                                      <ImageIcon size={13} />
+                                      <span>{editingCommentImages.length > 0 ? `รูปภาพ (${editingCommentImages.length}/5)` : 'แนบรูปภาพ'}</span>
+                                    </button>
+                                    <span className="text-[10px] text-neutral-400 hidden sm:inline">Ctrl+Enter เพื่อบันทึก, Esc เพื่อยกเลิก</span>
+                                  </div>
                                   <div className="flex items-center gap-1.5">
                                     <button
                                       type="button"
@@ -2295,7 +2457,7 @@ export const CardDetailModal: React.FC = () => {
                                     </button>
                                     <button
                                       type="button"
-                                      disabled={!editingCommentText.trim() || isSavingCommentEdit}
+                                      disabled={(!editingCommentText.trim() && editingCommentImages.length === 0) || isSavingCommentEdit}
                                       onClick={() => handleSaveEditComment(c.id)}
                                       className="flex items-center gap-1 px-3 py-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 transition-colors"
                                     >

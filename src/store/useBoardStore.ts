@@ -50,7 +50,7 @@ interface BoardState {
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;
   addComment: (cardId: string, content: string, imageUrl?: string | string[], userId?: string, imageUrls?: string[]) => Promise<void>;
-  updateComment: (cardId: string, commentId: string, content: string, userId?: string) => Promise<boolean>;
+  updateComment: (cardId: string, commentId: string, content: string, userId?: string, imageUrls?: string[]) => Promise<boolean>;
   deleteComment: (cardId: string, commentId: string, userId?: string) => Promise<boolean>;
 
   // Attachment Operations
@@ -446,12 +446,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  updateComment: async (cardId, commentId, content, userId) => {
+  updateComment: async (cardId, commentId, content, userId, imageUrls) => {
     try {
       const res = await fetch(`/api/cards/${cardId}/comments/${commentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, userId })
+        body: JSON.stringify({ content, userId, imageUrls })
       });
       if (res.ok) {
         get().fetchBoard();

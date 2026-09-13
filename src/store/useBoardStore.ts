@@ -49,7 +49,7 @@ interface BoardState {
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
   restoreCard: (cardId: string) => Promise<void>;
-  addComment: (cardId: string, content: string, imageUrl?: string, userId?: string) => Promise<void>;
+  addComment: (cardId: string, content: string, imageUrl?: string | string[], userId?: string, imageUrls?: string[]) => Promise<void>;
   updateComment: (cardId: string, commentId: string, content: string, userId?: string) => Promise<boolean>;
   deleteComment: (cardId: string, commentId: string, userId?: string) => Promise<boolean>;
 
@@ -424,12 +424,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  addComment: async (cardId, content, imageUrl, userId) => {
+  addComment: async (cardId, content, imageUrl, userId, imageUrls) => {
     try {
+      const finalImageUrls = imageUrls || (Array.isArray(imageUrl) ? imageUrl : (imageUrl ? [imageUrl] : undefined));
+      const firstImageUrl = Array.isArray(imageUrl) ? imageUrl[0] : (typeof imageUrl === 'string' ? imageUrl : undefined);
       const res = await fetch(`/api/cards/${cardId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, imageUrl, userId })
+        body: JSON.stringify({
+          content,
+          imageUrl: firstImageUrl,
+          imageUrls: finalImageUrls,
+          userId
+        })
       });
       if (res.ok) {
         get().fetchBoard();

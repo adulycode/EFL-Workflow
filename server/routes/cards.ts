@@ -565,7 +565,7 @@ router.get('/:id/details', async (req, res) => {
 router.post('/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, content, imageUrl } = req.body;
+    const { userId, content, imageUrl, imageUrls } = req.body;
 
     let finalUserId = userId;
     if (!finalUserId) {
@@ -577,29 +577,44 @@ router.post('/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Valid user is required to post comment' });
     }
 
+    // Collect images (support both imageUrl single string and imageUrls array, max 5)
+    const rawImages: string[] = Array.isArray(imageUrls) && imageUrls.length > 0
+      ? imageUrls.filter((u: any) => typeof u === 'string' && u.trim().length > 0)
+      : (imageUrl ? [imageUrl] : []);
+    const finalImages = rawImages.slice(0, 5);
+
+    let storedImageUrl: string | null = null;
+    if (finalImages.length === 1) {
+      storedImageUrl = finalImages[0];
+    } else if (finalImages.length > 1) {
+      storedImageUrl = JSON.stringify(finalImages);
+    }
+
     const comment = await prisma.comment.create({
       data: {
         cardId: id,
         userId: finalUserId,
         content: content || '',
-        imageUrl: imageUrl || null
+        imageUrl: storedImageUrl
       },
       include: { user: true }
     });
 
-    // Auto-sync comment image to Card Attachments so it appears in the Photos Gallery
-    if (imageUrl) {
+    // Auto-sync comment images to Card Attachments so they appear in the Photos Gallery
+    for (let i = 0; i < finalImages.length; i++) {
+      const img = finalImages[i];
       try {
-        const isPng = imageUrl.startsWith('data:image/png');
+        const isPng = img.startsWith('data:image/png');
         const ext = isPng ? 'png' : 'jpg';
         const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
+        const suffix = finalImages.length > 1 ? `-${i + 1}` : '';
         await prisma.attachment.create({
           data: {
             cardId: id,
-            fileName: `photo-${dateTag}.${ext}`,
-            fileUrl: imageUrl,
+            fileName: `photo-${dateTag}${suffix}.${ext}`,
+            fileUrl: img,
             fileType: `image/${ext}`,
-            fileSize: Math.round(imageUrl.length * 0.75)
+            fileSize: Math.round(img.length * 0.75)
           }
         });
       } catch (syncErr) {
@@ -615,7 +630,8 @@ router.post('/:id/comments', async (req, res) => {
           actionType: 'ADDED_COMMENT',
           details: {
             preview: (content || '').slice(0, 50),
-            hasImage: Boolean(imageUrl)
+            hasImage: finalImages.length > 0,
+            imageCount: finalImages.length
           }
         }
       });
@@ -627,7 +643,7 @@ router.post('/:id/comments', async (req, res) => {
       cardId: id,
       actorUserId: finalUserId,
       type: 'COMMENT',
-      comment: { content, imageUrl }
+      comment: { content, imageUrl: finalImages[0] || null }
     });
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });

@@ -125,7 +125,7 @@ export const CardDetailModal: React.FC = () => {
   const [icon, setIcon] = useState<string>('📝');
   const [coverBanner, setCoverBanner] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
@@ -178,6 +178,14 @@ export const CardDetailModal: React.FC = () => {
   const photoUploadInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Floating Menu Refs for Outside Click Handling
+  const photoRefMenuRef = useRef<HTMLDivElement>(null);
+  const photoRefButtonRef = useRef<HTMLButtonElement>(null);
+  const fileRefMenuRef = useRef<HTMLDivElement>(null);
+  const fileRefButtonRef = useRef<HTMLButtonElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiPickerButtonRef = useRef<HTMLButtonElement>(null);
 
   const fetchDetails = async () => {
     if (!selectedCardId) return;
@@ -277,6 +285,65 @@ export const CardDetailModal: React.FC = () => {
     showPhotoRefMenu,
     activeChecklistDuePickerId
   ]);
+
+  // Reset all transient popups, selections, and menus when switching or closing cards
+  useEffect(() => {
+    setShowPhotoRefMenu(false);
+    setShowFileRefMenu(false);
+    setShowEmojiPicker(false);
+    setSelectedRefPhotos([]);
+    setHoveredPhotoPreview(null);
+    setAttachedImages([]);
+    setCommentText('');
+    setLightboxImage(null);
+    setLightboxImages([]);
+    setShowMoveModal(false);
+    setShowDrivePicker(false);
+    setShowLabelManager(false);
+    setShowCoverMenu(false);
+    setShowCardIconPicker(false);
+    setShowBannerGallery(false);
+    setActiveChecklistDuePickerId(null);
+    setEditingChecklistItemId(null);
+    setEditingCommentId(null);
+  }, [selectedCardId]);
+
+  // Outside click listener to dismiss floating menus (Photo Ref, File Ref, Emoji Picker)
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        showPhotoRefMenu &&
+        photoRefMenuRef.current &&
+        !photoRefMenuRef.current.contains(target) &&
+        !photoRefButtonRef.current?.contains(target)
+      ) {
+        setShowPhotoRefMenu(false);
+        setHoveredPhotoPreview(null);
+      }
+      if (
+        showFileRefMenu &&
+        fileRefMenuRef.current &&
+        !fileRefMenuRef.current.contains(target) &&
+        !fileRefButtonRef.current?.contains(target)
+      ) {
+        setShowFileRefMenu(false);
+      }
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(target) &&
+        !emojiPickerButtonRef.current?.contains(target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showPhotoRefMenu || showFileRefMenu || showEmojiPicker) {
+      document.addEventListener('mousedown', handleMouseDown);
+      return () => document.removeEventListener('mousedown', handleMouseDown);
+    }
+  }, [showPhotoRefMenu, showFileRefMenu, showEmojiPicker]);
 
   if (!selectedCardId || !cardDetails) return null;
 
@@ -412,16 +479,42 @@ export const CardDetailModal: React.FC = () => {
     fetchDetails();
   };
 
-  // Image Upload Handler for Comments
+  // Image Upload Handler for Comments (Multiple up to 5)
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachedImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const availableSlots = 5 - attachedImages.length;
+    if (availableSlots <= 0) {
+      alert('สามารถแนบรูปภาพในคอมเมนต์ได้สูงสุด 5 รูป');
+      e.target.value = '';
+      return;
+    }
+
+    const filesToProcess = Array.from(files).slice(0, availableSlots);
+    if (files.length > availableSlots) {
+      alert(`แนบได้สูงสุด 5 รูป (จะเลือก ${filesToProcess.length} รูปแรก)`);
+    }
+
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.msi', '.dll', '.scr'];
+
+    filesToProcess.forEach((file) => {
+      const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
+      if (dangerousExtensions.includes(fileExt)) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result) {
+          setAttachedImages((prev) => {
+            if (prev.length >= 5) return prev;
+            return [...prev, reader.result as string];
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = '';
   };
 
   // Open Lightbox with Carousel array
@@ -629,30 +722,47 @@ export const CardDetailModal: React.FC = () => {
     }, 10);
   };
 
-  // Clipboard Paste Image Handler
+  // Clipboard Paste Image Handler (Multiple up to 5)
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
+    const imageItems: DataTransferItem[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        const blob = items[i].getAsFile();
-        if (blob) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            setAttachedImage(reader.result as string);
-          };
-          reader.readAsDataURL(blob);
-        }
+        imageItems.push(items[i]);
       }
     }
+    if (imageItems.length === 0) return;
+
+    const availableSlots = 5 - attachedImages.length;
+    if (availableSlots <= 0) {
+      alert('สามารถแนบรูปภาพในคอมเมนต์ได้สูงสุด 5 รูป');
+      return;
+    }
+
+    imageItems.slice(0, availableSlots).forEach((item) => {
+      const blob = item.getAsFile();
+      if (blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (reader.result) {
+            setAttachedImages((prev) => {
+              if (prev.length >= 5) return prev;
+              return [...prev, reader.result as string];
+            });
+          }
+        };
+        reader.readAsDataURL(blob);
+      }
+    });
   };
 
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim() && !attachedImage) return;
+    if (!commentText.trim() && attachedImages.length === 0) return;
 
-    await addComment(selectedCardId, commentText.trim(), attachedImage || undefined, currentUser?.id);
+    await addComment(selectedCardId, commentText.trim(), attachedImages, currentUser?.id, attachedImages);
     setCommentText('');
-    setAttachedImage(null);
+    setAttachedImages([]);
     if (commentFileInputRef.current) commentFileInputRef.current.value = '';
     fetchDetails();
   };
@@ -1723,21 +1833,54 @@ export const CardDetailModal: React.FC = () => {
                         />
                       </div>
 
-                      {/* Image Attachment Preview */}
-                      {attachedImage && (
-                        <div className="relative inline-block">
-                          <img
-                            src={attachedImage}
-                            alt="Attached preview"
-                            className="h-20 w-auto rounded-xl object-cover border border-neutral-300 dark:border-neutral-700 shadow-sm"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setAttachedImage(null)}
-                            className="absolute -top-1.5 -right-1.5 p-1 bg-rose-600 text-white rounded-full hover:bg-rose-700 shadow"
-                          >
-                            <X size={10} />
-                          </button>
+                      {/* Image Attachments Preview (Multiple up to 5) */}
+                      {attachedImages.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between text-[11px] text-neutral-500">
+                            <span>แนบรูปภาพแล้ว {attachedImages.length}/5 รูป</span>
+                            {attachedImages.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setAttachedImages([])}
+                                className="text-rose-600 dark:text-rose-400 hover:underline text-[10px] font-semibold"
+                              >
+                                ลบทั้งหมด
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {attachedImages.map((imgUrl, idx) => (
+                              <div key={idx} className="relative group">
+                                <img
+                                  src={imgUrl}
+                                  alt={`Attached preview ${idx + 1}`}
+                                  onClick={() => openLightbox(attachedImages, idx)}
+                                  className="h-20 w-20 rounded-xl object-cover border border-neutral-300 dark:border-neutral-700 shadow-sm cursor-zoom-in"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setAttachedImages((prev) => prev.filter((_, i) => i !== idx))}
+                                  className="absolute -top-1.5 -right-1.5 p-1 bg-rose-600 text-white rounded-full hover:bg-rose-700 shadow transition-transform group-hover:scale-110"
+                                  title="ลบรูปนี้"
+                                >
+                                  <X size={10} />
+                                </button>
+                                <span className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/60 text-white text-[9px] font-bold rounded-md">
+                                  {idx + 1}/{attachedImages.length}
+                                </span>
+                              </div>
+                            ))}
+                            {attachedImages.length < 5 && (
+                              <button
+                                type="button"
+                                onClick={() => commentFileInputRef.current?.click()}
+                                className="h-20 w-20 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 text-neutral-400 hover:text-blue-500 flex flex-col items-center justify-center gap-1 transition-colors text-[10px] font-semibold"
+                              >
+                                <Plus size={16} />
+                                <span>เพิ่ม ({5 - attachedImages.length})</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1751,6 +1894,7 @@ export const CardDetailModal: React.FC = () => {
                           {/* Reference Photo Dropdown Trigger (with 1:1 Thumbnails & Multi-Select) */}
                           <div className="relative">
                             <button
+                              ref={photoRefButtonRef}
                               type="button"
                               onClick={() => {
                                 setShowPhotoRefMenu(!showPhotoRefMenu);
@@ -1775,18 +1919,31 @@ export const CardDetailModal: React.FC = () => {
 
                             {/* Photo Ref Multi-Select Menu */}
                             {showPhotoRefMenu && (
-                              <div className="absolute right-0 bottom-full mb-2 w-80 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+                              <div
+                                ref={photoRefMenuRef}
+                                className="absolute right-0 bottom-full mb-2 w-80 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                              >
                                 <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-neutral-100 dark:border-neutral-800">
                                   <p className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200">
                                     เลือกรูปภาพอ้างอิง ({cardPhotos.length})
                                   </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => photoUploadInputRef.current?.click()}
-                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                                  >
-                                    <Plus size={10} /> อัปโหลดใหม่
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => photoUploadInputRef.current?.click()}
+                                      className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                    >
+                                      <Plus size={10} /> อัปโหลดใหม่
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowPhotoRefMenu(false)}
+                                      className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                                      title="ปิดเมนู"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {cardPhotos.length > 0 ? (
@@ -1853,15 +2010,24 @@ export const CardDetailModal: React.FC = () => {
                                     </div>
                                   </>
                                 ) : (
-                                  <div className="text-center py-6 space-y-2">
+                                  <div className="text-center py-6 space-y-2.5">
                                     <p className="text-xs text-neutral-400">ยังไม่มีรูปภาพใน Gallery ของการ์ดนี้</p>
-                                    <button
-                                      type="button"
-                                      onClick={() => photoUploadInputRef.current?.click()}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400 transition-colors"
-                                    >
-                                      <Plus size={12} /> อัปโหลดรูปภาพ
-                                    </button>
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => photoUploadInputRef.current?.click()}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400 transition-colors"
+                                      >
+                                        <Plus size={12} /> อัปโหลดรูปภาพ
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowPhotoRefMenu(false)}
+                                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl transition-colors"
+                                      >
+                                        ปิด
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1872,6 +2038,7 @@ export const CardDetailModal: React.FC = () => {
                           {cardDocs.length > 0 && (
                             <div className="relative">
                               <button
+                                ref={fileRefButtonRef}
                                 type="button"
                                 onClick={() => {
                                   setShowFileRefMenu(!showFileRefMenu);
@@ -1890,10 +2057,23 @@ export const CardDetailModal: React.FC = () => {
 
                               {/* File Ref Menu */}
                               {showFileRefMenu && (
-                                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1 mb-1">
-                                    Select file to reference:
-                                  </p>
+                                <div
+                                  ref={fileRefMenuRef}
+                                  className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                >
+                                  <div className="flex items-center justify-between pb-1 mb-1 border-b border-neutral-100 dark:border-neutral-800">
+                                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1">
+                                      Select file to reference:
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowFileRefMenu(false)}
+                                      className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-md"
+                                      title="ปิดเมนู"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
                                   <div className="max-h-48 overflow-y-auto space-y-1">
                                     {cardDocs.map((att: any) => {
                                       const badge = getDocBadgeStyle(att.fileName, att.fileType);
@@ -1920,6 +2100,7 @@ export const CardDetailModal: React.FC = () => {
                           <input
                             ref={commentFileInputRef}
                             type="file"
+                            multiple
                             accept="image/*"
                             onChange={handleImageFileChange}
                             className="hidden"
@@ -1928,10 +2109,12 @@ export const CardDetailModal: React.FC = () => {
                           {/* Emoji Picker Button & Popup */}
                           <div className="relative">
                             <button
+                              ref={emojiPickerButtonRef}
                               type="button"
                               onClick={() => {
                                 setShowEmojiPicker(!showEmojiPicker);
                                 setShowFileRefMenu(false);
+                                setShowPhotoRefMenu(false);
                               }}
                               title="Insert Emoji (ใส่อีโมจิ)"
                               className="p-1.5 text-neutral-500 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
@@ -1941,23 +2124,36 @@ export const CardDetailModal: React.FC = () => {
 
                             {/* Emoji Picker Floating Popup */}
                             {showEmojiPicker && (
-                              <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                {/* Category Tabs */}
-                                <div className="flex border-b border-neutral-100 dark:border-neutral-800 pb-1.5 mb-2 gap-1 overflow-x-auto">
-                                  {EMOJI_CATEGORIES.map((cat, idx) => (
-                                    <button
-                                      key={cat.name}
-                                      type="button"
-                                      onClick={() => setSelectedEmojiTab(idx)}
-                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${
-                                        selectedEmojiTab === idx
-                                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
-                                          : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
-                                      }`}
-                                    >
-                                      {cat.name}
-                                    </button>
-                                  ))}
+                              <div
+                                ref={emojiPickerRef}
+                                className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                              >
+                                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-1.5 mb-2">
+                                  {/* Category Tabs */}
+                                  <div className="flex gap-1 overflow-x-auto">
+                                    {EMOJI_CATEGORIES.map((cat, idx) => (
+                                      <button
+                                        key={cat.name}
+                                        type="button"
+                                        onClick={() => setSelectedEmojiTab(idx)}
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${
+                                          selectedEmojiTab === idx
+                                            ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'
+                                            : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                                        }`}
+                                      >
+                                        {cat.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowEmojiPicker(false)}
+                                    className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 rounded-md shrink-0 ml-1"
+                                    title="ปิด"
+                                  >
+                                    <X size={12} />
+                                  </button>
                                 </div>
 
                                 {/* Emoji Grid */}
@@ -1979,16 +2175,22 @@ export const CardDetailModal: React.FC = () => {
 
                           <button
                             type="button"
+                            disabled={attachedImages.length >= 5}
                             onClick={() => commentFileInputRef.current?.click()}
-                            title="Attach Image"
-                            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0"
+                            title={`Attach Images (แนบรูปภาพ สูงสุด 5 รูป) [${attachedImages.length}/5]`}
+                            className="relative p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-xl transition-colors shrink-0 disabled:opacity-40"
                           >
                             <ImageIcon size={16} />
+                            {attachedImages.length > 0 && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow">
+                                {attachedImages.length}
+                              </span>
+                            )}
                           </button>
 
                           <button
                             type="submit"
-                            disabled={!commentText.trim() && !attachedImage}
+                            disabled={!commentText.trim() && attachedImages.length === 0}
                             className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold rounded-xl hover:opacity-90 transition-opacity shrink-0 disabled:opacity-40 shadow-sm"
                           >
                             <Send size={13} />
@@ -2111,25 +2313,62 @@ export const CardDetailModal: React.FC = () => {
                                   </div>
                                 )}
 
-                                {c.imageUrl && (
-                                  <div className="pl-7 pt-1">
-                                    <div className="relative group inline-block">
-                                      <img
-                                        src={c.imageUrl}
-                                        alt="Comment attachment"
-                                        onClick={() => openLightbox([c.imageUrl], 0)}
-                                        className="max-h-48 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => openLightbox([c.imageUrl], 0)}
-                                        className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        <Maximize2 size={12} />
-                                      </button>
+                                {(() => {
+                                  if (!c.imageUrl) return null;
+                                  let imgs: string[] = [];
+                                  if (c.imageUrl.startsWith('[') && c.imageUrl.endsWith(']')) {
+                                    try {
+                                      const parsed = JSON.parse(c.imageUrl);
+                                      if (Array.isArray(parsed)) imgs = parsed;
+                                    } catch {}
+                                  }
+                                  if (imgs.length === 0) {
+                                    imgs = [c.imageUrl];
+                                  }
+
+                                  if (imgs.length === 1) {
+                                    return (
+                                      <div className="pl-7 pt-1">
+                                        <div className="relative group inline-block">
+                                          <img
+                                            src={imgs[0]}
+                                            alt="Comment attachment"
+                                            onClick={() => openLightbox(imgs, 0)}
+                                            className="max-h-60 rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => openLightbox(imgs, 0)}
+                                            className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            <Maximize2 size={12} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="pl-7 pt-1">
+                                      <div className="flex flex-wrap gap-2">
+                                        {imgs.slice(0, 5).map((imgUrl, imgIdx) => (
+                                          <div
+                                            key={imgIdx}
+                                            onClick={() => openLightbox(imgs, imgIdx)}
+                                            onMouseEnter={() => setHoveredPhotoPreview({ url: imgUrl, name: `Photo ${imgIdx + 1}` })}
+                                            onMouseLeave={() => setHoveredPhotoPreview(null)}
+                                            className="relative w-18 h-18 sm:w-20 sm:h-20 aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 transition-all"
+                                          >
+                                            <img src={imgUrl} alt={`Comment photo ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                            <div className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/60 text-white text-[8px] font-bold rounded">
+                                              {imgIdx + 1}/{imgs.length}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
                               </>
                             )}
                           </div>

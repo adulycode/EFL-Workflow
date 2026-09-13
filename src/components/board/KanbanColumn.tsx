@@ -96,7 +96,7 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
     <>
       <div
         ref={setNodeRef}
-        className="flex flex-col w-80 shrink-0 bg-neutral-100/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 p-3 max-h-full"
+        className="flex flex-col w-80 shrink-0 bg-neutral-100/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 p-3 max-h-full cursor-default"
       >
         {/* Column Header */}
         <div className="relative flex items-center justify-between px-2 py-1.5 mb-2.5">

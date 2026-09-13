@@ -79,6 +79,80 @@ export const KanbanBoard: React.FC = () => {
     };
   }, []);
 
+  // Drag-to-Scroll on empty space (Click & hold background to pan/scroll horizontally)
+  const isPanningRef = useRef(false);
+  const panStartXRef = useRef(0);
+  const scrollLeftStartRef = useRef(0);
+  const hasMovedRef = useRef(false);
+
+  useEffect(() => {
+    const el = boardMainRef.current;
+    if (!el) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Only handle primary (left) mouse button
+      if (e.button !== 0) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Ignore if clicking interactive elements, inputs, buttons, or cards
+      if (
+        target.closest(
+          'button, input, textarea, a, select, [role="button"], [data-kanban-card="true"], [data-no-pan="true"]'
+        )
+      ) {
+        return;
+      }
+
+      isPanningRef.current = true;
+      hasMovedRef.current = false;
+      panStartXRef.current = e.pageX;
+      scrollLeftStartRef.current = el.scrollLeft;
+
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isPanningRef.current) return;
+        const deltaX = moveEvent.pageX - panStartXRef.current;
+        if (Math.abs(deltaX) > 4) {
+          hasMovedRef.current = true;
+        }
+        el.scrollLeft = scrollLeftStartRef.current - deltaX;
+      };
+
+      const handleMouseUp = () => {
+        if (!isPanningRef.current) return;
+        isPanningRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    };
+
+    // Suppress accidental click if mouse moved during drag
+    const handleClickCapture = (e: MouseEvent) => {
+      if (hasMovedRef.current) {
+        e.stopPropagation();
+        e.preventDefault();
+        hasMovedRef.current = false;
+      }
+    };
+
+    el.addEventListener('mousedown', handleMouseDown);
+    el.addEventListener('click', handleClickCapture, true);
+
+    return () => {
+      el.removeEventListener('mousedown', handleMouseDown);
+      el.removeEventListener('click', handleClickCapture, true);
+    };
+  }, []);
+
   // Require deliberate movement on desktop and touch-hold on mobile/tablets
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -257,7 +331,7 @@ export const KanbanBoard: React.FC = () => {
     >
       <main 
         ref={boardMainRef}
-        className={`flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden p-6 select-none relative h-full transition-all duration-300 ${bgClass}`}
+        className={`flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden p-6 select-none relative h-full transition-all duration-300 cursor-grab ${bgClass}`}
         style={bgStyle}
       >
         <div className="relative z-10 flex gap-6 items-start h-full pb-2 min-w-max">

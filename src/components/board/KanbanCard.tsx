@@ -47,6 +47,7 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
       style={style}
       {...attributes}
       {...listeners}
+      data-kanban-card="true"
       onClick={() => !isDragging && setSelectedCardId(card.id)}
       className={`group relative bg-white dark:bg-neutral-900 rounded-xl border transition-all overflow-hidden ${
         isOverlay

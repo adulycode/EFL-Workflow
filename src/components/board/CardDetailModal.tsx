@@ -1202,42 +1202,42 @@ export const CardDetailModal: React.FC = () => {
 
         {/* Render Dynamic Smart Image Layout for Images Referenced in Comment */}
         {detectedImages.length === 1 && (
-          <div className="pt-1.5">
+          <div className="pt-1">
             <div className="relative group inline-block">
               <img
                 src={detectedImages[0].url}
                 alt={detectedImages[0].name}
                 onClick={() => openLightbox([detectedImages[0].url], 0)}
-                className="max-h-60 max-w-full rounded-2xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
+                className="max-h-36 max-w-full rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-2xs cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
               />
               <button
                 type="button"
                 onClick={() => openLightbox([detectedImages[0].url], 0)}
-                className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute bottom-1.5 right-1.5 p-1 bg-black/60 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                title="ขยายรูป"
               >
-                <Maximize2 size={12} />
+                <Maximize2 size={10} />
               </button>
             </div>
           </div>
         )}
 
         {detectedImages.length > 1 && (
-          <div className="flex flex-wrap gap-2 pt-1.5">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {detectedImages.slice(0, 5).map((img, idx) => {
               const overflowCount = detectedImages.length - 4;
               return (
                 <div
                   key={idx}
-                  onMouseEnter={() => setHoveredPhotoPreview(img)}
-                  onMouseLeave={() => setHoveredPhotoPreview(null)}
                   onClick={() => openLightbox(detectedImages.map((i) => i.url), idx)}
-                  className="relative w-18 h-18 sm:w-20 sm:h-20 aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 transition-all"
+                  title={`${img.name} (คลิกเพื่อดูรูปขนาดเต็ม)`}
+                  className="relative w-12 h-12 sm:w-13 sm:h-13 aspect-square rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 hover:scale-105 transition-all"
                 >
                   <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
                   {idx === 4 && overflowCount > 1 && (
                     <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center text-white font-bold backdrop-blur-xs">
-                      <span className="text-sm leading-none">+{overflowCount}</span>
-                      <span className="text-[9px] text-neutral-300">รูปภาพ</span>
+                      <span className="text-xs leading-none">+{overflowCount}</span>
+                      <span className="text-[8px] text-neutral-300">รูปภาพ</span>
                     </div>
                   )}
                 </div>
@@ -1835,7 +1835,7 @@ export const CardDetailModal: React.FC = () => {
 
                       {/* Image Attachments Preview (Multiple up to 5) */}
                       {attachedImages.length > 0 && (
-                        <div className="space-y-1.5 pt-1">
+                        <div className="space-y-1 pt-1">
                           <div className="flex items-center justify-between text-[11px] text-neutral-500">
                             <span>แนบรูปภาพแล้ว {attachedImages.length}/5 รูป</span>
                             {attachedImages.length > 1 && (
@@ -1848,24 +1848,24 @@ export const CardDetailModal: React.FC = () => {
                               </button>
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-1.5">
                             {attachedImages.map((imgUrl, idx) => (
                               <div key={idx} className="relative group">
                                 <img
                                   src={imgUrl}
                                   alt={`Attached preview ${idx + 1}`}
                                   onClick={() => openLightbox(attachedImages, idx)}
-                                  className="h-20 w-20 rounded-xl object-cover border border-neutral-300 dark:border-neutral-700 shadow-sm cursor-zoom-in"
+                                  className="h-14 w-14 rounded-xl object-cover border border-neutral-300 dark:border-neutral-700 shadow-sm cursor-zoom-in"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => setAttachedImages((prev) => prev.filter((_, i) => i !== idx))}
-                                  className="absolute -top-1.5 -right-1.5 p-1 bg-rose-600 text-white rounded-full hover:bg-rose-700 shadow transition-transform group-hover:scale-110"
+                                  className="absolute -top-1 -right-1 p-0.5 bg-rose-600 text-white rounded-full hover:bg-rose-700 shadow transition-transform group-hover:scale-110"
                                   title="ลบรูปนี้"
                                 >
-                                  <X size={10} />
+                                  <X size={9} />
                                 </button>
-                                <span className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/60 text-white text-[9px] font-bold rounded-md">
+                                <span className="absolute bottom-0.5 right-0.5 px-0.5 py-0.2 bg-black/60 text-white text-[8px] font-bold rounded">
                                   {idx + 1}/{attachedImages.length}
                                 </span>
                               </div>
@@ -1874,10 +1874,10 @@ export const CardDetailModal: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => commentFileInputRef.current?.click()}
-                                className="h-20 w-20 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 text-neutral-400 hover:text-blue-500 flex flex-col items-center justify-center gap-1 transition-colors text-[10px] font-semibold"
+                                className="h-14 w-14 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 text-neutral-400 hover:text-blue-500 flex flex-col items-center justify-center gap-0.5 transition-colors text-[9px] font-semibold"
                               >
-                                <Plus size={16} />
-                                <span>เพิ่ม ({5 - attachedImages.length})</span>
+                                <Plus size={14} />
+                                <span>+ เพิ่ม</span>
                               </button>
                             )}
                           </div>
@@ -2334,14 +2334,15 @@ export const CardDetailModal: React.FC = () => {
                                             src={imgs[0]}
                                             alt="Comment attachment"
                                             onClick={() => openLightbox(imgs, 0)}
-                                            className="max-h-60 rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-sm cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
+                                            className="max-h-36 max-w-full rounded-xl object-contain border border-neutral-200 dark:border-neutral-700 shadow-2xs cursor-zoom-in group-hover:opacity-95 transition-opacity bg-neutral-100 dark:bg-neutral-800"
                                           />
                                           <button
                                             type="button"
                                             onClick={() => openLightbox(imgs, 0)}
-                                            className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute bottom-1.5 right-1.5 p-1 bg-black/60 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="ขยายรูป"
                                           >
-                                            <Maximize2 size={12} />
+                                            <Maximize2 size={10} />
                                           </button>
                                         </div>
                                       </div>
@@ -2350,17 +2351,16 @@ export const CardDetailModal: React.FC = () => {
 
                                   return (
                                     <div className="pl-7 pt-1">
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap gap-1.5">
                                         {imgs.slice(0, 5).map((imgUrl, imgIdx) => (
                                           <div
                                             key={imgIdx}
                                             onClick={() => openLightbox(imgs, imgIdx)}
-                                            onMouseEnter={() => setHoveredPhotoPreview({ url: imgUrl, name: `Photo ${imgIdx + 1}` })}
-                                            onMouseLeave={() => setHoveredPhotoPreview(null)}
-                                            className="relative w-18 h-18 sm:w-20 sm:h-20 aspect-square rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 transition-all"
+                                            title={`รูปที่ ${imgIdx + 1}/${imgs.length} (คลิกเพื่อดูรูปขนาดเต็ม)`}
+                                            className="relative w-12 h-12 sm:w-13 sm:h-13 aspect-square rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-2xs group cursor-zoom-in bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-blue-500 hover:scale-105 transition-all"
                                           >
                                             <img src={imgUrl} alt={`Comment photo ${imgIdx + 1}`} className="w-full h-full object-cover" />
-                                            <div className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/60 text-white text-[8px] font-bold rounded">
+                                            <div className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/70 text-white text-[8px] font-bold rounded">
                                               {imgIdx + 1}/{imgs.length}
                                             </div>
                                           </div>
@@ -3309,7 +3309,7 @@ export const CardDetailModal: React.FC = () => {
 
       {/* Floating Hover Photo Preview for thumbnails */}
       {hoveredPhotoPreview && (
-        <div className="fixed pointer-events-none z-60 bottom-16 right-16 p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 animate-in fade-in zoom-in-95 max-w-xs">
+        <div className="fixed pointer-events-none z-[100] bottom-16 right-16 p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 animate-in fade-in zoom-in-95 max-w-xs">
           <img src={hoveredPhotoPreview.url} alt={hoveredPhotoPreview.name} className="max-h-56 max-w-full rounded-xl object-contain mx-auto" />
           <p className="text-[11px] font-bold text-neutral-700 dark:text-neutral-200 text-center truncate mt-1.5">
             {hoveredPhotoPreview.name}

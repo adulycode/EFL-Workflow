@@ -11,8 +11,7 @@ conn.on('ready', () => {
     'docker compose stop efl-workflow-app',
     'docker compose rm -f efl-workflow-app',
     'docker compose up -d efl-workflow-app',
-    'docker compose exec -T efl-workflow-app npx prisma db push',
-    'sleep 3',
+    'sleep 6',
     'curl -I http://localhost:3010',
     'curl -s -H "Accept-Encoding: gzip" -I http://localhost:3010/api/health'
   ].join(' && ');

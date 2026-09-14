@@ -1,17 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BoardHeader } from './components/board/BoardHeader';
 import { BoardFilters } from './components/board/BoardFilters';
 import { KanbanBoard } from './components/board/KanbanBoard';
-import { CalendarView } from './components/calendar/CalendarView';
-import { TableView } from './components/table/TableView';
-import { CardDetailModal } from './components/board/CardDetailModal';
-import { WorkspaceOverview } from './components/workspace/WorkspaceOverview';
-import { SettingsModal } from './components/settings/SettingsModal';
 import { SsoLoginGate } from './components/auth/SsoLoginGate';
 import { useAuthStore } from './store/useAuthStore';
 import { useWorkspaceStore } from './store/useWorkspaceStore';
 import { useBoardStore } from './store/useBoardStore';
 import { useSocketRealtime } from './hooks/useSocketRealtime';
+
+// Code-split heavy views and modals for fast initial load
+const CalendarView = lazy(() => import('./components/calendar/CalendarView').then((m) => ({ default: m.CalendarView })));
+const TableView = lazy(() => import('./components/table/TableView').then((m) => ({ default: m.TableView })));
+const CardDetailModal = lazy(() => import('./components/board/CardDetailModal').then((m) => ({ default: m.CardDetailModal })));
+const WorkspaceOverview = lazy(() => import('./components/workspace/WorkspaceOverview').then((m) => ({ default: m.WorkspaceOverview })));
+const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal })));
 
 export const App: React.FC = () => {
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -79,29 +81,31 @@ export const App: React.FC = () => {
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans">
       <BoardHeader />
 
-      {viewMode === 'overview' ? (
-        <WorkspaceOverview onSelectWorkspace={() => setViewMode('board')} />
-      ) : viewMode === 'table' ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <BoardFilters />
-          <TableView />
-        </div>
-      ) : viewMode === 'calendar' ? (
-        <div className="flex-1 flex flex-col overflow-hidden p-6 gap-4">
-          <BoardFilters />
-          <div className="flex-1 min-h-0">
-            <CalendarView />
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center text-neutral-400 text-xs">Loading view...</div>}>
+        {viewMode === 'overview' ? (
+          <WorkspaceOverview onSelectWorkspace={() => setViewMode('board')} />
+        ) : viewMode === 'table' ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <BoardFilters />
+            <TableView />
           </div>
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <BoardFilters />
-          <KanbanBoard />
-        </div>
-      )}
+        ) : viewMode === 'calendar' ? (
+          <div className="flex-1 flex flex-col overflow-hidden p-6 gap-4">
+            <BoardFilters />
+            <div className="flex-1 min-h-0">
+              <CalendarView />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <BoardFilters />
+            <KanbanBoard />
+          </div>
+        )}
 
-      <CardDetailModal />
-      <SettingsModal />
+        <CardDetailModal />
+        <SettingsModal />
+      </Suspense>
     </div>
   );
 };

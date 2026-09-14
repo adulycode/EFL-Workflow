@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import dotenv from 'dotenv';
 
@@ -29,6 +30,9 @@ const io = new Server(server, {
 
 // Attach socket.io instance to express app
 app.set('io', io);
+
+// HTTP Response Compression (Gzip / Deflate for fast payload transfer)
+app.use(compression());
 
 app.use(cors());
 // Increased body limit to 15MB for image attachments
@@ -64,14 +68,26 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve frontend static build in production
+// Serve frontend static build in production with caching headers
 const distPath = path.join(process.cwd(), 'dist');
-app.use(express.static(distPath));
+app.use(
+  express.static(distPath, {
+    maxAge: '1y',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.includes(path.sep + 'assets' + path.sep) || filePath.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  })
+);
 
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ error: 'API route not found' });
   }
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(distPath, 'index.html'));
 });
 

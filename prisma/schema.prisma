@@ -113,6 +113,8 @@ model Column {
   cards           Card[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([boardId, position])
 }
 
 model Card {
@@ -139,6 +141,10 @@ model Card {
   checklists  Checklist[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+
+  @@index([columnId, isArchived])
+  @@index([columnId, position])
+  @@index([isArchived])
 }
 
 model Checklist {
@@ -149,6 +155,8 @@ model Checklist {
   items     ChecklistItem[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+
+  @@index([cardId])
 }
 
 model ChecklistItem {
@@ -162,6 +170,8 @@ model ChecklistItem {
   position    Float     @default(1000)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([checklistId, position])
 }
 
 model Label {
@@ -191,6 +201,8 @@ model CardAssignee {
   assignedAt DateTime @default(now())
 
   @@unique([cardId, userId, type])
+  @@index([cardId])
+  @@index([userId])
 }
 
 model Comment {
@@ -204,6 +216,8 @@ model Comment {
   isEmailReply Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([cardId, createdAt])
 }
 
 model ActivityLog {
@@ -215,6 +229,8 @@ model ActivityLog {
   actionType String
   details    Json
   createdAt  DateTime @default(now())
+
+  @@index([cardId, createdAt])
 }
 
 model Attachment {
@@ -226,6 +242,8 @@ model Attachment {
   fileType  String
   fileSize  Int
   createdAt DateTime @default(now())
+
+  @@index([cardId])
 }
 
 model NotificationLog {

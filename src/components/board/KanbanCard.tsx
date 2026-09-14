@@ -18,7 +18,7 @@ const PRIORITY_CONFIG: Record<Priority, { label: string; bg: string; text: strin
   URGENT: { label: 'Urgent', bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400' }
 };
 
-export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
+const KanbanCardComponent: React.FC<Props> = ({ card, isOverlay = false }) => {
   const setSelectedCardId = useBoardStore((s) => s.setSelectedCardId);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -214,3 +214,5 @@ export const KanbanCard: React.FC<Props> = ({ card, isOverlay = false }) => {
     </div>
   );
 };
+
+export const KanbanCard = React.memo(KanbanCardComponent);

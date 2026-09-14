@@ -8,6 +8,8 @@ conn.on('ready', () => {
     'git fetch origin main',
     'git reset --hard origin/main',
     'docker compose build efl-workflow-app',
+    'docker compose stop efl-workflow-app',
+    'docker compose rm -f efl-workflow-app',
     'docker compose up -d efl-workflow-app',
     'docker compose exec -T efl-workflow-app npx prisma db push',
     'sleep 3',

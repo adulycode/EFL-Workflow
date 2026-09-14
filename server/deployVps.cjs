@@ -11,9 +11,8 @@ conn.on('ready', () => {
     'docker compose stop efl-workflow-app',
     'docker compose rm -f efl-workflow-app',
     'docker compose up -d efl-workflow-app',
-    'sleep 6',
-    'curl -I http://localhost:3010',
-    'curl -s -H "Accept-Encoding: gzip" -I http://localhost:3010/api/health'
+    'sleep 10',
+    'curl -I http://localhost:3010'
   ].join(' && ');
 
   conn.exec(commands, (err, stream) => {

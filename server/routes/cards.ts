@@ -6,7 +6,8 @@ import {
   handleFileUploadSmart,
   parseBase64DataUrl,
   extractDriveFileId,
-  getDriveFileStream
+  getDriveFileStream,
+  ensureHierarchicalDriveFolder
 } from '../services/googleDrive';
 
 const router = Router();
@@ -18,6 +19,38 @@ const emitRealtime = (req: any, event: string, data: any) => {
     io.emit(event, data);
   }
 };
+
+/**
+ * Helper to fetch Workspace name and Card title for folder hierarchy
+ */
+async function getCardContext(cardId: string): Promise<{ workspaceName: string; cardTitle: string }> {
+  try {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: {
+        id: true,
+        title: true,
+        column: {
+          select: {
+            board: {
+              select: {
+                workspace: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    return {
+      workspaceName: card?.column?.board?.workspace?.name || 'General',
+      cardTitle: card?.title || `Card-${cardId.slice(0, 8)}`
+    };
+  } catch {
+    return { workspaceName: 'General', cardTitle: `Card-${cardId.slice(0, 8)}` };
+  }
+}
 
 // Create Card
 router.post('/', async (req, res) => {
@@ -187,11 +220,14 @@ router.patch('/:id', async (req, res) => {
     if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:')) {
       const parsed = parseBase64DataUrl(coverImage);
       if (parsed) {
+        const { workspaceName, cardTitle } = await getCardContext(id);
         const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
         const uploadRes = await handleFileUploadSmart({
           fileName: `cover-${id}.${ext}`,
           mimeType: parsed.mimeType,
-          fileBuffer: parsed.buffer
+          fileBuffer: parsed.buffer,
+          workspaceName,
+          cardTitle
         });
         finalCoverImage = uploadRes.fileUrl;
       }
@@ -599,6 +635,8 @@ router.post('/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { userId, content, imageUrl, imageUrls } = req.body;
 
+    const { workspaceName, cardTitle } = await getCardContext(id);
+
     let finalUserId = userId;
     if (!finalUserId) {
       const firstUser = await prisma.user.findFirst();
@@ -630,7 +668,9 @@ router.post('/:id/comments', async (req, res) => {
           const uploadRes = await handleFileUploadSmart({
             fileName,
             mimeType: parsed.mimeType,
-            fileBuffer: parsed.buffer
+            fileBuffer: parsed.buffer,
+            workspaceName,
+            cardTitle
           });
 
           finalUploadedImages.push({
@@ -724,6 +764,8 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
     const { id, commentId } = req.params;
     const { content, userId, imageUrls, imageUrl } = req.body;
 
+    const { workspaceName, cardTitle } = await getCardContext(id);
+
     const hasText = typeof content === 'string' && content.trim().length > 0;
     const hasImages = (Array.isArray(imageUrls) && imageUrls.length > 0) || (typeof imageUrl === 'string' && imageUrl.trim().length > 0);
 
@@ -774,7 +816,9 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
             const uploadRes = await handleFileUploadSmart({
               fileName,
               mimeType: parsed.mimeType,
-              fileBuffer: parsed.buffer
+              fileBuffer: parsed.buffer,
+              workspaceName,
+              cardTitle
             });
             processedImages.push({
               displayUrl: uploadRes.fileUrl,
@@ -899,6 +943,25 @@ router.delete('/:id/comments/:commentId', async (req, res) => {
 
 // ================= ATTACHMENTS CRUD =================
 
+// Get or create Google Drive folder for this specific card (Hierarchy: EFL-Trello > Workspace > Card)
+router.get('/:id/drive-folder', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { workspaceName, cardTitle } = await getCardContext(id);
+    const folderInfo = await ensureHierarchicalDriveFolder(workspaceName, cardTitle);
+    const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '1N1tclaApps6k8gmz-1SIbBWacOAW-T1D';
+    res.json({
+      success: true,
+      workspaceName,
+      cardTitle,
+      folderId: folderInfo?.cardFolderId || folderInfo?.targetFolderId || rootFolderId,
+      folderUrl: folderInfo?.cardFolderLink || `https://drive.google.com/drive/folders/${folderInfo?.cardFolderId || folderInfo?.targetFolderId || rootFolderId}`
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Add Attachment (Files, PDFs, Images, Documents, Google Drive)
 router.post('/:id/attachments', async (req, res) => {
   try {
@@ -915,6 +978,8 @@ router.post('/:id/attachments', async (req, res) => {
       return res.status(400).json({ error: 'ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้ เพื่อความปลอดภัยของระบบ' });
     }
 
+    const { workspaceName, cardTitle } = await getCardContext(id);
+
     let finalFileUrl = fileUrl;
     let finalFileType = fileType || 'application/octet-stream';
     let finalFileSize = fileSize || 0;
@@ -926,7 +991,9 @@ router.post('/:id/attachments', async (req, res) => {
         const uploadRes = await handleFileUploadSmart({
           fileName: fileName,
           mimeType: fileType || parsed.mimeType,
-          fileBuffer: parsed.buffer
+          fileBuffer: parsed.buffer,
+          workspaceName,
+          cardTitle
         });
         finalFileUrl = uploadRes.driveWebViewLink || uploadRes.fileUrl;
         finalFileType = uploadRes.fileType;

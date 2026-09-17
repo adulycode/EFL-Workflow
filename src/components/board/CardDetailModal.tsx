@@ -528,6 +528,24 @@ export const CardDetailModal: React.FC = () => {
     setLightboxImage(images[validIdx]);
   };
 
+  // Open this Card's specific Google Drive folder (EFL-Trello > Workspace > Card)
+  const handleOpenCardDriveFolder = async () => {
+    if (!selectedCardId) return;
+    try {
+      const res = await fetch(`/api/cards/${selectedCardId}/drive-folder`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.folderUrl) {
+          window.open(data.folderUrl, '_blank');
+          return;
+        }
+      }
+      window.open('https://drive.google.com/drive/folders/1N1tclaApps6k8gmz-1SIbBWacOAW-T1D', '_blank');
+    } catch {
+      window.open('https://drive.google.com/drive/folders/1N1tclaApps6k8gmz-1SIbBWacOAW-T1D', '_blank');
+    }
+  };
+
   // Photo Upload Handler for Photos Gallery
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -2581,6 +2599,16 @@ export const CardDetailModal: React.FC = () => {
                         />
                         <button
                           type="button"
+                          onClick={handleOpenCardDriveFolder}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm"
+                          title="เปิดโฟลเดอร์ของงานนี้ใน Google Drive (EFL-Trello > Workspace > Card)"
+                        >
+                          <Folder size={13} className="text-emerald-600 dark:text-emerald-400" />
+                          <span>Drive Folder</span>
+                          <ExternalLink size={10} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => photoUploadInputRef.current?.click()}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl hover:opacity-90 transition-opacity shadow-sm"
                         >
@@ -2693,6 +2721,18 @@ export const CardDetailModal: React.FC = () => {
                       </p>
                       
                       <div className="flex items-center gap-2">
+                        {/* Open Card Folder in Google Drive */}
+                        <button
+                          type="button"
+                          onClick={handleOpenCardDriveFolder}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm"
+                          title="เปิดโฟลเดอร์ของงานนี้ใน Google Drive (EFL-Trello > Workspace > Card)"
+                        >
+                          <Folder size={13} className="text-emerald-600 dark:text-emerald-400" />
+                          <span>Drive Folder</span>
+                          <ExternalLink size={10} />
+                        </button>
+
                         {/* Google Drive Trigger */}
                         <button
                           type="button"

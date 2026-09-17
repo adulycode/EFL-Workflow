@@ -42,6 +42,8 @@ services:
     depends_on:
       efl-workflow-db:
         condition: service_healthy
+    volumes:
+      - efl_uploads:/app/uploads
     logging:
       driver: "json-file"
       options:
@@ -50,3 +52,4 @@ services:
 
 volumes:
   efl_pgdata:
+  efl_uploads:

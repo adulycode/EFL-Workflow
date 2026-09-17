@@ -1,9 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
 import authRouter from './routes/auth';
@@ -15,6 +17,7 @@ import usersRouter from './routes/users';
 import settingsRouter from './routes/settings';
 import inboundEmailRouter from './routes/inboundEmail';
 import utilsRouter from './routes/utils';
+import { getDriveFileStream } from './services/googleDrive';
 
 dotenv.config();
 
@@ -38,6 +41,38 @@ app.use(cors());
 // Increased body limit to 15MB for image attachments
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Static directory for uploaded files fallback
+const uploadsDir = path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir, { maxAge: '7d', immutable: true }));
+
+// Google Drive streaming proxy endpoint (renders Drive files/images directly in browser)
+app.get('/api/drive/files/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const fileData = await getDriveFileStream(fileId);
+    if (!fileData) {
+      return res.status(404).json({ error: 'File not found in Google Drive' });
+    }
+
+    res.setHeader('Content-Type', fileData.mimeType);
+    if (fileData.size) {
+      res.setHeader('Content-Length', fileData.size);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+
+    if (req.query.download === 'true') {
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileData.name)}"`);
+    }
+
+    fileData.stream.pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // API Routes
 app.use('/api/auth', authRouter);

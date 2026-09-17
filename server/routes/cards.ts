@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import { PrismaClient, Priority } from '@prisma/client';
 import { format } from 'date-fns';
-import { sendNotification } from '../services/notificationService';
-import { uploadToGoogleDrive } from '../services/googleDrive';
-import { notifyAgentOffice } from '../services/agentOfficeSync';
+import {
+  uploadToGoogleDrive,
+  handleFileUploadSmart,
+  parseBase64DataUrl,
+  extractDriveFileId,
+  getDriveFileStream
+} from '../services/googleDrive';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -19,6 +23,20 @@ const emitRealtime = (req: any, event: string, data: any) => {
 router.post('/', async (req, res) => {
   try {
     const { columnId, title, description, priority, dueDate, coverColor, coverImage, icon, coverBanner, userId, assigneeIds, labelIds } = req.body;
+
+    let finalCoverImage = coverImage || null;
+    if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:')) {
+      const parsed = parseBase64DataUrl(coverImage);
+      if (parsed) {
+        const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
+        const uploadRes = await handleFileUploadSmart({
+          fileName: `cover-${Date.now()}.${ext}`,
+          mimeType: parsed.mimeType,
+          fileBuffer: parsed.buffer
+        });
+        finalCoverImage = uploadRes.fileUrl;
+      }
+    }
 
     const lastCard = await prisma.card.findFirst({
       where: { columnId },
@@ -39,7 +57,7 @@ router.post('/', async (req, res) => {
         priority: priority || Priority.MEDIUM,
         dueDate: dueDate ? new Date(dueDate) : null,
         coverColor: coverColor || null,
-        coverImage: coverImage || null,
+        coverImage: finalCoverImage,
         icon: icon || '📝',
         coverBanner: coverBanner || null,
         createdById: userId,
@@ -165,6 +183,20 @@ router.patch('/:id', async (req, res) => {
       }
     }
 
+    let finalCoverImage = coverImage !== undefined ? coverImage : undefined;
+    if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:')) {
+      const parsed = parseBase64DataUrl(coverImage);
+      if (parsed) {
+        const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
+        const uploadRes = await handleFileUploadSmart({
+          fileName: `cover-${id}.${ext}`,
+          mimeType: parsed.mimeType,
+          fileBuffer: parsed.buffer
+        });
+        finalCoverImage = uploadRes.fileUrl;
+      }
+    }
+
     const updated = await prisma.card.update({
       where: { id },
       data: {
@@ -173,7 +205,7 @@ router.patch('/:id', async (req, res) => {
         priority: priority ? (priority as Priority) : undefined,
         dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined,
         coverColor: coverColor !== undefined ? coverColor : undefined,
-        coverImage: coverImage !== undefined ? coverImage : undefined,
+        coverImage: finalCoverImage,
         icon: icon !== undefined ? icon : undefined,
         coverBanner: coverBanner !== undefined ? coverBanner : undefined
       },
@@ -581,13 +613,50 @@ router.post('/:id/comments', async (req, res) => {
     const rawImages: string[] = Array.isArray(imageUrls) && imageUrls.length > 0
       ? imageUrls.filter((u: any) => typeof u === 'string' && u.trim().length > 0)
       : (imageUrl ? [imageUrl] : []);
-    const finalImages = rawImages.slice(0, 5);
+    const inputImages = rawImages.slice(0, 5);
 
+    // Process all images through Google Drive / smart upload pipeline
+    const finalUploadedImages: { displayUrl: string; driveLink?: string; mimeType: string; size: number; fileName: string }[] = [];
+    for (let i = 0; i < inputImages.length; i++) {
+      const img = inputImages[i];
+      if (typeof img === 'string' && img.startsWith('data:')) {
+        const parsed = parseBase64DataUrl(img);
+        if (parsed) {
+          const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
+          const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
+          const suffix = inputImages.length > 1 ? `-${i + 1}` : '';
+          const fileName = `comment-photo-${dateTag}${suffix}.${ext}`;
+          
+          const uploadRes = await handleFileUploadSmart({
+            fileName,
+            mimeType: parsed.mimeType,
+            fileBuffer: parsed.buffer
+          });
+
+          finalUploadedImages.push({
+            displayUrl: uploadRes.fileUrl,
+            driveLink: uploadRes.driveWebViewLink,
+            mimeType: parsed.mimeType,
+            size: uploadRes.fileSize,
+            fileName
+          });
+          continue;
+        }
+      }
+      finalUploadedImages.push({
+        displayUrl: img,
+        mimeType: 'image/jpeg',
+        size: 0,
+        fileName: `comment-photo-${Date.now()}-${i + 1}.jpg`
+      });
+    }
+
+    const displayUrls = finalUploadedImages.map((item) => item.displayUrl);
     let storedImageUrl: string | null = null;
-    if (finalImages.length === 1) {
-      storedImageUrl = finalImages[0];
-    } else if (finalImages.length > 1) {
-      storedImageUrl = JSON.stringify(finalImages);
+    if (displayUrls.length === 1) {
+      storedImageUrl = displayUrls[0];
+    } else if (displayUrls.length > 1) {
+      storedImageUrl = JSON.stringify(displayUrls);
     }
 
     const comment = await prisma.comment.create({
@@ -601,20 +670,16 @@ router.post('/:id/comments', async (req, res) => {
     });
 
     // Auto-sync comment images to Card Attachments so they appear in the Photos Gallery
-    for (let i = 0; i < finalImages.length; i++) {
-      const img = finalImages[i];
+    for (let i = 0; i < finalUploadedImages.length; i++) {
+      const item = finalUploadedImages[i];
       try {
-        const isPng = img.startsWith('data:image/png');
-        const ext = isPng ? 'png' : 'jpg';
-        const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
-        const suffix = finalImages.length > 1 ? `-${i + 1}` : '';
         await prisma.attachment.create({
           data: {
             cardId: id,
-            fileName: `photo-${dateTag}${suffix}.${ext}`,
-            fileUrl: img,
-            fileType: `image/${ext}`,
-            fileSize: Math.round(img.length * 0.75)
+            fileName: item.fileName,
+            fileUrl: item.driveLink || item.displayUrl,
+            fileType: item.mimeType,
+            fileSize: item.size
           }
         });
       } catch (syncErr) {
@@ -630,8 +695,8 @@ router.post('/:id/comments', async (req, res) => {
           actionType: 'ADDED_COMMENT',
           details: {
             preview: (content || '').slice(0, 50),
-            hasImage: finalImages.length > 0,
-            imageCount: finalImages.length
+            hasImage: finalUploadedImages.length > 0,
+            imageCount: finalUploadedImages.length
           }
         }
       });
@@ -643,7 +708,7 @@ router.post('/:id/comments', async (req, res) => {
       cardId: id,
       actorUserId: finalUserId,
       type: 'COMMENT',
-      comment: { content, imageUrl: finalImages[0] || null }
+      comment: { content, imageUrl: displayUrls[0] || null }
     });
 
     emitRealtime(req, 'comment:added', { cardId: id, comment });
@@ -694,46 +759,68 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
       const rawImages: string[] = Array.isArray(imageUrls)
         ? imageUrls.filter((u: any) => typeof u === 'string' && u.trim().length > 0)
         : (imageUrl ? [imageUrl] : []);
-      const finalImages = rawImages.slice(0, 5);
+      const inputImages = rawImages.slice(0, 5);
 
-      if (finalImages.length === 0) {
-        updateData.imageUrl = null;
-      } else if (finalImages.length === 1) {
-        updateData.imageUrl = finalImages[0];
-      } else {
-        updateData.imageUrl = JSON.stringify(finalImages);
+      const processedImages: { displayUrl: string; driveLink?: string; mimeType: string; size: number; fileName: string; isNew: boolean }[] = [];
+      for (let i = 0; i < inputImages.length; i++) {
+        const img = inputImages[i];
+        if (typeof img === 'string' && img.startsWith('data:')) {
+          const parsed = parseBase64DataUrl(img);
+          if (parsed) {
+            const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
+            const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
+            const suffix = inputImages.length > 1 ? `-${i + 1}` : '';
+            const fileName = `comment-photo-${dateTag}${suffix}.${ext}`;
+            const uploadRes = await handleFileUploadSmart({
+              fileName,
+              mimeType: parsed.mimeType,
+              fileBuffer: parsed.buffer
+            });
+            processedImages.push({
+              displayUrl: uploadRes.fileUrl,
+              driveLink: uploadRes.driveWebViewLink,
+              mimeType: parsed.mimeType,
+              size: uploadRes.fileSize,
+              fileName,
+              isNew: true
+            });
+            continue;
+          }
+        }
+        processedImages.push({
+          displayUrl: img,
+          mimeType: 'image/jpeg',
+          size: 0,
+          fileName: `comment-photo-${Date.now()}-${i + 1}.jpg`,
+          isNew: false
+        });
       }
 
-      // Check if any brand new images were added and sync them to Attachments
-      const existingRaw: string[] = (() => {
-        if (!existingComment.imageUrl) return [];
-        try {
-          if (existingComment.imageUrl.startsWith('[')) {
-            const parsed = JSON.parse(existingComment.imageUrl);
-            return Array.isArray(parsed) ? parsed : [existingComment.imageUrl];
-          }
-        } catch {}
-        return [existingComment.imageUrl];
-      })();
+      const displayUrls = processedImages.map((item) => item.displayUrl);
+      if (displayUrls.length === 0) {
+        updateData.imageUrl = null;
+      } else if (displayUrls.length === 1) {
+        updateData.imageUrl = displayUrls[0];
+      } else {
+        updateData.imageUrl = JSON.stringify(displayUrls);
+      }
 
-      const brandNewImages = finalImages.filter((img) => !existingRaw.includes(img));
-      for (let i = 0; i < brandNewImages.length; i++) {
-        const img = brandNewImages[i];
-        try {
-          const isPng = img.startsWith('data:image/png');
-          const ext = isPng ? 'png' : 'jpg';
-          const dateTag = format(new Date(), 'yyyyMMdd-HHmmss');
-          await prisma.attachment.create({
-            data: {
-              cardId: id,
-              fileName: `photo-${dateTag}-edit-${i + 1}.${ext}`,
-              fileUrl: img,
-              fileType: `image/${ext}`,
-              fileSize: Math.round(img.length * 0.75)
-            }
-          });
-        } catch (syncErr) {
-          console.error('Failed to sync edited comment photo to attachments:', syncErr);
+      // Sync any brand new images to Attachments
+      for (const item of processedImages) {
+        if (item.isNew) {
+          try {
+            await prisma.attachment.create({
+              data: {
+                cardId: id,
+                fileName: item.fileName,
+                fileUrl: item.driveLink || item.displayUrl,
+                fileType: item.mimeType,
+                fileSize: item.size
+              }
+            });
+          } catch (syncErr) {
+            console.error('Failed to auto-sync edited comment photo to attachments:', syncErr);
+          }
         }
       }
     }
@@ -830,28 +917,20 @@ router.post('/:id/attachments', async (req, res) => {
 
     let finalFileUrl = fileUrl;
     let finalFileType = fileType || 'application/octet-stream';
+    let finalFileSize = fileSize || 0;
 
-    // If file is uploaded as Base64 data URL, upload directly to central Google Drive folder
+    // If file is uploaded as Base64 data URL, upload via smart Google Drive uploader (with safe fallback)
     if (fileUrl.startsWith('data:')) {
-      try {
-        const matches = fileUrl.match(/^data:([A-Za-z-+\/0-9.]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const mime = matches[1];
-          const buffer = Buffer.from(matches[2], 'base64');
-          
-          const driveResult = await uploadToGoogleDrive({
-            fileName: fileName,
-            mimeType: mime,
-            fileBuffer: buffer
-          });
-
-          if (driveResult && driveResult.webViewLink) {
-            finalFileUrl = driveResult.webViewLink;
-            finalFileType = 'googledrive/file';
-          }
-        }
-      } catch (driveErr) {
-        console.error('Failed to upload to Google Drive, saving original link:', driveErr);
+      const parsed = parseBase64DataUrl(fileUrl);
+      if (parsed) {
+        const uploadRes = await handleFileUploadSmart({
+          fileName: fileName,
+          mimeType: fileType || parsed.mimeType,
+          fileBuffer: parsed.buffer
+        });
+        finalFileUrl = uploadRes.driveWebViewLink || uploadRes.fileUrl;
+        finalFileType = uploadRes.fileType;
+        finalFileSize = uploadRes.fileSize;
       }
     }
 
@@ -861,7 +940,7 @@ router.post('/:id/attachments', async (req, res) => {
         fileName,
         fileUrl: finalFileUrl,
         fileType: finalFileType,
-        fileSize: fileSize || 0
+        fileSize: finalFileSize
       }
     });
 
@@ -920,6 +999,24 @@ const serveAttachment = async (req: any, res: any, isDownload: boolean) => {
           `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(attachment.fileName)}"`
         );
         return res.send(buffer);
+      }
+    }
+
+    // Check if attachment is a Google Drive file or URL
+    const driveFileId = extractDriveFileId(attachment.fileUrl);
+    if (driveFileId) {
+      const fileData = await getDriveFileStream(driveFileId);
+      if (fileData) {
+        res.setHeader('Content-Type', fileData.mimeType || attachment.fileType || 'application/octet-stream');
+        if (fileData.size) {
+          res.setHeader('Content-Length', fileData.size);
+        }
+        res.setHeader(
+          'Content-Disposition',
+          `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(attachment.fileName || fileData.name)}"`
+        );
+        res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+        return fileData.stream.pipe(res);
       }
     }
 

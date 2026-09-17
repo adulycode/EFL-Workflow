@@ -57,23 +57,8 @@ const KanbanCardComponent: React.FC<Props> = ({ card, isOverlay = false }) => {
           : 'border-neutral-200/90 dark:border-neutral-800 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing active:scale-[0.98]'
       }`}
     >
-      {/* Card Cover Banner (Image or Gradient or Solid Color) */}
-      {card.coverBanner ? (
-        <div className="w-full h-24 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-          {card.coverBanner.startsWith('http') ? (
-            <img
-              src={card.coverBanner}
-              alt="Card cover"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div
-              style={{ background: card.coverBanner }}
-              className="w-full h-full"
-            />
-          )}
-        </div>
-      ) : card.coverImage ? (
+      {/* Card Cover Banner (Image or Thin Color Strip) */}
+      {card.coverImage ? (
         <div className="w-full h-28 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
           <img
             src={card.coverImage}
@@ -81,6 +66,19 @@ const KanbanCardComponent: React.FC<Props> = ({ card, isOverlay = false }) => {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         </div>
+      ) : card.coverBanner && (card.coverBanner.startsWith('http') || card.coverBanner.startsWith('/') || card.coverBanner.startsWith('data:image')) ? (
+        <div className="w-full h-24 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+          <img
+            src={card.coverBanner}
+            alt="Card cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      ) : card.coverBanner ? (
+        <div
+          style={{ background: card.coverBanner }}
+          className="w-full h-3"
+        />
       ) : card.coverColor ? (
         <div
           style={{ backgroundColor: card.coverColor }}

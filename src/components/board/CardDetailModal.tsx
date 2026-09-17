@@ -1351,30 +1351,48 @@ export const CardDetailModal: React.FC = () => {
           
           {/* Card Top Cover Banner (Image, Gradient or Solid Color) */}
           {coverBanner ? (
-            <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden group">
-              {coverBanner.startsWith('http') ? (
+            coverBanner.startsWith('http') || coverBanner.startsWith('/') || coverBanner.startsWith('data:image') ? (
+              <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden group">
                 <img src={coverBanner} alt="Card Cover" className="w-full h-full object-cover" />
-              ) : (
-                <div style={{ background: coverBanner }} className="w-full h-full" />
-              )}
-              <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                <button
-                  type="button"
-                  onClick={() => setShowBannerGallery(true)}
-                  className="px-2.5 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur flex items-center gap-1.5 shadow"
-                >
-                  <CoverIcon size={13} /> Change Cover
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectCoverBanner(null)}
-                  className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur shadow"
-                  title="Remove Cover"
-                >
-                  <X size={13} />
-                </button>
+                <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => setShowBannerGallery(true)}
+                    className="px-2.5 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur flex items-center gap-1.5 shadow"
+                  >
+                    <CoverIcon size={13} /> Change Cover
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCoverBanner(null)}
+                    className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-semibold backdrop-blur shadow"
+                    title="Remove Cover"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ background: coverBanner }} className="relative w-full h-8 group">
+                <div className="absolute top-1 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => setShowBannerGallery(true)}
+                    className="px-2 py-0.5 bg-black/40 hover:bg-black/60 text-white rounded text-[10px] font-semibold backdrop-blur flex items-center gap-1"
+                  >
+                    <CoverIcon size={11} /> Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCoverBanner(null)}
+                    className="p-0.5 px-1 bg-black/40 hover:bg-black/60 text-white rounded text-[10px] font-bold"
+                    title="Remove Cover"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )
           ) : coverImage ? (
             <div className="relative w-full h-36 bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
               <img src={coverImage} alt="Card Cover" className="w-full h-full object-cover" />

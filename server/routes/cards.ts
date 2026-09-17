@@ -7,7 +7,9 @@ import {
   parseBase64DataUrl,
   extractDriveFileId,
   getDriveFileStream,
-  ensureHierarchicalDriveFolder
+  ensureHierarchicalDriveFolder,
+  syncCardDriveFolder,
+  formatCardFolderName
 } from '../services/googleDrive';
 
 const router = Router();
@@ -21,15 +23,22 @@ const emitRealtime = (req: any, event: string, data: any) => {
 };
 
 /**
- * Helper to fetch Workspace name and Card title for folder hierarchy
+ * Helper to fetch Workspace name, Card title, archive status, and Google Drive folder ID
  */
-async function getCardContext(cardId: string): Promise<{ workspaceName: string; cardTitle: string }> {
+async function getCardContext(cardId: string): Promise<{
+  workspaceName: string;
+  cardTitle: string;
+  isArchived: boolean;
+  googleDriveFolderId?: string | null;
+}> {
   try {
     const card = await prisma.card.findUnique({
       where: { id: cardId },
       select: {
         id: true,
         title: true,
+        isArchived: true,
+        googleDriveFolderId: true,
         column: {
           select: {
             board: {
@@ -45,10 +54,17 @@ async function getCardContext(cardId: string): Promise<{ workspaceName: string; 
     });
     return {
       workspaceName: card?.column?.board?.workspace?.name || 'General',
-      cardTitle: card?.title || `Card-${cardId.slice(0, 8)}`
+      cardTitle: card?.title || `Card-${cardId.slice(0, 8)}`,
+      isArchived: card?.isArchived || false,
+      googleDriveFolderId: card?.googleDriveFolderId || null
     };
   } catch {
-    return { workspaceName: 'General', cardTitle: `Card-${cardId.slice(0, 8)}` };
+    return {
+      workspaceName: 'General',
+      cardTitle: `Card-${cardId.slice(0, 8)}`,
+      isArchived: false,
+      googleDriveFolderId: null
+    };
   }
 }
 
@@ -217,19 +233,46 @@ router.patch('/:id', async (req, res) => {
     }
 
     let finalCoverImage = coverImage !== undefined ? coverImage : undefined;
+    let newDriveFolderId = existingCard.googleDriveFolderId;
+
     if (coverImage && typeof coverImage === 'string' && coverImage.startsWith('data:')) {
       const parsed = parseBase64DataUrl(coverImage);
       if (parsed) {
-        const { workspaceName, cardTitle } = await getCardContext(id);
+        const ctx = await getCardContext(id);
         const ext = parsed.mimeType.includes('png') ? 'png' : 'jpg';
         const uploadRes = await handleFileUploadSmart({
           fileName: `cover-${id}.${ext}`,
           mimeType: parsed.mimeType,
           fileBuffer: parsed.buffer,
-          workspaceName,
-          cardTitle
+          workspaceName: ctx.workspaceName,
+          cardTitle: ctx.cardTitle,
+          status: ctx.isArchived ? 'archived' : 'active',
+          existingFolderId: ctx.googleDriveFolderId
         });
         finalCoverImage = uploadRes.fileUrl;
+        if (uploadRes.cardFolderId) {
+          newDriveFolderId = uploadRes.cardFolderId;
+        }
+      }
+    }
+
+    // If card title changed, automatically rename folder in Google Drive & Local Storage
+    if (title && title.trim() !== existingCard.title.trim()) {
+      try {
+        const ctx = await getCardContext(id);
+        const syncRes = await syncCardDriveFolder({
+          workspaceName: ctx.workspaceName,
+          oldTitle: existingCard.title,
+          newTitle: title.trim(),
+          status: existingCard.isArchived ? 'archived' : 'active',
+          previousStatus: existingCard.isArchived ? 'archived' : 'active',
+          existingFolderId: newDriveFolderId || ctx.googleDriveFolderId
+        });
+        if (syncRes.folderId) {
+          newDriveFolderId = syncRes.folderId;
+        }
+      } catch (renameErr: any) {
+        console.warn('[UpdateCard] Drive folder rename failed:', renameErr.message);
       }
     }
 
@@ -243,7 +286,8 @@ router.patch('/:id', async (req, res) => {
         coverColor: coverColor !== undefined ? coverColor : undefined,
         coverImage: finalCoverImage,
         icon: icon !== undefined ? icon : undefined,
-        coverBanner: coverBanner !== undefined ? coverBanner : undefined
+        coverBanner: coverBanner !== undefined ? coverBanner : undefined,
+        googleDriveFolderId: newDriveFolderId || undefined
       },
       include: {
         assignees: { include: { user: true } },
@@ -279,10 +323,32 @@ router.post('/:id/archive', async (req, res) => {
     const { isArchived, userId } = req.body;
 
     const targetStatus = isArchived !== undefined ? Boolean(isArchived) : true;
+    const ctx = await getCardContext(id);
+
+    // Auto-rename Google Drive & local disk folder (add/remove 📦 [Archived])
+    let finalFolderId = ctx.googleDriveFolderId;
+    try {
+      const syncRes = await syncCardDriveFolder({
+        workspaceName: ctx.workspaceName,
+        oldTitle: ctx.cardTitle,
+        newTitle: ctx.cardTitle,
+        status: targetStatus ? 'archived' : 'active',
+        previousStatus: ctx.isArchived ? 'archived' : 'active',
+        existingFolderId: ctx.googleDriveFolderId
+      });
+      if (syncRes.folderId) {
+        finalFolderId = syncRes.folderId;
+      }
+    } catch (syncErr: any) {
+      console.warn('[ArchiveCard] Failed to sync drive folder name:', syncErr.message);
+    }
 
     const updated = await prisma.card.update({
       where: { id },
-      data: { isArchived: targetStatus },
+      data: {
+        isArchived: targetStatus,
+        googleDriveFolderId: finalFolderId || undefined
+      },
       include: {
         column: true,
         assignees: { include: { user: true } },
@@ -567,6 +633,23 @@ router.post('/batch-archive', async (req, res) => {
       data: { isArchived: true }
     });
 
+    // Background sync folder names for batch archived cards
+    (async () => {
+      for (const cid of cardIds) {
+        try {
+          const ctx = await getCardContext(cid);
+          await syncCardDriveFolder({
+            workspaceName: ctx.workspaceName,
+            oldTitle: ctx.cardTitle,
+            newTitle: ctx.cardTitle,
+            status: 'archived',
+            previousStatus: 'active',
+            existingFolderId: ctx.googleDriveFolderId
+          });
+        } catch {}
+      }
+    })().catch(() => {});
+
     emitRealtime(req, 'cards:batch-archived', { cardIds });
     res.json({ success: true, count: cardIds.length });
   } catch (err: any) {
@@ -578,6 +661,22 @@ router.post('/batch-archive', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const ctx = await getCardContext(id);
+
+    // Auto-rename Google Drive & local folder to 🗑️ [Deleted] so team knows it was removed
+    try {
+      await syncCardDriveFolder({
+        workspaceName: ctx.workspaceName,
+        oldTitle: ctx.cardTitle,
+        newTitle: ctx.cardTitle,
+        status: 'deleted',
+        previousStatus: ctx.isArchived ? 'archived' : 'active',
+        existingFolderId: ctx.googleDriveFolderId
+      });
+    } catch (syncErr: any) {
+      console.warn('[DeleteCard] Failed to tag drive folder as deleted:', syncErr.message);
+    }
+
     await prisma.card.delete({ where: { id } });
     emitRealtime(req, 'card:deleted', { cardId: id });
     res.json({ success: true });
@@ -635,7 +734,7 @@ router.post('/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { userId, content, imageUrl, imageUrls } = req.body;
 
-    const { workspaceName, cardTitle } = await getCardContext(id);
+    const ctx = await getCardContext(id);
 
     let finalUserId = userId;
     if (!finalUserId) {
@@ -669,9 +768,19 @@ router.post('/:id/comments', async (req, res) => {
             fileName,
             mimeType: parsed.mimeType,
             fileBuffer: parsed.buffer,
-            workspaceName,
-            cardTitle
+            workspaceName: ctx.workspaceName,
+            cardTitle: ctx.cardTitle,
+            status: ctx.isArchived ? 'archived' : 'active',
+            existingFolderId: ctx.googleDriveFolderId
           });
+
+          if (uploadRes.cardFolderId && uploadRes.cardFolderId !== ctx.googleDriveFolderId) {
+            await prisma.card.update({
+              where: { id },
+              data: { googleDriveFolderId: uploadRes.cardFolderId }
+            }).catch(() => {});
+            ctx.googleDriveFolderId = uploadRes.cardFolderId;
+          }
 
           finalUploadedImages.push({
             displayUrl: uploadRes.fileUrl,
@@ -764,7 +873,7 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
     const { id, commentId } = req.params;
     const { content, userId, imageUrls, imageUrl } = req.body;
 
-    const { workspaceName, cardTitle } = await getCardContext(id);
+    const ctx = await getCardContext(id);
 
     const hasText = typeof content === 'string' && content.trim().length > 0;
     const hasImages = (Array.isArray(imageUrls) && imageUrls.length > 0) || (typeof imageUrl === 'string' && imageUrl.trim().length > 0);
@@ -817,9 +926,20 @@ router.patch('/:id/comments/:commentId', async (req, res) => {
               fileName,
               mimeType: parsed.mimeType,
               fileBuffer: parsed.buffer,
-              workspaceName,
-              cardTitle
+              workspaceName: ctx.workspaceName,
+              cardTitle: ctx.cardTitle,
+              status: ctx.isArchived ? 'archived' : 'active',
+              existingFolderId: ctx.googleDriveFolderId
             });
+
+            if (uploadRes.cardFolderId && uploadRes.cardFolderId !== ctx.googleDriveFolderId) {
+              await prisma.card.update({
+                where: { id },
+                data: { googleDriveFolderId: uploadRes.cardFolderId }
+              }).catch(() => {});
+              ctx.googleDriveFolderId = uploadRes.cardFolderId;
+            }
+
             processedImages.push({
               displayUrl: uploadRes.fileUrl,
               driveLink: uploadRes.driveWebViewLink,
@@ -947,15 +1067,31 @@ router.delete('/:id/comments/:commentId', async (req, res) => {
 router.get('/:id/drive-folder', async (req, res) => {
   try {
     const { id } = req.params;
-    const { workspaceName, cardTitle } = await getCardContext(id);
-    const folderInfo = await ensureHierarchicalDriveFolder(workspaceName, cardTitle);
+    const ctx = await getCardContext(id);
+    const folderInfo = await ensureHierarchicalDriveFolder(
+      ctx.workspaceName,
+      ctx.cardTitle,
+      ctx.isArchived ? 'archived' : 'active',
+      ctx.googleDriveFolderId
+    );
     const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '1N1tclaApps6k8gmz-1SIbBWacOAW-T1D';
+    const folderId = folderInfo?.cardFolderId || folderInfo?.targetFolderId || rootFolderId;
+    const folderUrl = folderInfo?.cardFolderLink || `https://drive.google.com/drive/folders/${folderId}`;
+
+    if (folderInfo?.cardFolderId && folderInfo.cardFolderId !== ctx.googleDriveFolderId) {
+      await prisma.card.update({
+        where: { id },
+        data: { googleDriveFolderId: folderInfo.cardFolderId }
+      }).catch(() => {});
+    }
+
     res.json({
       success: true,
-      workspaceName,
-      cardTitle,
-      folderId: folderInfo?.cardFolderId || folderInfo?.targetFolderId || rootFolderId,
-      folderUrl: folderInfo?.cardFolderLink || `https://drive.google.com/drive/folders/${folderInfo?.cardFolderId || folderInfo?.targetFolderId || rootFolderId}`
+      workspaceName: ctx.workspaceName,
+      cardTitle: ctx.cardTitle,
+      isArchived: ctx.isArchived,
+      folderId,
+      folderUrl
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -978,7 +1114,7 @@ router.post('/:id/attachments', async (req, res) => {
       return res.status(400).json({ error: 'ไม่อนุญาตให้อัปโหลดไฟล์ประเภทนี้ เพื่อความปลอดภัยของระบบ' });
     }
 
-    const { workspaceName, cardTitle } = await getCardContext(id);
+    const ctx = await getCardContext(id);
 
     let finalFileUrl = fileUrl;
     let finalFileType = fileType || 'application/octet-stream';
@@ -992,12 +1128,22 @@ router.post('/:id/attachments', async (req, res) => {
           fileName: fileName,
           mimeType: fileType || parsed.mimeType,
           fileBuffer: parsed.buffer,
-          workspaceName,
-          cardTitle
+          workspaceName: ctx.workspaceName,
+          cardTitle: ctx.cardTitle,
+          status: ctx.isArchived ? 'archived' : 'active',
+          existingFolderId: ctx.googleDriveFolderId
         });
         finalFileUrl = uploadRes.driveWebViewLink || uploadRes.fileUrl;
         finalFileType = uploadRes.fileType;
         finalFileSize = uploadRes.fileSize;
+
+        if (uploadRes.cardFolderId && uploadRes.cardFolderId !== ctx.googleDriveFolderId) {
+          await prisma.card.update({
+            where: { id },
+            data: { googleDriveFolderId: uploadRes.cardFolderId }
+          }).catch(() => {});
+          ctx.googleDriveFolderId = uploadRes.cardFolderId;
+        }
       }
     }
 

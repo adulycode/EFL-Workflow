@@ -119,12 +119,136 @@ export async function getOrCreateDriveFolder(
 }
 
 /**
+ * Format folder name for a Card:
+ * Active: "[Card Title]"
+ * Archived: "📦 [Archived] [Card Title]"
+ * Deleted: "🗑️ [Deleted] [Card Title]"
+ */
+export function formatCardFolderName(cardTitle: string, status?: 'active' | 'archived' | 'deleted' | boolean): string {
+  const clean = sanitizeFolderName(cardTitle || 'Untitled Card');
+  if (status === 'deleted') {
+    return `🗑️ [Deleted] ${clean}`;
+  }
+  if (status === 'archived' || status === true) {
+    return `📦 [Archived] ${clean}`;
+  }
+  return clean;
+}
+
+/**
+ * Rename a folder in Google Drive
+ */
+export async function renameDriveFolder(folderId: string, newName: string): Promise<boolean> {
+  const drive = getDriveClient();
+  if (!drive || !folderId) return false;
+
+  const cleanName = sanitizeFolderName(newName);
+  try {
+    await drive.files.update({
+      fileId: folderId,
+      requestBody: { name: cleanName },
+      supportsAllDrives: true
+    });
+    folderCache.clear();
+    console.log(`[GoogleDrive] Folder ${folderId} successfully renamed to "${cleanName}"`);
+    return true;
+  } catch (err: any) {
+    console.warn(`[GoogleDrive] Failed to rename folder ${folderId} to "${cleanName}":`, err.message || err);
+    return false;
+  }
+}
+
+/**
+ * Rename card folder on local disk (/uploads/[Workspace]/[oldName] -> /uploads/[Workspace]/[newName])
+ */
+export function renameLocalFolder(workspaceName: string, oldName: string, newName: string): void {
+  try {
+    const baseUploadDir = path.resolve(process.cwd(), 'uploads');
+    const safeWs = sanitizeFolderName(workspaceName || 'General');
+    const safeOld = sanitizeFolderName(oldName);
+    const safeNew = sanitizeFolderName(newName);
+    if (safeOld === safeNew) return;
+
+    const oldPath = path.join(baseUploadDir, safeWs, safeOld);
+    const newPath = path.join(baseUploadDir, safeWs, safeNew);
+
+    if (fs.existsSync(oldPath)) {
+      if (!fs.existsSync(path.dirname(newPath))) {
+        fs.mkdirSync(path.dirname(newPath), { recursive: true });
+      }
+      fs.renameSync(oldPath, newPath);
+      console.log(`[LocalStorage] Renamed local card folder "${safeOld}" -> "${safeNew}"`);
+    }
+  } catch (err: any) {
+    console.warn('[LocalStorage] Failed to rename local folder:', err.message || err);
+  }
+}
+
+/**
+ * Synchronize Card folder name between EFL-Trello and Google Drive / Local Storage
+ */
+export async function syncCardDriveFolder(params: {
+  workspaceName: string;
+  oldTitle: string;
+  newTitle: string;
+  status: 'active' | 'archived' | 'deleted';
+  previousStatus?: 'active' | 'archived' | 'deleted';
+  existingFolderId?: string | null;
+}): Promise<{ folderId?: string; folderName: string; renamed: boolean }> {
+  const prevStatus = params.previousStatus || 'active';
+  const oldFolderName = formatCardFolderName(params.oldTitle, prevStatus);
+  const newFolderName = formatCardFolderName(params.newTitle, params.status);
+
+  // 1. Rename on local disk if folder exists
+  renameLocalFolder(params.workspaceName, oldFolderName, newFolderName);
+
+  // 2. Rename on Google Drive
+  const drive = getDriveClient();
+  if (!drive) {
+    return { folderName: newFolderName, renamed: false };
+  }
+
+  let folderId = params.existingFolderId;
+
+  // If no stored folder ID, try to find existing folder by old or new name
+  if (!folderId) {
+    const { folderId: rootFolderId } = getDriveConfig();
+    if (rootFolderId) {
+      const wsFolder = await getOrCreateDriveFolder(params.workspaceName, rootFolderId);
+      if (wsFolder) {
+        const escapedOld = oldFolderName.replace(/'/g, "\\'");
+        const escapedNew = newFolderName.replace(/'/g, "\\'");
+        const searchRes = await drive.files.list({
+          q: `'${wsFolder.folderId}' in parents and (name = '${escapedOld}' or name = '${escapedNew}') and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+          fields: 'files(id, name)',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+          pageSize: 1
+        });
+        if (searchRes.data.files && searchRes.data.files.length > 0) {
+          folderId = searchRes.data.files[0].id!;
+        }
+      }
+    }
+  }
+
+  if (folderId) {
+    const success = await renameDriveFolder(folderId, newFolderName);
+    return { folderId, folderName: newFolderName, renamed: success };
+  }
+
+  return { folderName: newFolderName, renamed: false };
+}
+
+/**
  * Ensure the full hierarchy exists in Google Drive:
  * Root (EFL-Trello) -> Workspace Folder -> Card Folder
  */
 export async function ensureHierarchicalDriveFolder(
   workspaceName?: string,
-  cardTitle?: string
+  cardTitle?: string,
+  status: 'active' | 'archived' | 'deleted' | boolean = 'active',
+  existingCardFolderId?: string | null
 ): Promise<{
   targetFolderId: string;
   cardFolderLink?: string;
@@ -148,9 +272,41 @@ export async function ensureHierarchicalDriveFolder(
     }
   }
 
-  // Level 2: Card Folder (e.g. "[ชื่องาน / การ์ด]")
+  // Level 2: Card Folder (e.g. "ชื่องาน" or "📦 [Archived] ชื่องาน")
   if (cardTitle) {
-    const cardFolder = await getOrCreateDriveFolder(cardTitle, currentParentId);
+    const targetStatus = typeof status === 'boolean' ? (status ? 'archived' : 'active') : status;
+    const targetName = formatCardFolderName(cardTitle, targetStatus);
+
+    // If existing folder ID is known, verify and ensure its name is up-to-date
+    if (existingCardFolderId) {
+      try {
+        const drive = getDriveClient();
+        if (drive) {
+          const checkRes = await drive.files.get({
+            fileId: existingCardFolderId,
+            fields: 'id, name, webViewLink, trashed',
+            supportsAllDrives: true
+          });
+          if (checkRes.data && !checkRes.data.trashed) {
+            cardFolderId = checkRes.data.id!;
+            cardFolderLink = checkRes.data.webViewLink || `https://drive.google.com/drive/folders/${cardFolderId}`;
+            if (checkRes.data.name !== targetName) {
+              await renameDriveFolder(cardFolderId, targetName);
+            }
+            return {
+              targetFolderId: cardFolderId,
+              cardFolderLink,
+              cardFolderId,
+              workspaceFolderId
+            };
+          }
+        }
+      } catch (checkErr: any) {
+        console.warn(`[GoogleDrive] Stored folderId ${existingCardFolderId} check failed:`, checkErr.message);
+      }
+    }
+
+    const cardFolder = await getOrCreateDriveFolder(targetName, currentParentId);
     if (cardFolder) {
       currentParentId = cardFolder.folderId;
       cardFolderId = cardFolder.folderId;
@@ -304,10 +460,12 @@ export async function saveUploadedFileLocally(params: {
   fileBuffer: Buffer;
   workspaceName?: string;
   cardTitle?: string;
+  status?: 'active' | 'archived' | 'deleted' | boolean;
 }): Promise<{ fileUrl: string; fileName: string; fileSize: number }> {
   const baseUploadDir = path.resolve(process.cwd(), 'uploads');
   const safeWs = params.workspaceName ? sanitizeFolderName(params.workspaceName) : 'General';
-  const safeCard = params.cardTitle ? sanitizeFolderName(params.cardTitle) : 'Unassigned';
+  const folderName = formatCardFolderName(params.cardTitle || 'Unassigned', params.status || 'active');
+  const safeCard = sanitizeFolderName(folderName);
 
   const targetDir = path.join(baseUploadDir, safeWs, safeCard);
   if (!fs.existsSync(targetDir)) {
@@ -363,6 +521,8 @@ export async function handleFileUploadSmart(params: {
   fileBuffer: Buffer;
   workspaceName?: string;
   cardTitle?: string;
+  status?: 'active' | 'archived' | 'deleted' | boolean;
+  existingFolderId?: string | null;
 }): Promise<{
   fileUrl: string;
   driveWebViewLink?: string;
@@ -380,7 +540,12 @@ export async function handleFileUploadSmart(params: {
     let cardFolderId: string | undefined;
 
     if (params.workspaceName || params.cardTitle) {
-      const folderInfo = await ensureHierarchicalDriveFolder(params.workspaceName, params.cardTitle);
+      const folderInfo = await ensureHierarchicalDriveFolder(
+        params.workspaceName,
+        params.cardTitle,
+        params.status,
+        params.existingFolderId
+      );
       if (folderInfo) {
         targetFolderId = folderInfo.targetFolderId;
         cardFolderLink = folderInfo.cardFolderLink;
@@ -416,7 +581,8 @@ export async function handleFileUploadSmart(params: {
     fileName: params.fileName,
     fileBuffer: params.fileBuffer,
     workspaceName: params.workspaceName,
-    cardTitle: params.cardTitle
+    cardTitle: params.cardTitle,
+    status: params.status
   });
 
   return {

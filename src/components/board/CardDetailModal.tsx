@@ -48,6 +48,7 @@ import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
 import { DueDatePicker } from '../common/DueDatePicker';
 import { LinkPreviewCard } from '../common/LinkPreviewCard';
 import { MoveCardModal } from './MoveCardModal';
+import { RenderedTextWithLinks, ExtractedLinksBar, RichLinkBadge } from '../../utils/linkMeta';
 
 const POPULAR_CARD_ICONS = [
   '📝', '📌', '🚀', '💡', '🔥', '✨', '🎯', '📊', '📈', '🛠️', 
@@ -157,6 +158,7 @@ export const CardDetailModal: React.FC = () => {
   const [slashQuery, setSlashQuery] = useState('');
   const [slashPosition, setSlashPosition] = useState<{ top: number; left: number } | undefined>(undefined);
   const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
 
   // Confirmation Popups State
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -204,6 +206,7 @@ export const CardDetailModal: React.FC = () => {
         setCoverImage(data.coverImage || null);
         setIcon(data.icon || '📝');
         setCoverBanner(data.coverBanner || null);
+        setIsEditingDescription(false);
       }
     } catch (err) {
       console.error('Failed to load card details:', err);
@@ -1256,27 +1259,9 @@ export const CardDetailModal: React.FC = () => {
           </button>
         );
       } else {
-        // Raw URL: format cleanly
-        const rawUrl = fullMatch;
-        let displayUrl = rawUrl;
-        try {
-          const parsed = new URL(rawUrl);
-          displayUrl = `${parsed.hostname}${parsed.pathname.length > 25 ? parsed.pathname.slice(0, 25) + '...' : parsed.pathname}`;
-        } catch {
-          displayUrl = rawUrl.length > 40 ? rawUrl.slice(0, 40) + '...' : rawUrl;
-        }
-
+        // Raw URL: format with cute RichLinkBadge!
         textElements.push(
-          <a
-            key={`url-${match.index}`}
-            href={rawUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={rawUrl}
-            className="text-emerald-600 dark:text-emerald-400 font-semibold underline underline-offset-2 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors mx-0.5 break-all"
-          >
-            {displayUrl}
-          </a>
+          <RichLinkBadge key={`url-${match.index}`} url={fullMatch} />
         );
       }
 
@@ -1576,38 +1561,92 @@ export const CardDetailModal: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Main Column */}
             <div className="md:col-span-2 space-y-6">
-              {/* Description with Slash Command Menu */}
+              {/* Description with Slash Command Menu & Rich Link Detector */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                     Description & Notes
                   </label>
-                  <span className="text-[10px] font-semibold text-neutral-400 flex items-center gap-1">
-                    <Sparkles size={11} className="text-emerald-500" />
-                    พิมพ์ <kbd className="px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 font-mono">/</kbd> สำหรับ Slash Commands
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {description.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingDescription) {
+                            handleSaveBasic();
+                          }
+                          setIsEditingDescription(!isEditingDescription);
+                        }}
+                        className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {isEditingDescription ? (
+                          <>
+                            <Check size={12} className="text-emerald-500" />
+                            <span>เสร็จสิ้น (Done)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Pencil size={11} />
+                            <span>แก้ไข (Edit)</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {isEditingDescription && (
+                      <span className="text-[10px] font-semibold text-neutral-400 flex items-center gap-1">
+                        <Sparkles size={11} className="text-emerald-500" />
+                        พิมพ์ <kbd className="px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 font-mono">/</kbd> คำสั่ง
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="relative">
-                  <textarea
-                    ref={descriptionTextareaRef}
-                    value={description}
-                    onChange={handleDescriptionChange}
-                    onBlur={handleSaveBasic}
-                    placeholder="เขียนรายละเอียดงาน... หรือพิมพ์ / เพื่อแทรก Callout, Checklist, Headings, Code"
-                    rows={4}
-                    className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none leading-relaxed font-sans"
-                  />
+                  {isEditingDescription || !description.trim() ? (
+                    <>
+                      <textarea
+                        ref={descriptionTextareaRef}
+                        autoFocus={isEditingDescription}
+                        value={description}
+                        onChange={handleDescriptionChange}
+                        onBlur={() => {
+                          handleSaveBasic();
+                        }}
+                        placeholder="เขียนรายละเอียดงาน... วางลิงก์ Google Drive, Canva, Figma หรือพิมพ์ / เพื่อแทรก Callout, Checklist"
+                        rows={5}
+                        className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y leading-relaxed font-sans shadow-xs"
+                      />
 
-                  {/* Slash Command Palette Popup */}
-                  {showSlashMenu && (
-                    <SlashCommandMenu
-                      query={slashQuery}
-                      onSelect={handleSelectSlashCommand}
-                      onClose={() => setShowSlashMenu(false)}
-                      position={{ top: 40, left: 10 }}
-                    />
+                      {/* Slash Command Palette Popup */}
+                      {showSlashMenu && (
+                        <SlashCommandMenu
+                          query={slashQuery}
+                          onSelect={handleSelectSlashCommand}
+                          onClose={() => setShowSlashMenu(false)}
+                          position={{ top: 40, left: 10 }}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        setIsEditingDescription(true);
+                        setTimeout(() => descriptionTextareaRef.current?.focus(), 50);
+                      }}
+                      className="group relative w-full min-h-[90px] text-xs p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/70 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer shadow-xs"
+                      title="คลิกเพื่อแก้ไขรายละเอียด (Click to edit)"
+                    >
+                      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 px-2 py-0.5 rounded-md shadow-xs border border-neutral-200 dark:border-neutral-700">
+                          <Pencil size={10} /> แก้ไข
+                        </span>
+                      </div>
+                      <RenderedTextWithLinks text={description} />
+                    </div>
                   )}
+
+                  {/* Auto-extracted Rich Links Bar */}
+                  <ExtractedLinksBar text={description} />
                 </div>
               </div>
 

@@ -342,8 +342,8 @@ export const CardDetailModal: React.FC = () => {
     };
 
     if (showPhotoRefMenu || showFileRefMenu || showEmojiPicker) {
-      document.addEventListener('mousedown', handleMouseDown);
-      return () => document.removeEventListener('mousedown', handleMouseDown);
+      document.addEventListener('mousedown', handleMouseDown, true);
+      return () => document.removeEventListener('mousedown', handleMouseDown, true);
     }
   }, [showPhotoRefMenu, showFileRefMenu, showEmojiPicker]);
 
@@ -2060,8 +2060,22 @@ export const CardDetailModal: React.FC = () => {
                             {showPhotoRefMenu && (
                               <div
                                 ref={photoRefMenuRef}
-                                className="absolute right-0 bottom-full mb-2 w-80 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 sm:w-80 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
                               >
+                                {/* Floating Hover Photo Preview directly above the Ref Photo menu */}
+                                {hoveredPhotoPreview && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-[60] p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 animate-in fade-in zoom-in-95 w-60 text-center">
+                                    <img
+                                      src={hoveredPhotoPreview.url}
+                                      alt={hoveredPhotoPreview.name}
+                                      className="max-h-48 max-w-full rounded-xl object-contain mx-auto shadow-sm"
+                                    />
+                                    <p className="text-[11px] font-bold text-neutral-700 dark:text-neutral-200 truncate mt-1.5 px-1">
+                                      {hoveredPhotoPreview.name}
+                                    </p>
+                                  </div>
+                                )}
+
                                 <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-neutral-100 dark:border-neutral-800">
                                   <p className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200">
                                     เลือกรูปภาพอ้างอิง ({cardPhotos.length})
@@ -2198,7 +2212,7 @@ export const CardDetailModal: React.FC = () => {
                               {showFileRefMenu && (
                                 <div
                                   ref={fileRefMenuRef}
-                                  className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                  className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100"
                                 >
                                   <div className="flex items-center justify-between pb-1 mb-1 border-b border-neutral-100 dark:border-neutral-800">
                                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1">
@@ -3542,15 +3556,6 @@ export const CardDetailModal: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Hover Photo Preview for thumbnails */}
-      {hoveredPhotoPreview && (
-        <div className="fixed pointer-events-none z-[100] bottom-16 right-16 p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 animate-in fade-in zoom-in-95 max-w-xs">
-          <img src={hoveredPhotoPreview.url} alt={hoveredPhotoPreview.name} className="max-h-56 max-w-full rounded-xl object-contain mx-auto" />
-          <p className="text-[11px] font-bold text-neutral-700 dark:text-neutral-200 text-center truncate mt-1.5">
-            {hoveredPhotoPreview.name}
-          </p>
-        </div>
-      )}
 
       {/* Move Card Modal */}
       {cardDetails && (

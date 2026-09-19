@@ -40,44 +40,6 @@ export const KanbanBoard: React.FC = () => {
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const boardMainRef = useRef<HTMLElement>(null);
 
-  // Smooth Horizontal Scrolling on Mouse Wheel (converts vertical wheel deltaY to horizontal scroll when scrolling the board)
-  useEffect(() => {
-    const el = boardMainRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // Check if user is scrolling inside a vertically scrollable container (e.g. card list)
-      const target = e.target as HTMLElement | null;
-      const scrollableChild = target?.closest('.overflow-y-auto') as HTMLElement | null;
-
-      if (scrollableChild && scrollableChild !== el) {
-        const canScrollUp = scrollableChild.scrollTop > 0;
-        const canScrollDown =
-          scrollableChild.scrollTop + scrollableChild.clientHeight < scrollableChild.scrollHeight - 1;
-
-        if ((e.deltaY < 0 && canScrollUp) || (e.deltaY > 0 && canScrollDown)) {
-          // Allow vertical scrolling inside the column
-          return;
-        }
-      }
-
-      // If user is already scrolling horizontally (trackpad or tilt-wheel), don't interfere
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        return;
-      }
-
-      // Convert vertical scroll wheel (deltaY) to horizontal scroll (scrollLeft)
-      if (e.deltaY !== 0) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
-      }
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-    };
-  }, [board?.id]);
 
   // Drag-to-Scroll on empty space (Click & hold background to pan/scroll horizontally)
   const isPanningRef = useRef(false);

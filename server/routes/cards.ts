@@ -403,7 +403,20 @@ router.post('/:id/move', async (req, res) => {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       const isAdmin = user?.role === 'ADMIN';
       const isOwner = oldCard.column.board.workspace.ownerId === userId;
-      const isCreator = oldCard.createdById === userId;
+      let isCreator = oldCard.createdById === userId;
+
+      // Fallback for legacy cards where createdById is NULL: check first activity log or allow workspace members
+      if (!isCreator && !oldCard.createdById) {
+        const firstActivity = await prisma.activityLog.findFirst({
+          where: { cardId: oldCard.id },
+          orderBy: { createdAt: 'asc' }
+        });
+        if (firstActivity && firstActivity.userId === userId) {
+          isCreator = true;
+          prisma.card.update({ where: { id: oldCard.id }, data: { createdById: userId } }).catch(() => {});
+        }
+      }
+
       const isAssigned = oldCard.assignees.some((a) => a.userId === userId);
 
       if (!isAdmin && !isOwner && !isCreator && !isAssigned) {
@@ -555,7 +568,20 @@ router.post('/batch-move', async (req, res) => {
 
     for (const card of cards) {
       const isOwner = card.column.board.workspace.ownerId === userId;
-      const isCreator = card.createdById === userId;
+      let isCreator = card.createdById === userId;
+
+      // Fallback for legacy cards where createdById is NULL
+      if (!isCreator && !card.createdById && userId) {
+        const firstActivity = await prisma.activityLog.findFirst({
+          where: { cardId: card.id },
+          orderBy: { createdAt: 'asc' }
+        });
+        if (firstActivity && firstActivity.userId === userId) {
+          isCreator = true;
+          prisma.card.update({ where: { id: card.id }, data: { createdById: userId } }).catch(() => {});
+        }
+      }
+
       const isAssigned = card.assignees.some((a) => a.userId === userId);
 
       if (!isAdmin && !isOwner && !isCreator && !isAssigned) {
@@ -590,6 +616,7 @@ router.post('/batch-move', async (req, res) => {
             }
           });
         }
+
         sendStakeholderNotifications({
           cardId: card.id,
           actorUserId: userId,
@@ -613,8 +640,15 @@ router.post('/batch-move', async (req, res) => {
       }
     }
 
+    if (cards.length > 0 && movedCount === 0) {
+      return res.status(403).json({
+        error: 'คุณไม่มีสิทธิ์ย้ายการ์ดที่เลือก (สามารถย้ายได้เฉพาะการ์ดที่ตนเองสร้างหรือได้รับมอบหมายเท่านั้น)',
+        count: 0
+      });
+    }
+
     emitRealtime(req, 'cards:batch-moved', { cardIds, columnId });
-    res.json({ success: true, count: movedCount });
+    res.json({ success: true, count: movedCount, skippedCount: cards.length - movedCount });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -717,6 +751,9 @@ router.get('/:id/details', async (req, res) => {
         },
         attachments: {
           orderBy: { createdAt: 'desc' }
+        },
+        createdBy: {
+          select: { id: true, name: true, avatarUrl: true }
         }
       }
     });

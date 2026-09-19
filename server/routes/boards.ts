@@ -77,6 +77,9 @@ router.get('/', async (req, res) => {
                 },
                 _count: {
                   select: { comments: true, attachments: true }
+                },
+                createdBy: {
+                  select: { id: true, name: true, avatarUrl: true }
                 }
               }
             }

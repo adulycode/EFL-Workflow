@@ -123,6 +123,7 @@ export interface Card {
   isArchived?: boolean;
   column?: { id: string; title: string };
   createdById?: string;
+  createdBy?: { id: string; name: string; avatarUrl?: string };
   assignees: CardAssignee[];
   labels: CardLabel[];
   checklists?: Checklist[];

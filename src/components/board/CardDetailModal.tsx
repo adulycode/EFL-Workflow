@@ -1524,9 +1524,21 @@ export const CardDetailModal: React.FC = () => {
                 {icon || '📝'}
               </button>
               <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                  in column: {cardDetails.column?.title}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                    in column: {cardDetails.column?.title}
+                  </span>
+                  {cardDetails.createdBy && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full font-medium">
+                      <img
+                        src={cardDetails.createdBy.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(cardDetails.createdBy.name)}`}
+                        alt={cardDetails.createdBy.name}
+                        className="w-3.5 h-3.5 rounded-full object-cover ring-1 ring-violet-400"
+                      />
+                      <span>สร้างโดย: <strong className="font-semibold text-neutral-800 dark:text-neutral-100">{cardDetails.createdBy.name}</strong></span>
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={title}

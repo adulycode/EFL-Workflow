@@ -10,8 +10,8 @@ conn.on('ready', () => {
     'docker compose build efl-workflow-app',
     'docker compose stop efl-workflow-app',
     'docker compose rm -f efl-workflow-app',
-    'docker compose up -d efl-workflow-app',
-    'sleep 10',
+    'docker compose up -d --no-deps efl-workflow-app',
+    'sleep 12',
     'curl -I http://localhost:3010'
   ].join(' && ');
 

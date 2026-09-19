@@ -1526,8 +1526,17 @@ export const CardDetailModal: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                    in column: {cardDetails.column?.title}
+                    in column:
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMoveModal(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-800 dark:text-neutral-200 hover:text-blue-600 dark:hover:text-blue-400 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700/80 px-2 py-0.5 rounded-md underline underline-offset-2 decoration-neutral-400 hover:decoration-blue-500 cursor-pointer transition-colors"
+                    title="คลิกเพื่อย้ายคอลัมน์ หรือย้ายบอร์ด (Move Card)"
+                  >
+                    <span>{cardDetails.column?.title}</span>
+                    <ArrowRightLeft size={10} className="text-neutral-400" />
+                  </button>
                   {cardDetails.createdBy && (
                     <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full font-medium">
                       <img
@@ -1548,12 +1557,28 @@ export const CardDetailModal: React.FC = () => {
                 />
               </div>
             </div>
-            <button
-              onClick={() => setSelectedCardId(null)}
-              className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              <X size={18} />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {(currentUser?.role === 'ADMIN' ||
+                currentWorkspace?.ownerId === currentUser?.id ||
+                cardDetails?.createdById === currentUser?.id ||
+                cardDetails?.assignees?.some((a: any) => a.userId === currentUser?.id)) && (
+                <button
+                  type="button"
+                  onClick={() => setShowMoveModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 rounded-xl transition-all shadow-xs cursor-pointer"
+                  title="Move Card (ย้ายไปบอร์ดหรือคอลัมน์อื่น)"
+                >
+                  <ArrowRightLeft size={13} />
+                  <span>Move Card</span>
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedCardId(null)}
+                className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Modal Body */}
@@ -2907,6 +2932,29 @@ export const CardDetailModal: React.FC = () => {
 
             {/* Sidebar Properties */}
             <div className="space-y-5 bg-neutral-50 dark:bg-neutral-950/60 p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80">
+              
+              {/* Top Quick Actions (Move Card like Trello) */}
+              {(currentUser?.role === 'ADMIN' ||
+                currentWorkspace?.ownerId === currentUser?.id ||
+                cardDetails?.createdById === currentUser?.id ||
+                cardDetails?.assignees?.some((a: any) => a.userId === currentUser?.id)) && (
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
+                    <span>Actions</span>
+                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Trello Style</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowMoveModal(true)}
+                    className="w-full flex items-center justify-center gap-2 text-xs text-blue-700 dark:text-blue-300 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/80 p-2.5 rounded-xl transition-all font-bold shadow-xs cursor-pointer"
+                    title="Move Card (ย้ายการ์ดไปคอลัมน์หรือบอร์ดอื่น)"
+                  >
+                    <ArrowRightLeft size={14} />
+                    <span>Move Card (ย้ายไปบอร์ด/คอลัมน์อื่น)</span>
+                  </button>
+                </div>
+              )}
+
               {/* Card Cover Selector Button */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5">

@@ -231,7 +231,7 @@ export const BoardHeader: React.FC = () => {
                   </button>
 
                   <a
-                    href="http://localhost:3050"
+                    href={typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3050' : 'https://eflworkspace.com'}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"

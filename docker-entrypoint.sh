@@ -8,7 +8,7 @@ until nc -z efl-workflow-db 5432; do
 done
 
 echo "Database is ready! Running Prisma DB push..."
-npx prisma db push --accept-data-loss || npx prisma db push --force-reset --accept-data-loss
+npx prisma db push --accept-data-loss
 
 echo "Running DB Seeder..."
 npm run prisma:seed || true

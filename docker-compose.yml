@@ -36,7 +36,7 @@ services:
       - NODE_ENV=production
       - PORT=3010
       - DATABASE_URL=postgresql://efl_user:efl_password_2026@efl-workflow-db:5432/efl_workflow_db?schema=public
-      - SSO_PORTAL_URL=${SSO_PORTAL_URL:-http://host.docker.internal:3050}
+      - SSO_PORTAL_URL=${SSO_PORTAL_URL:-https://eflworkspace.com}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

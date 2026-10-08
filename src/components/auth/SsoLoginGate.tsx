@@ -77,7 +77,7 @@ export const SsoLoginGate: React.FC = () => {
           </button>
 
           <p className="text-[11px] text-neutral-500 text-center">
-            SSO Hub Portal: <span className="font-mono text-neutral-400">http://localhost:3050</span>
+            SSO Hub Portal: <span className="font-mono text-neutral-400">{ssoPortalUrl}</span>
           </p>
         </div>
 

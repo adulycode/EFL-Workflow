@@ -54,6 +54,7 @@ router.get('/', async (req, res) => {
 
     let board = await prisma.board.findFirst({
       where: whereClause,
+      orderBy: { createdAt: 'asc' },
       include: {
         workspace: true,
         columns: {

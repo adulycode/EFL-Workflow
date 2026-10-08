@@ -402,14 +402,128 @@ export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: 
       if (synced) syncedUsers.push(synced);
     }
 
-    console.log(`[SSO Sync] ✅ Successfully synced ${syncedUsers.length} users from Central SSO!`);
-    return { success: true, count: syncedUsers.length, users: syncedUsers };
+    // Reconcile and purge any users that have been deleted in Central SSO
+    const deletedUserIds = await reconcileDeletedSsoUsers(usersData);
+    if (deletedUserIds.length > 0) {
+      console.log(`[SSO Sync] 🧹 Reconciled and removed ${deletedUserIds.length} deleted users.`);
+    }
+
+    const allRemainingUsers = await prisma.user.findMany({
+      orderBy: { createdAt: 'asc' }
+    });
+
+    console.log(`[SSO Sync] ✅ Successfully synced ${syncedUsers.length} users (total active remaining: ${allRemainingUsers.length}) from Central SSO!`);
+    return { success: true, count: syncedUsers.length, users: allRemainingUsers, deletedCount: deletedUserIds.length } as any;
   } catch (err: any) {
     console.error('[SSO Sync] Failed to pull users from Central SSO:', err.message);
     const { syncAllSsoEmployees } = await import('./syncSsoEmployees');
     const synced = await syncAllSsoEmployees();
     return { success: true, count: synced.length, users: synced };
   }
+}
+
+/**
+ * Reconcile local users against the active Central SSO users list.
+ * Any user previously managed by SSO who is missing from the active list will be deleted
+ * (with their foreign keys safely unlinked/cascaded) so they no longer appear anywhere in EFL-Workflow.
+ */
+export async function reconcileDeletedSsoUsers(activeSsoUsers: any[]): Promise<string[]> {
+  if (!Array.isArray(activeSsoUsers) || activeSsoUsers.length === 0) {
+    // Safety check: do not reconcile if the active users list is empty (e.g. SSO returned an error)
+    return [];
+  }
+
+  const ssoEmails = new Set(
+    activeSsoUsers
+      .map((u) => u.email?.toLowerCase().trim())
+      .filter(Boolean)
+  );
+
+  const ssoIds = new Set(
+    activeSsoUsers
+      .map((u) => (u.ssoUserId || u.userId || u.id)?.toString().trim())
+      .filter(Boolean)
+  );
+
+  // Find all local users with an ssoUserId
+  const localUsers = await prisma.user.findMany({
+    where: {
+      ssoUserId: { not: null }
+    }
+  });
+
+  const deletedUserIds: string[] = [];
+
+  for (const user of localUsers) {
+    const userEmail = user.email.toLowerCase().trim();
+    const hasEmailMatch = ssoEmails.has(userEmail);
+    const hasIdMatch = user.ssoUserId ? ssoIds.has(user.ssoUserId) : false;
+
+    // If user is neither in ssoEmails nor in ssoIds, they were deleted from Central SSO
+    if (!hasEmailMatch && !hasIdMatch) {
+      console.log(`[SSO Reconciliation] ⚠️ Detected deleted SSO user: ${user.name} (${user.email}, ID: ${user.id})`);
+
+      try {
+        // 1. Unlink Card creations (set createdById to null)
+        await prisma.card.updateMany({
+          where: { createdById: user.id },
+          data: { createdById: null }
+        });
+
+        // 2. Unlink Board creations (set createdById to null)
+        await prisma.board.updateMany({
+          where: { createdById: user.id },
+          data: { createdById: null }
+        });
+
+        // 3. Remove from all Card assignments (Assignee, Report To, FYI)
+        await prisma.cardAssignee.deleteMany({
+          where: { userId: user.id }
+        });
+
+        // 4. Remove from all Workspaces
+        await prisma.workspaceMember.deleteMany({
+          where: { userId: user.id }
+        });
+
+        // 5. Remove Notification Logs & Activity Logs
+        await prisma.notificationLog.deleteMany({
+          where: { userId: user.id }
+        });
+        await prisma.activityLog.deleteMany({
+          where: { userId: user.id }
+        });
+
+        // 6. Delete the user
+        await prisma.user.delete({
+          where: { id: user.id }
+        });
+
+        deletedUserIds.push(user.id);
+        console.log(`[SSO Reconciliation] 🗑️ Successfully deleted removed SSO user from EFL-Workflow: ${user.name} (${user.email})`);
+      } catch (err: any) {
+        console.error(`[SSO Reconciliation] Failed to hard-delete user ${user.email}, falling back to deactivate:`, err.message);
+        // Fallback: If hard delete fails for any constraint, ensure they are completely deactivated and unassigned
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isActive: false,
+            isAssignable: false,
+            role: 'VIEWER'
+          }
+        });
+        await prisma.cardAssignee.deleteMany({
+          where: { userId: user.id }
+        });
+        await prisma.workspaceMember.deleteMany({
+          where: { userId: user.id }
+        });
+        deletedUserIds.push(user.id);
+      }
+    }
+  }
+
+  return deletedUserIds;
 }
 
 /**

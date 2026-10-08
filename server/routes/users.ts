@@ -188,8 +188,8 @@ router.patch('/:id/assignable', async (req, res) => {
 // Central SSO Universal Webhook (Real-Time Push from SSO on user create/edit/delete/disable)
 router.post('/sso-sync', async (req, res) => {
   try {
-    const { secretKey, event, user, users } = req.body;
-    const { SSO_CONFIG, upsertUserFromSsoData, pullAllUsersFromSSO } = await import('../services/ssoService');
+    const { secretKey, event, user, users, userId, id, email } = req.body;
+    const { SSO_CONFIG, upsertUserFromSsoData, pullAllUsersFromSSO, reconcileDeletedSsoUsers } = await import('../services/ssoService');
 
     // Verify Shared Secret Key
     const authHeader = req.headers['x-sso-secret'] || req.headers['authorization'];
@@ -201,18 +201,67 @@ router.post('/sso-sync', async (req, res) => {
 
     const io = req.app.get('io');
 
-    // 1. Batch user sync
+    // 1. Explicit user deletion event
+    const isDeleteEvent = event === 'USER_DELETED' || event === 'user.deleted' || event === 'DELETE_USER' || user?.deleted === true;
+    if (isDeleteEvent) {
+      const targetEmail = (email || user?.email)?.toLowerCase()?.trim();
+      const targetId = userId || id || user?.id || user?.userId || user?.ssoUserId;
+
+      const existing = await prisma.user.findFirst({
+        where: {
+          OR: [
+            ...(targetId ? [{ ssoUserId: targetId }, { id: targetId }] : []),
+            ...(targetEmail ? [{ email: targetEmail }] : [])
+          ]
+        }
+      });
+
+      if (existing) {
+        await prisma.card.updateMany({ where: { createdById: existing.id }, data: { createdById: null } });
+        await prisma.board.updateMany({ where: { createdById: existing.id }, data: { createdById: null } });
+        await prisma.cardAssignee.deleteMany({ where: { userId: existing.id } });
+        await prisma.workspaceMember.deleteMany({ where: { userId: existing.id } });
+        await prisma.notificationLog.deleteMany({ where: { userId: existing.id } });
+        await prisma.activityLog.deleteMany({ where: { userId: existing.id } });
+        try {
+          await prisma.user.delete({ where: { id: existing.id } });
+        } catch {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: { isActive: false, isAssignable: false, role: 'VIEWER' }
+          });
+        }
+        console.log(`[SSO Webhook] 🗑️ Processed user deletion for: ${existing.name} (${existing.email})`);
+        
+        const allUsers = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+        if (io) {
+          io.emit('users:synced', allUsers);
+          io.emit('card:updated', {});
+        }
+        return res.json({ success: true, deleted: true, user: existing });
+      }
+    }
+
+    // 2. Batch user sync (with full reconciliation)
     if (Array.isArray(users) && users.length > 0) {
       const syncedList = [];
       for (const u of users) {
         const synced = await upsertUserFromSsoData(u);
         if (synced) syncedList.push(synced);
       }
-      if (io) io.emit('users:synced', syncedList);
-      return res.json({ success: true, count: syncedList.length, users: syncedList });
+      const deletedIds = await reconcileDeletedSsoUsers(users);
+      const allUsers = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+
+      if (io) {
+        io.emit('users:synced', allUsers);
+        if (deletedIds.length > 0) {
+          io.emit('card:updated', {});
+        }
+      }
+      return res.json({ success: true, count: syncedList.length, deletedCount: deletedIds.length, users: allUsers });
     }
 
-    // 2. Single user event
+    // 3. Single user event
     if (user && user.email) {
       const synced = await upsertUserFromSsoData(user);
       if (io && synced) {
@@ -221,10 +270,14 @@ router.post('/sso-sync', async (req, res) => {
       return res.json({ success: true, user: synced });
     }
 
-    // 3. Fallback pull all
+    // 4. Fallback pull all
     const result = await pullAllUsersFromSSO();
-    if (io && result.users.length > 0) {
-      io.emit('users:synced', result.users);
+    const allUsers = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+    if (io) {
+      io.emit('users:synced', allUsers);
+      if ((result as any).deletedCount > 0) {
+        io.emit('card:updated', {});
+      }
     }
     return res.json(result);
   } catch (err: any) {
@@ -246,9 +299,12 @@ router.post('/sync-from-sso', async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('users:synced', allUsers);
+      if ((result as any).deletedCount > 0) {
+        io.emit('card:updated', {});
+      }
     }
 
-    res.json({ success: true, count: result.count, users: allUsers });
+    res.json({ success: true, count: result.count, deletedCount: (result as any).deletedCount || 0, users: allUsers });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

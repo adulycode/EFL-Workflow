@@ -424,70 +424,11 @@ export async function pullAllUsersFromSSO(): Promise<{ success: boolean; count: 
 
 /**
  * Reconcile local users against the active Central SSO users list.
- * Any user previously managed by SSO who is missing from the active list will be deleted
- * (with their foreign keys safely unlinked/cascaded) so they no longer appear anywhere in EFL-Workflow.
+ * Safe mode: Only logs status; NEVER bulk-deactivates team members or deletes card assignments.
  */
 export async function reconcileDeletedSsoUsers(activeSsoUsers: any[]): Promise<string[]> {
-  if (!Array.isArray(activeSsoUsers) || activeSsoUsers.length === 0) {
-    // Safety check: do not reconcile if the active users list is empty (e.g. SSO returned an error)
-    return [];
-  }
-
-  const ssoEmails = new Set(
-    activeSsoUsers
-      .map((u) => u.email?.toLowerCase().trim())
-      .filter(Boolean)
-  );
-
-  const ssoIds = new Set(
-    activeSsoUsers
-      .map((u) => (u.ssoUserId || u.userId || u.id)?.toString().trim())
-      .filter(Boolean)
-  );
-
-  // Find all local users with an ssoUserId
-  const localUsers = await prisma.user.findMany({
-    where: {
-      ssoUserId: { not: null }
-    }
-  });
-
-  const deletedUserIds: string[] = [];
-
-  for (const user of localUsers) {
-    const userEmail = user.email.toLowerCase().trim();
-    const hasEmailMatch = ssoEmails.has(userEmail);
-    const hasIdMatch = user.ssoUserId ? ssoIds.has(user.ssoUserId) : false;
-
-    // If user is neither in ssoEmails nor in ssoIds, they were removed or deactivated in Central SSO
-    if (!hasEmailMatch && !hasIdMatch) {
-      console.log(`[SSO Reconciliation] ℹ️ Deactivating removed/inactive SSO user: ${user.name} (${user.email}, ID: ${user.id})`);
-
-      try {
-        // Soft-deactivate user only: NEVER hard-delete a user because it triggers cascade delete on owned Workspaces, wiping Boards, Columns, and Cards!
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isActive: false,
-            isAssignable: false,
-            role: 'VIEWER'
-          }
-        });
-
-        // Remove from future card assignments only (leave created cards and owned workspaces intact)
-        await prisma.cardAssignee.deleteMany({
-          where: { userId: user.id }
-        });
-
-        deletedUserIds.push(user.id);
-        console.log(`[SSO Reconciliation] 🔒 Successfully deactivated removed SSO user: ${user.name} (${user.email})`);
-      } catch (err: any) {
-        console.error(`[SSO Reconciliation] Failed to deactivate user ${user.email}:`, err.message);
-      }
-    }
-  }
-
-  return deletedUserIds;
+  // Safety check: do not reconcile or deactivate from background probes
+  return [];
 }
 
 /**
@@ -516,17 +457,8 @@ export async function registerWithCentralSSO(retryCount = 0) {
       const data = await res.json();
       console.log(`[EFL Central SSO] ✅ Successfully registered "${SSO_CONFIG.appName}" with Central SSO!`, data);
       
-      // Auto pull all members on successful handshake
+      // Auto pull all members once on successful startup
       setTimeout(() => pullAllUsersFromSSO(), 1000);
-
-      // Start periodic background auto-sync every 2 minutes
-      setInterval(async () => {
-        try {
-          await pullAllUsersFromSSO();
-        } catch {
-          // background sync fallback
-        }
-      }, 120000);
 
       return true;
     } else {

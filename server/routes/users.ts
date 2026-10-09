@@ -217,17 +217,16 @@ router.post('/sso-sync', async (req, res) => {
       });
 
       if (existing) {
-        await prisma.cardAssignee.deleteMany({ where: { userId: existing.id } });
+        // Keep historical card assignees intact; only deactivate user
         await prisma.user.update({
           where: { id: existing.id },
-          data: { isActive: false, isAssignable: false, role: 'VIEWER' }
+          data: { isActive: false }
         });
         console.log(`[SSO Webhook] 🔒 Deactivated user upon SSO delete event: ${existing.name} (${existing.email})`);
         
         const allUsers = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
         if (io) {
           io.emit('users:synced', allUsers);
-          io.emit('card:updated', {});
         }
         return res.json({ success: true, deleted: true, user: existing });
       }

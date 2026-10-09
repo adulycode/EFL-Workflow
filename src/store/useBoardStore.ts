@@ -39,6 +39,7 @@ interface BoardState {
   updateColumn: (columnId: string, data: string | { title?: string; autoArchiveDays?: number }) => Promise<void>;
   deleteColumn: (columnId: string) => Promise<void>;
   moveColumn: (columnId: string, direction: 'left' | 'right' | 'first' | 'last') => Promise<void>;
+  reorderColumns: (startIndex: number, endIndex: number) => Promise<void>;
 
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
@@ -244,9 +245,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     if (newIndex === currentIndex) return;
 
-    // Move element in array
-    const [movedCol] = cols.splice(currentIndex, 1);
-    cols.splice(newIndex, 0, movedCol);
+    return get().reorderColumns(currentIndex, newIndex);
+  },
+
+  reorderColumns: async (startIndex: number, endIndex: number) => {
+    const currentBoard = get().board;
+    if (!currentBoard || startIndex === endIndex) return;
+
+    const cols = [...currentBoard.columns];
+    const [movedCol] = cols.splice(startIndex, 1);
+    cols.splice(endIndex, 0, movedCol);
 
     const updatedCols = cols.map((col, idx) => ({
       ...col,

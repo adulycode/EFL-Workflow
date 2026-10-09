@@ -11,7 +11,12 @@ import {
   DragStartEvent,
   DragEndEvent
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates
+} from '@dnd-kit/sortable';
+import { Column } from '../../types';
 import { useBoardStore } from '../../store/useBoardStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { KanbanColumn } from './KanbanColumn';
@@ -31,9 +36,10 @@ interface LastMoveInfo {
 }
 
 export const KanbanBoard: React.FC = () => {
-  const { board, activeCard, setActiveCard, moveCard, createColumn, filters } = useBoardStore();
+  const { board, activeCard, setActiveCard, moveCard, reorderColumns, createColumn, filters } = useBoardStore();
   const { currentUser } = useAuthStore();
 
+  const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [lastMove, setLastMove] = useState<LastMoveInfo | null>(null);
@@ -216,12 +222,21 @@ export const KanbanBoard: React.FC = () => {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
+    // Check if dragging a column
+    const col = board.columns.find((c) => c.id === active.id);
+    if (col) {
+      setActiveColumn(col);
+      return;
+    }
+    // Check if dragging a card
     const card = board.columns.flatMap((c) => c.cards).find((c) => c.id === active.id);
     if (card) setActiveCard(card);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    const currentActiveCol = activeColumn;
+    setActiveColumn(null);
     const currentActiveCard = activeCard;
     setActiveCard(null);
     if (!over) return;
@@ -229,6 +244,25 @@ export const KanbanBoard: React.FC = () => {
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    // 1. Column Drag Reorder
+    if (currentActiveCol) {
+      if (activeId === overId) return;
+
+      const oldIndex = board.columns.findIndex((c) => c.id === activeId);
+      let newIndex = board.columns.findIndex((c) => c.id === overId);
+
+      // If dropped over a card, find which column that card belongs to
+      if (newIndex === -1) {
+        newIndex = board.columns.findIndex((c) => c.cards.some((card) => card.id === overId));
+      }
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        reorderColumns(oldIndex, newIndex);
+      }
+      return;
+    }
+
+    // 2. Card Drag Move
     const sourceCol = board.columns.find((col) => col.cards.some((c) => c.id === activeId));
     const destCol = board.columns.find((col) => col.id === overId || col.cards.some((c) => c.id === overId));
 
@@ -348,9 +382,11 @@ export const KanbanBoard: React.FC = () => {
         style={bgStyle}
       >
         <div className="relative z-10 flex gap-6 items-start h-full pb-2 min-w-max">
-          {filteredColumns.map((column) => (
-            <KanbanColumn key={column.id} column={column} />
-          ))}
+          <SortableContext items={filteredColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+            {filteredColumns.map((column) => (
+              <KanbanColumn key={column.id} column={column} />
+            ))}
+          </SortableContext>
 
           {/* Add New Column Section */}
           <div className="w-80 shrink-0">
@@ -397,9 +433,13 @@ export const KanbanBoard: React.FC = () => {
         </div>
       </main>
 
-      {/* Floating Drag Overlay (Card Lifting/Floating visual) */}
+      {/* Floating Drag Overlay (Card Lifting/Floating visual & Column visual) */}
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
-        {activeCard ? <KanbanCard card={activeCard} isOverlay /> : null}
+        {activeCard ? (
+          <KanbanCard card={activeCard} isOverlay />
+        ) : activeColumn ? (
+          <KanbanColumn column={activeColumn} isOverlay />
+        ) : null}
       </DragOverlay>
 
       {/* Instant Undo Toast (Safety against accidental drags) */}

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Column, Priority } from '../../types';
 import { KanbanCard } from './KanbanCard';
 import { useBoardStore } from '../../store/useBoardStore';
@@ -17,13 +17,15 @@ import {
   ArrowRight,
   ArrowLeftToLine,
   ArrowRightToLine,
-  ArrowLeftRight
+  ArrowLeftRight,
+  GripVertical
 } from 'lucide-react';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface Props {
   column: Column;
+  isOverlay?: boolean;
 }
 
 const AUTO_ARCHIVE_OPTIONS = [
@@ -35,8 +37,28 @@ const AUTO_ARCHIVE_OPTIONS = [
   { days: 30, label: '30 วัน (30 Days)' }
 ];
 
-export const KanbanColumn: React.FC<Props> = ({ column }) => {
-  const { setNodeRef } = useDroppable({ id: column.id });
+export const KanbanColumn: React.FC<Props> = ({ column, isOverlay = false }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({
+    id: column.id,
+    data: {
+      type: 'Column',
+      column
+    },
+    disabled: isOverlay
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1
+  };
   const board = useBoardStore((s) => s.board);
   const moveColumn = useBoardStore((s) => s.moveColumn);
   const createCard = useBoardStore((s) => s.createCard);
@@ -118,11 +140,25 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
     <>
       <div
         ref={setNodeRef}
-        className="flex flex-col w-80 shrink-0 bg-neutral-100/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 p-3 max-h-full cursor-default"
+        style={style}
+        className={`flex flex-col w-80 shrink-0 bg-neutral-100/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 p-3 max-h-full cursor-default transition-all ${
+          isOverlay ? 'shadow-2xl ring-2 ring-emerald-500/70 rotate-1 scale-102 bg-neutral-100 dark:bg-neutral-900 z-50' : ''
+        }`}
       >
-        {/* Column Header */}
-        <div className="relative flex items-center justify-between px-2 py-1.5 mb-2.5">
-          <div className="flex items-center gap-2 flex-1 mr-2 min-w-0">
+        {/* Column Header (Drag Handle) */}
+        <div 
+          {...attributes}
+          {...listeners}
+          data-no-pan="true"
+          className="relative flex items-center justify-between px-2 py-1.5 mb-2.5 cursor-grab active:cursor-grabbing select-none group/colheader rounded-xl hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40 transition-colors"
+        >
+          <div 
+            className="flex items-center gap-1.5 flex-1 mr-2 min-w-0"
+            onPointerDown={(e) => {
+              if (isEditingTitle) e.stopPropagation();
+            }}
+          >
+            <GripVertical size={13} className="text-neutral-400 opacity-30 group-hover/colheader:opacity-90 transition-opacity shrink-0 cursor-grab" />
             {isEditingTitle ? (
               <div className="flex items-center gap-1 w-full">
                 <input
@@ -169,7 +205,11 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
           </div>
 
           {/* Column Options Button */}
-          <div className="relative" ref={menuContainerRef}>
+          <div 
+            className="relative" 
+            ref={menuContainerRef}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setShowMenu(!showMenu)}
               className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1 rounded-md transition-colors"

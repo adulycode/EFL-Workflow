@@ -38,6 +38,7 @@ interface BoardState {
   createColumn: (boardId: string, title: string) => Promise<void>;
   updateColumn: (columnId: string, data: string | { title?: string; autoArchiveDays?: number }) => Promise<void>;
   deleteColumn: (columnId: string) => Promise<void>;
+  moveColumn: (columnId: string, direction: 'left' | 'right' | 'first' | 'last') => Promise<void>;
 
   // Card Operations
   createCard: (columnId: string, title: string, priority?: Priority) => Promise<void>;
@@ -219,6 +220,57 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to delete column:', err);
+    }
+  },
+
+  moveColumn: async (columnId: string, direction: 'left' | 'right' | 'first' | 'last') => {
+    const currentBoard = get().board;
+    if (!currentBoard) return;
+
+    const cols = [...currentBoard.columns];
+    const currentIndex = cols.findIndex((c) => c.id === columnId);
+    if (currentIndex === -1) return;
+
+    let newIndex = currentIndex;
+    if (direction === 'left') {
+      newIndex = Math.max(0, currentIndex - 1);
+    } else if (direction === 'right') {
+      newIndex = Math.min(cols.length - 1, currentIndex + 1);
+    } else if (direction === 'first') {
+      newIndex = 0;
+    } else if (direction === 'last') {
+      newIndex = cols.length - 1;
+    }
+
+    if (newIndex === currentIndex) return;
+
+    // Move element in array
+    const [movedCol] = cols.splice(currentIndex, 1);
+    cols.splice(newIndex, 0, movedCol);
+
+    const updatedCols = cols.map((col, idx) => ({
+      ...col,
+      position: (idx + 1) * 1000
+    }));
+
+    // Optimistic state update
+    set({
+      board: {
+        ...currentBoard,
+        columns: updatedCols
+      }
+    });
+
+    try {
+      const res = await fetch('/api/boards/columns/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ columnIds: updatedCols.map((c) => c.id) })
+      });
+      if (!res.ok) throw new Error('Failed to reorder columns on server');
+    } catch (err) {
+      console.error('Failed to reorder columns:', err);
+      get().fetchBoard();
     }
   },
 

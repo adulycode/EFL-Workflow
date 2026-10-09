@@ -4,7 +4,21 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Column, Priority } from '../../types';
 import { KanbanCard } from './KanbanCard';
 import { useBoardStore } from '../../store/useBoardStore';
-import { Plus, MoreHorizontal, X, Edit2, Trash2, Check, Clock, Archive } from 'lucide-react';
+import { 
+  Plus, 
+  MoreHorizontal, 
+  X, 
+  Edit2, 
+  Trash2, 
+  Check, 
+  Clock, 
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  ArrowLeftRight
+} from 'lucide-react';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { useClickOutside } from '../../hooks/useClickOutside';
 
@@ -23,9 +37,17 @@ const AUTO_ARCHIVE_OPTIONS = [
 
 export const KanbanColumn: React.FC<Props> = ({ column }) => {
   const { setNodeRef } = useDroppable({ id: column.id });
+  const board = useBoardStore((s) => s.board);
+  const moveColumn = useBoardStore((s) => s.moveColumn);
   const createCard = useBoardStore((s) => s.createCard);
   const updateColumn = useBoardStore((s) => s.updateColumn);
   const deleteColumn = useBoardStore((s) => s.deleteColumn);
+
+  const columnIndex = board?.columns.findIndex((c) => c.id === column.id) ?? -1;
+  const totalColumns = board?.columns.length ?? 0;
+  const isFirst = columnIndex <= 0;
+  const isLast = columnIndex === -1 || columnIndex >= totalColumns - 1;
+  const canMove = totalColumns > 1;
 
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -168,6 +190,79 @@ export const KanbanColumn: React.FC<Props> = ({ column }) => {
                   <Edit2 size={13} />
                   <span>Rename Column</span>
                 </button>
+
+                {/* Move Column Section */}
+                {canMove && (
+                  <div className="border-t border-neutral-100 dark:border-neutral-800 my-1 pt-1.5">
+                    <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                        <ArrowLeftRight size={11} />
+                        <span>ย้ายคอลัมน์ (Move)</span>
+                      </span>
+                      <span className="text-[9px] text-neutral-400 font-medium bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                        {columnIndex + 1} จาก {totalColumns}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1 px-1.5 pt-1 pb-0.5">
+                      <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => {
+                          setShowMenu(false);
+                          moveColumn(column.id, 'first');
+                        }}
+                        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-300 disabled:opacity-30 disabled:pointer-events-none transition-colors border border-neutral-200/60 dark:border-neutral-700/60"
+                        title="ย้ายไปตำแหน่งแรกสุด (ซ้ายสุด)"
+                      >
+                        <ArrowLeftToLine size={13} className="text-blue-500 shrink-0" />
+                        <span>หน้าสุด</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => {
+                          setShowMenu(false);
+                          moveColumn(column.id, 'last');
+                        }}
+                        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-300 disabled:opacity-30 disabled:pointer-events-none transition-colors border border-neutral-200/60 dark:border-neutral-700/60"
+                        title="ย้ายไปตำแหน่งสุดท้าย (ขวาสุด)"
+                      >
+                        <span>ท้ายสุด</span>
+                        <ArrowRightToLine size={13} className="text-blue-500 shrink-0" />
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => {
+                          setShowMenu(false);
+                          moveColumn(column.id, 'left');
+                        }}
+                        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none transition-colors border border-neutral-200/60 dark:border-neutral-700/60"
+                        title="ย้ายไปทางซ้าย 1 ช่อง"
+                      >
+                        <ArrowLeft size={13} className="text-neutral-500 shrink-0" />
+                        <span>ไปซ้าย</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => {
+                          setShowMenu(false);
+                          moveColumn(column.id, 'right');
+                        }}
+                        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none transition-colors border border-neutral-200/60 dark:border-neutral-700/60"
+                        title="ย้ายไปทางขวา 1 ช่อง"
+                      >
+                        <span>ไปขวา</span>
+                        <ArrowRight size={13} className="text-neutral-500 shrink-0" />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Auto-Archive Submenu Trigger */}
                 <div className="relative border-t border-neutral-100 dark:border-neutral-800 my-1 pt-1">

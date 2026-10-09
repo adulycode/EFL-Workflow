@@ -25,6 +25,12 @@ export const useSocketRealtime = () => {
     });
     socket.on('card:moved', () => fetchBoard());
     socket.on('card:deleted', () => fetchBoard());
+
+    // Column Real-time Events
+    socket.on('columns:reordered', () => fetchBoard());
+    socket.on('column:created', () => fetchBoard());
+    socket.on('column:updated', () => fetchBoard());
+    socket.on('column:deleted', () => fetchBoard());
     socket.on('comment:added', (data) => {
       fetchBoard();
       window.dispatchEvent(new CustomEvent('realtime:comment_added', { detail: data }));

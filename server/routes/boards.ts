@@ -227,6 +227,30 @@ router.delete('/columns/:id', async (req, res) => {
   }
 });
 
+// Reorder Columns
+router.post('/columns/reorder', async (req, res) => {
+  try {
+    const { columnIds } = req.body;
+    if (!Array.isArray(columnIds) || columnIds.length === 0) {
+      return res.status(400).json({ error: 'columnIds array is required' });
+    }
+
+    await prisma.$transaction(
+      columnIds.map((id: string, index: number) =>
+        prisma.column.update({
+          where: { id },
+          data: { position: (index + 1) * 1000 }
+        })
+      )
+    );
+
+    emitRealtime(req, 'columns:reordered', { columnIds });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================= CUSTOM LABELS CRUD =================
 
 // Create Label

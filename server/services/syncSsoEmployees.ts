@@ -160,13 +160,6 @@ const SSO_EMPLOYEES = [
 export async function syncAllSsoEmployees() {
   console.log('🔄 Starting Direct Sync of all Central SSO Employees...');
 
-  // 1. Delete duplicate unlinked notification / redundant accounts if any
-  await prisma.user.deleteMany({
-    where: {
-      email: { in: ['efl.notify@gmail.com', 'reyz@gmail.com'] }
-    }
-  });
-
   const defaultWorkspaceId = '00000000-0000-0000-0000-000000000001';
   let defaultWs = await prisma.workspace.findUnique({ where: { id: defaultWorkspaceId } });
 

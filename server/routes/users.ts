@@ -217,21 +217,12 @@ router.post('/sso-sync', async (req, res) => {
       });
 
       if (existing) {
-        await prisma.card.updateMany({ where: { createdById: existing.id }, data: { createdById: null } });
-        await prisma.board.updateMany({ where: { createdById: existing.id }, data: { createdById: null } });
         await prisma.cardAssignee.deleteMany({ where: { userId: existing.id } });
-        await prisma.workspaceMember.deleteMany({ where: { userId: existing.id } });
-        await prisma.notificationLog.deleteMany({ where: { userId: existing.id } });
-        await prisma.activityLog.deleteMany({ where: { userId: existing.id } });
-        try {
-          await prisma.user.delete({ where: { id: existing.id } });
-        } catch {
-          await prisma.user.update({
-            where: { id: existing.id },
-            data: { isActive: false, isAssignable: false, role: 'VIEWER' }
-          });
-        }
-        console.log(`[SSO Webhook] 🗑️ Processed user deletion for: ${existing.name} (${existing.email})`);
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { isActive: false, isAssignable: false, role: 'VIEWER' }
+        });
+        console.log(`[SSO Webhook] 🔒 Deactivated user upon SSO delete event: ${existing.name} (${existing.email})`);
         
         const allUsers = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
         if (io) {

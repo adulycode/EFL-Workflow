@@ -1,13 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
+import { useBoardStore } from '../../store/useBoardStore';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { ChevronDown, Plus, Users, UserPlus, Check, Sparkles, Pencil } from 'lucide-react';
+import { ChevronDown, Plus, Users, UserPlus, Check, Sparkles, Pencil, LayoutGrid } from 'lucide-react';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
 import { EditWorkspaceModal } from './EditWorkspaceModal';
 import { InviteMemberModal } from './InviteMemberModal';
 
 export const WorkspaceSwitcher: React.FC = () => {
   const { currentWorkspace, workspaces, setCurrentWorkspace } = useWorkspaceStore();
+  const { viewMode, setViewMode } = useBoardStore();
   const [isOpen, setIsOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -15,6 +17,8 @@ export const WorkspaceSwitcher: React.FC = () => {
   const switcherRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(switcherRef, () => setIsOpen(false), isOpen);
+
+  const isOverview = viewMode === 'overview';
 
   return (
     <>
@@ -25,19 +29,28 @@ export const WorkspaceSwitcher: React.FC = () => {
             onClick={() => setIsOpen(!isOpen)}
             className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl border border-neutral-200 dark:border-neutral-700/80 bg-white/90 dark:bg-neutral-800/90 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 transition-all text-left shadow-xs group"
           >
-            <span className="text-xl leading-none select-none">
-              {currentWorkspace?.icon || '🏢'}
+            <span className="text-xl leading-none select-none flex items-center justify-center">
+              {isOverview ? '🌐' : (currentWorkspace?.icon || '🏢')}
             </span>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-bold text-neutral-900 dark:text-white leading-none truncate max-w-[150px] sm:max-w-[220px]">
-                  {currentWorkspace?.name || 'Loading Space...'}
+                  {isOverview ? 'All Spaces (ภาพรวม)' : (currentWorkspace?.name || 'Loading Space...')}
                 </span>
                 <ChevronDown size={14} className="text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 transition-transform" />
               </div>
               <div className="text-[10px] text-neutral-400 flex items-center gap-1 mt-0.5 font-medium">
-                <Users size={10} className="text-emerald-500" />
-                <span>{currentWorkspace?.members?.length || 1} สมาชิก</span>
+                {isOverview ? (
+                  <>
+                    <LayoutGrid size={10} className="text-emerald-500" />
+                    <span>{workspaces.length} Spaces ทั้งหมด</span>
+                  </>
+                ) : (
+                  <>
+                    <Users size={10} className="text-emerald-500" />
+                    <span>{currentWorkspace?.members?.length || 1} สมาชิก</span>
+                  </>
+                )}
               </div>
             </div>
           </button>
@@ -61,14 +74,37 @@ export const WorkspaceSwitcher: React.FC = () => {
                 </button>
               </div>
 
+              {/* All Spaces Overview Shortcut Item */}
+              <div className="p-1 border-b border-neutral-100 dark:border-neutral-800">
+                <div
+                  onClick={() => {
+                    setViewMode('overview');
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-colors cursor-pointer ${
+                    isOverview ? 'bg-emerald-50/80 dark:bg-emerald-950/50 font-bold text-emerald-700 dark:text-emerald-300' : 'text-neutral-700 dark:text-neutral-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">🌐</span>
+                    <div>
+                      <div className="text-xs font-bold">All Spaces (ภาพรวมทั้งหมด)</div>
+                      <div className="text-[10px] text-neutral-400 font-normal">ดูสถานะและปริมาณงานทุกแผนก ({workspaces.length} Spaces)</div>
+                    </div>
+                  </div>
+                  {isOverview && <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                </div>
+              </div>
+
               <div className="max-h-64 overflow-y-auto py-1">
                 {workspaces.map((ws) => {
-                  const isActive = currentWorkspace?.id === ws.id;
+                  const isActive = !isOverview && currentWorkspace?.id === ws.id;
                   return (
                     <div
                       key={ws.id}
                       onClick={() => {
                         setCurrentWorkspace(ws);
+                        setViewMode('board');
                         setIsOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-xs hover:bg-neutral-50 dark:hover:bg-neutral-800/80 transition-colors group/row cursor-pointer ${
@@ -134,14 +170,16 @@ export const WorkspaceSwitcher: React.FC = () => {
         </div>
 
         {/* Quick Invite Button */}
-        <button
-          onClick={() => setShowInviteModal(true)}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 shadow-xs transition-colors"
-          title="เชิญสมาชิกเข้าร่วมบอร์ด"
-        >
-          <UserPlus size={13} className="text-emerald-600 dark:text-emerald-400" />
-          <span>Invite</span>
-        </button>
+        {!isOverview && (
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 shadow-xs transition-colors"
+            title="เชิญสมาชิกเข้าร่วมบอร์ด"
+          >
+            <UserPlus size={13} className="text-emerald-600 dark:text-emerald-400" />
+            <span>Invite</span>
+          </button>
+        )}
       </div>
 
       {showCreateModal && <CreateWorkspaceModal onClose={() => setShowCreateModal(false)} />}

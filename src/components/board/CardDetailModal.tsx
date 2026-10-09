@@ -3137,22 +3137,18 @@ export const CardDetailModal: React.FC = () => {
               </div>
 
               {/* 1. Assignees (ผู้รับผิดชอบหลัก - Doers) */}
+              {/* 1. Assignees (ผู้รับผิดชอบหลัก - Doers) */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center gap-1.5">
                   <Users size={13} className="text-emerald-600 dark:text-emerald-400" />
                   <span>Assignees (ผู้รับผิดชอบหลัก)</span>
                 </label>
-                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+                <div className="max-h-36 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
                   {(() => {
                     const filteredAssignees = users.filter((u) => {
                       const isAssignableUser = u.isActive !== false && u.isAssignable !== false;
-                      const isNotAdmin = u.role !== 'ADMIN';
                       const isCurrentlyAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
-                      const isInOtherRole = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'REPORT_TO' || a.type === 'FYI'));
-
-                      // If selected in Report To or FYI, hide from Assignees
-                      if (isInOtherRole) return false;
-                      return isAssignableUser && (isNotAdmin || isCurrentlyAssigned);
+                      return isAssignableUser || isCurrentlyAssigned;
                     });
 
                     if (filteredAssignees.length === 0) {
@@ -3165,6 +3161,8 @@ export const CardDetailModal: React.FC = () => {
 
                     return filteredAssignees.map((u) => {
                       const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
+                      const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
+                      const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
                       const isInactive = u.isActive === false;
                       return (
                         <button
@@ -3179,6 +3177,16 @@ export const CardDetailModal: React.FC = () => {
                         >
                           <span className="truncate flex items-center gap-1.5">
                             <span>{u.name}</span>
+                            {isReportTo && !isAssigned && (
+                              <span className="text-[9px] font-normal text-amber-600 dark:text-amber-400">
+                                (เป็น Report to)
+                              </span>
+                            )}
+                            {isFyi && !isAssigned && (
+                              <span className="text-[9px] font-normal text-sky-600 dark:text-sky-400">
+                                (เป็น FYI)
+                              </span>
+                            )}
                             {isInactive && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
                                 Inactive
@@ -3199,19 +3207,12 @@ export const CardDetailModal: React.FC = () => {
                   <span className="text-amber-500">👑</span>
                   <span>Report to (รายงานเจ้านาย/ผู้บริหาร)</span>
                 </label>
-                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-amber-200/80 dark:border-amber-950/60 shadow-sm">
+                <div className="max-h-36 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-amber-200/80 dark:border-amber-950/60 shadow-sm">
                   {(() => {
                     const filteredBosses = users.filter((u) => {
-                      // Hide current logged-in user from Report To (cannot report to oneself)
-                      if (currentUser && u.id === currentUser.id) return false;
-
-                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
+                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner|ผู้บริหาร|ผู้อำนวยการ|อาจารย์/i.test(u.jobTitle));
                       const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
                       const isEligible = u.isActive !== false && u.isAssignable !== false;
-                      const isInOtherRole = cardDetails.assignees?.some((a: any) => a.userId === u.id && ((a.type || 'ASSIGNEE') === 'ASSIGNEE' || a.type === 'FYI'));
-
-                      // If selected in Assignees or FYI, hide from Report To
-                      if (isInOtherRole) return false;
                       return (isBoss && isEligible) || isReportTo;
                     });
 
@@ -3225,6 +3226,8 @@ export const CardDetailModal: React.FC = () => {
 
                     return filteredBosses.map((u) => {
                       const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
+                      const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
+                      const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
                       const isInactive = u.isActive === false;
                       return (
                         <button
@@ -3240,6 +3243,16 @@ export const CardDetailModal: React.FC = () => {
                           <span className="truncate flex items-center gap-1.5">
                             <span className="text-[11px]">👑</span>
                             <span>{u.name}</span>
+                            {isAssigned && !isReportTo && (
+                              <span className="text-[9px] font-normal text-emerald-600 dark:text-emerald-400">
+                                (เป็น Assignee)
+                              </span>
+                            )}
+                            {isFyi && !isReportTo && (
+                              <span className="text-[9px] font-normal text-sky-600 dark:text-sky-400">
+                                (เป็น FYI)
+                              </span>
+                            )}
                             {isInactive && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
                                 Inactive
@@ -3260,19 +3273,11 @@ export const CardDetailModal: React.FC = () => {
                   <span className="text-sky-500">📢</span>
                   <span>FYI (แจ้งเพื่อทราบ / ผู้ร่วมรับรู้)</span>
                 </label>
-                <div className="max-h-32 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
+                <div className="max-h-36 overflow-y-auto space-y-1 bg-white dark:bg-neutral-900 p-2 rounded-xl border border-sky-200/80 dark:border-sky-950/60 shadow-sm">
                   {(() => {
                     const filteredFyi = users.filter((u) => {
-                      // Hide current logged-in user from FYI (cannot FYI oneself)
-                      if (currentUser && u.id === currentUser.id) return false;
-
-                      const isBoss = u.role === 'ADMIN' || (u.jobTitle && /director|executive|manager|head|lead|ceo|coo|owner/i.test(u.jobTitle));
                       const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
-                      const isEligible = u.isActive !== false && u.isAssignable !== false && !isBoss;
-                      const isInOtherRole = cardDetails.assignees?.some((a: any) => a.userId === u.id && ((a.type || 'ASSIGNEE') === 'ASSIGNEE' || a.type === 'REPORT_TO'));
-
-                      // If selected in Assignees or Report To, hide from FYI
-                      if (isInOtherRole) return false;
+                      const isEligible = u.isActive !== false && u.isAssignable !== false;
                       return isEligible || isFyi;
                     });
 
@@ -3286,6 +3291,8 @@ export const CardDetailModal: React.FC = () => {
 
                     return filteredFyi.map((u) => {
                       const isFyi = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'FYI');
+                      const isAssigned = cardDetails.assignees?.some((a: any) => a.userId === u.id && (a.type === 'ASSIGNEE' || !a.type));
+                      const isReportTo = cardDetails.assignees?.some((a: any) => a.userId === u.id && a.type === 'REPORT_TO');
                       const isInactive = u.isActive === false;
                       return (
                         <button
@@ -3301,6 +3308,16 @@ export const CardDetailModal: React.FC = () => {
                           <span className="truncate flex items-center gap-1.5">
                             <span className="text-[10px]">👁️</span>
                             <span>{u.name}</span>
+                            {isReportTo && !isFyi && (
+                              <span className="text-[9px] font-normal text-amber-600 dark:text-amber-400">
+                                (เป็น Report to)
+                              </span>
+                            )}
+                            {isAssigned && !isFyi && (
+                              <span className="text-[9px] font-normal text-emerald-600 dark:text-emerald-400">
+                                (เป็น Assignee)
+                              </span>
+                            )}
                             {isInactive && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded">
                                 Inactive

@@ -11,7 +11,7 @@ conn.on('ready', () => {
     'docker compose stop efl-workflow-app',
     'docker compose rm -f efl-workflow-app',
     'docker compose up -d --no-deps efl-workflow-app',
-    'sleep 12',
+    'sleep 18',
     'curl -I http://localhost:3010'
   ].join(' && ');
 

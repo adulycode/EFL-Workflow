@@ -17,9 +17,27 @@ let driveClient: any = null;
 export function getDriveClient() {
   if (driveClient) return driveClient;
 
+  // 1. Prioritize OAuth2 (User Account - uploads directly to efl.learningcentre.cm@gmail.com without Service Account quota limits)
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+
+  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
+    try {
+      const oauth2Client = new google.auth.OAuth2(oauthClientId, oauthClientSecret);
+      oauth2Client.setCredentials({ refresh_token: oauthRefreshToken });
+      driveClient = google.drive({ version: 'v3', auth: oauth2Client });
+      console.log('[GoogleDrive] Initialized Drive client via OAuth2 successfully!');
+      return driveClient;
+    } catch (err: any) {
+      console.error('[GoogleDrive] Failed to initialize OAuth2 client:', err.message);
+    }
+  }
+
+  // 2. Fallback to Service Account JWT
   const { clientEmail, privateKey } = getDriveConfig();
   if (!clientEmail || !privateKey) {
-    console.warn('[GoogleDrive] Service Account not fully configured in environment.');
+    console.warn('[GoogleDrive] Google Drive credentials not configured in environment.');
     return null;
   }
 
@@ -33,7 +51,7 @@ export function getDriveClient() {
     driveClient = google.drive({ version: 'v3', auth });
     return driveClient;
   } catch (err: any) {
-    console.error('[GoogleDrive] Failed to initialize Google Drive client:', err.message);
+    console.error('[GoogleDrive] Failed to initialize Service Account Drive client:', err.message);
     return null;
   }
 }

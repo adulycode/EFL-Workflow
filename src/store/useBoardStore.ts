@@ -138,26 +138,39 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   fetchBoard: async (workspaceId?: string, boardId?: string) => {
     try {
-      set({ isLoading: true });
       const currentBoard = get().board;
-      const targetWsId = workspaceId || currentBoard?.workspaceId;
-      const targetBoardId = boardId;
-
-      let url = '/api/boards';
-      if (targetBoardId) {
-        url = `/api/boards?boardId=${targetBoardId}`;
-        if (targetWsId) url += `&workspaceId=${targetWsId}`;
-      } else if (targetWsId) {
-        url = `/api/boards?workspaceId=${targetWsId}`;
+      if (!currentBoard) {
+        set({ isLoading: true });
       }
 
-      const res = await fetch(url);
+      const targetWsId = workspaceId || currentBoard?.workspaceId;
+      const targetBoardId = boardId || (workspaceId && workspaceId !== currentBoard?.workspaceId ? undefined : currentBoard?.id);
+
+      let url = '/api/boards';
+      const params = new URLSearchParams();
+      if (targetBoardId) {
+        params.append('boardId', targetBoardId);
+      }
+      if (targetWsId) {
+        params.append('workspaceId', targetWsId);
+      }
+      params.append('_t', Date.now().toString());
+      url += `?${params.toString()}`;
+
+      const res = await fetch(url, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         set({ board: data.board, labels: data.labels, isLoading: false });
         if (data.board) {
           get().fetchArchivedCards();
         }
+      } else {
+        set({ isLoading: false });
       }
     } catch (err) {
       console.error('Failed to fetch board:', err);
@@ -291,7 +304,32 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         body: JSON.stringify({ columnId, title, priority, userId: currentUserId })
       });
       if (res.ok) {
-        get().fetchBoard();
+        const newCard = await res.json();
+        // Optimistically add the new card into the local column immediately
+        set((state) => {
+          if (!state.board) return state;
+          const updatedColumns = state.board.columns.map((col) => {
+            if (col.id === columnId) {
+              const exists = col.cards.some((c) => c.id === newCard.id);
+              if (exists) return col;
+              return {
+                ...col,
+                cards: [...col.cards, newCard]
+              };
+            }
+            return col;
+          });
+          return {
+            board: {
+              ...state.board,
+              columns: updatedColumns
+            }
+          };
+        });
+
+        // Background sync to ensure all relations (board, checklists, labels) are 100% verified
+        const currentBoard = get().board;
+        await get().fetchBoard(currentBoard?.workspaceId, currentBoard?.id);
       }
     } catch (err) {
       console.error('Failed to create card:', err);
@@ -425,13 +463,29 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   updateCard: async (cardId, updates) => {
     try {
+      // Optimistically update card in local store
+      set((state) => {
+        if (!state.board) return state;
+        const updatedColumns = state.board.columns.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => (c.id === cardId ? { ...c, ...updates } : c))
+        }));
+        return {
+          board: {
+            ...state.board,
+            columns: updatedColumns
+          }
+        };
+      });
+
       const res = await fetch(`/api/cards/${cardId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
       if (res.ok) {
-        get().fetchBoard();
+        const currentBoard = get().board;
+        await get().fetchBoard(currentBoard?.workspaceId, currentBoard?.id);
       }
     } catch (err) {
       console.error('Failed to update card:', err);
@@ -440,10 +494,26 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   deleteCard: async (cardId) => {
     try {
+      // Optimistically remove card from local store
+      set((state) => {
+        if (!state.board) return state;
+        const updatedColumns = state.board.columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((c) => c.id !== cardId)
+        }));
+        return {
+          selectedCardId: state.selectedCardId === cardId ? null : state.selectedCardId,
+          board: {
+            ...state.board,
+            columns: updatedColumns
+          }
+        };
+      });
+
       const res = await fetch(`/api/cards/${cardId}`, { method: 'DELETE' });
       if (res.ok) {
-        set({ selectedCardId: null });
-        get().fetchBoard();
+        const currentBoard = get().board;
+        await get().fetchBoard(currentBoard?.workspaceId, currentBoard?.id);
         get().fetchArchivedCards();
       }
     } catch (err) {
@@ -453,14 +523,30 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   archiveCard: async (cardId) => {
     try {
+      // Optimistically remove card from active columns
+      set((state) => {
+        if (!state.board) return state;
+        const updatedColumns = state.board.columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((c) => c.id !== cardId)
+        }));
+        return {
+          selectedCardId: state.selectedCardId === cardId ? null : state.selectedCardId,
+          board: {
+            ...state.board,
+            columns: updatedColumns
+          }
+        };
+      });
+
       const res = await fetch(`/api/cards/${cardId}/archive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isArchived: true })
       });
       if (res.ok) {
-        set({ selectedCardId: null });
-        get().fetchBoard();
+        const currentBoard = get().board;
+        await get().fetchBoard(currentBoard?.workspaceId, currentBoard?.id);
         get().fetchArchivedCards();
       }
     } catch (err) {

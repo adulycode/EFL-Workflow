@@ -18,7 +18,28 @@ export const useSocketRealtime = () => {
       console.log('[Socket.io Client] Connected to Realtime WebSocket');
     });
 
-    socket.on('card:created', () => fetchBoard());
+    socket.on('card:created', (newCard) => {
+      if (newCard) {
+        const currentBoard = useBoardStore.getState().board;
+        if (currentBoard) {
+          const belongsToBoard = currentBoard.columns.some((c) => c.id === newCard.columnId);
+          if (belongsToBoard) {
+            useBoardStore.setState((state) => {
+              if (!state.board) return state;
+              const updatedCols = state.board.columns.map((col) => {
+                if (col.id === newCard.columnId) {
+                  if (col.cards.some((c) => c.id === newCard.id)) return col;
+                  return { ...col, cards: [...col.cards, newCard] };
+                }
+                return col;
+              });
+              return { board: { ...state.board, columns: updatedCols } };
+            });
+          }
+        }
+      }
+      fetchBoard();
+    });
     socket.on('card:updated', (data) => {
       fetchBoard();
       window.dispatchEvent(new CustomEvent('realtime:card_updated', { detail: data }));

@@ -74,6 +74,16 @@ app.get('/api/drive/files/:fileId', async (req, res) => {
   }
 });
 
+// Prevent caching of all API endpoints (except drive files which have their own cache headers)
+app.use('/api', (req, res, next) => {
+  if (!req.path.startsWith('/drive/files')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 // API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);

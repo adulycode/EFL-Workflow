@@ -11,6 +11,8 @@ import {
   syncCardDriveFolder,
   formatCardFolderName
 } from '../services/googleDrive';
+import { notifyAgentOffice } from '../services/agentOfficeSync';
+import { sendNotification } from '../services/notificationService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -138,11 +140,15 @@ router.post('/', async (req, res) => {
       });
     }
 
-    notifyAgentOffice({
-      agentId: 'cloud',
-      status: 'CODING',
-      task: `Created Card: ${card.title}`
-    });
+    try {
+      notifyAgentOffice({
+        agentId: 'cloud',
+        status: 'CODING',
+        task: `Created Card: ${card.title}`
+      });
+    } catch (agentErr) {
+      console.warn('[AgentOffice Warning]:', agentErr);
+    }
 
     if (card.assignees && card.assignees.length > 0) {
       for (const a of card.assignees) {
@@ -155,6 +161,8 @@ router.post('/', async (req, res) => {
             message: `You were assigned to "${card.title}". Priority: ${card.priority}`,
             cardId: card.id,
             actionType: 'ASSIGNED_USER'
+          }).catch((notifyErr) => {
+            console.warn('[SendNotification Warning]:', notifyErr?.message || notifyErr);
           });
         }
       }

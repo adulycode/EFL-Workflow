@@ -194,6 +194,9 @@ export const BoardHeader: React.FC = () => {
               <img
                 src={currentUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}`}
                 alt={currentUser?.name}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}`;
+                }}
                 className="w-7 h-7 rounded-lg object-cover ring-1 ring-neutral-200 dark:ring-neutral-700"
               />
               <div className="text-left hidden sm:block">

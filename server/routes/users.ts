@@ -16,6 +16,24 @@ router.get('/', async (_req, res) => {
   }
 });
 
+// Get user avatar image (fallback redirect if requested as static endpoint)
+router.get('/:id/avatar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { name: true, avatarUrl: true }
+    });
+    if (user?.avatarUrl && !user.avatarUrl.includes('/avatar')) {
+      return res.redirect(user.avatarUrl);
+    }
+    const name = encodeURIComponent(user?.name || 'User');
+    return res.redirect(`https://api.dicebear.com/7.x/notionists/svg?seed=${name}`);
+  } catch {
+    return res.redirect('https://ui-avatars.com/api/?name=User');
+  }
+});
+
 // Update Profile
 router.patch('/profile', async (req, res) => {
   try {

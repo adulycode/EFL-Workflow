@@ -72,44 +72,49 @@ export const CalendarView: React.FC = () => {
   const [agendaSearch, setAgendaSearch] = useState('');
   const [agendaPage, setAgendaPage] = useState(1);
 
-  if (!board) return null;
-
-  // Gather all active cards across columns
-  const allCards = board.columns.flatMap((col) =>
-    col.cards.map((card) => ({ ...card, columnTitle: col.title }))
-  );
+  // Gather all active cards across columns (safe even when board is null)
+  const allCards = useMemo(() => {
+    if (!board?.columns) return [];
+    return board.columns.flatMap((col) =>
+      col.cards.map((card) => ({ ...card, columnTitle: col.title }))
+    );
+  }, [board]);
 
   // Apply filters to cards
-  const filteredCards = allCards.filter((card) => {
-    if (filters.searchQuery) {
-      const q = filters.searchQuery.toLowerCase();
-      const match = card.title.toLowerCase().includes(q) || card.description?.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-    if (filters.selectedPriority !== 'ALL' && card.priority !== filters.selectedPriority) {
-      return false;
-    }
-    if (filters.selectedLabelId) {
-      const hasLabel = card.labels?.some((l) => l.labelId === filters.selectedLabelId);
-      if (!hasLabel) return false;
-    }
-    if (filters.selectedAssigneeId) {
-      const hasAssignee = card.assignees?.some((a) => a.userId === filters.selectedAssigneeId);
-      if (!hasAssignee) return false;
-    }
-    return true;
-  });
+  const filteredCards = useMemo(() => {
+    return allCards.filter((card) => {
+      if (filters.searchQuery) {
+        const q = filters.searchQuery.toLowerCase();
+        const match = card.title.toLowerCase().includes(q) || card.description?.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      if (filters.selectedPriority !== 'ALL' && card.priority !== filters.selectedPriority) {
+        return false;
+      }
+      if (filters.selectedLabelId) {
+        const hasLabel = card.labels?.some((l) => l.labelId === filters.selectedLabelId);
+        if (!hasLabel) return false;
+      }
+      if (filters.selectedAssigneeId) {
+        const hasAssignee = card.assignees?.some((a) => a.userId === filters.selectedAssigneeId);
+        if (!hasAssignee) return false;
+      }
+      return true;
+    });
+  }, [allCards, filters]);
 
   // Separate into scheduled and unscheduled cards
-  const scheduledCards = filteredCards.filter((c) => Boolean(c.dueDate));
-  const unscheduledCards = filteredCards.filter((c) => !c.dueDate);
+  const scheduledCards = useMemo(() => filteredCards.filter((c) => Boolean(c.dueDate)), [filteredCards]);
+  const unscheduledCards = useMemo(() => filteredCards.filter((c) => !c.dueDate), [filteredCards]);
 
   // Filter unscheduled cards by drawer search query
-  const displayUnscheduledCards = unscheduledCards.filter((card) => {
-    if (!unscheduledSearch) return true;
-    const q = unscheduledSearch.toLowerCase();
-    return card.title.toLowerCase().includes(q) || card.columnTitle.toLowerCase().includes(q);
-  });
+  const displayUnscheduledCards = useMemo(() => {
+    return unscheduledCards.filter((card) => {
+      if (!unscheduledSearch) return true;
+      const q = unscheduledSearch.toLowerCase();
+      return card.title.toLowerCase().includes(q) || card.columnTitle.toLowerCase().includes(q);
+    });
+  }, [unscheduledCards, unscheduledSearch]);
 
   const nextMonth = () => {
     setCurrentMonth(addMonths(currentMonth, 1));
@@ -340,6 +345,18 @@ export const CalendarView: React.FC = () => {
     return filteredAgendaItems.slice(start, start + PAGE_SIZE);
   }, [filteredAgendaItems, agendaPage]);
 
+  // Safeguard: If board data is not loaded yet, return loading state AFTER all hooks have executed
+  if (!board) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 text-neutral-500">
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <span className="text-sm font-medium text-neutral-400">Loading Calendar...</span>
+        </div>
+      </div>
+    );
+  }
+
   // Generate calendar days
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
@@ -453,6 +470,9 @@ export const CalendarView: React.FC = () => {
                           src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
                           alt={user.name}
                           title={user.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`;
+                          }}
                           className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-neutral-900 object-cover"
                         />
                       ))}
@@ -613,6 +633,9 @@ export const CalendarView: React.FC = () => {
                   src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
                   alt={user.name}
                   title={user.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`;
+                  }}
                   className="w-5 h-5 rounded-full ring-1 ring-white dark:ring-neutral-900 object-cover"
                 />
               ))}
@@ -1069,6 +1092,9 @@ export const CalendarView: React.FC = () => {
                             src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`}
                             alt={user.name}
                             title={user.name}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`;
+                            }}
                             className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-neutral-900 object-cover"
                           />
                         ))}

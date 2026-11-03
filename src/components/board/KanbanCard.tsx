@@ -180,6 +180,9 @@ const KanbanCardComponent: React.FC<Props> = ({ card, isOverlay = false }) => {
                     `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(card.createdBy.name)}`
                   }
                   alt={card.createdBy.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(card.createdBy?.name || 'User')}`;
+                  }}
                   className="inline-block h-4 w-4 rounded-full ring-2 ring-violet-400 object-cover bg-white dark:bg-neutral-800"
                 />
                 <span className="absolute -bottom-1 -right-0.5 text-[7px] leading-none">✍️</span>
@@ -204,6 +207,9 @@ const KanbanCardComponent: React.FC<Props> = ({ card, isOverlay = false }) => {
                         <img
                           src={u.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(u.name)}`}
                           alt={u.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(u.name || 'User')}`;
+                          }}
                           className={`inline-block h-5 w-5 rounded-full ring-2 ${
                             isReportTo ? 'ring-amber-400' : isFyi ? 'ring-sky-400' : 'ring-white dark:ring-neutral-900'
                           } object-cover bg-white dark:bg-neutral-800`}

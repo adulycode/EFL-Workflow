@@ -38,13 +38,21 @@ import {
   ArrowRightLeft,
   Eye,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Lightbulb,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Code,
+  Table,
+  Heading2
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { LabelManagerModal } from './LabelManagerModal';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { SlashCommandMenu, SlashCommand } from '../common/SlashCommandMenu';
+import { RichMarkdownRenderer } from '../common/RichMarkdownRenderer';
 import { DueDatePicker } from '../common/DueDatePicker';
 import { LinkPreviewCard } from '../common/LinkPreviewCard';
 import { MoveCardModal } from './MoveCardModal';
@@ -404,24 +412,40 @@ export const CardDetailModal: React.FC = () => {
     setShowSlashMenu(false);
   };
 
-  const handleSelectSlashCommand = (cmd: SlashCommand) => {
-    if (!descriptionTextareaRef.current) return;
+  const handleInsertTemplate = (insertText: string) => {
     const textarea = descriptionTextareaRef.current;
-    const cursorPos = textarea.selectionStart;
+    if (!textarea) {
+      const newText = description ? `${description}\n\n${insertText}` : insertText;
+      setDescription(newText);
+      updateCard(selectedCardId, { description: newText });
+      return;
+    }
+
+    const cursorPos = textarea.selectionStart ?? description.length;
     const textBeforeCursor = description.slice(0, cursorPos);
     const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
 
-    if (lastSlashIndex !== -1) {
-      const newText = description.slice(0, lastSlashIndex) + cmd.insertText + description.slice(cursorPos);
-      setDescription(newText);
-      setShowSlashMenu(false);
-      updateCard(selectedCardId, { description: newText });
-      setTimeout(() => {
-        textarea.focus();
-        const nextPos = lastSlashIndex + cmd.insertText.length;
-        textarea.setSelectionRange(nextPos, nextPos);
-      }, 50);
+    let newText = '';
+    let nextPos = 0;
+    if (lastSlashIndex !== -1 && showSlashMenu) {
+      newText = description.slice(0, lastSlashIndex) + insertText + description.slice(cursorPos);
+      nextPos = lastSlashIndex + insertText.length;
+    } else {
+      newText = description.slice(0, cursorPos) + insertText + description.slice(cursorPos);
+      nextPos = cursorPos + insertText.length;
     }
+
+    setDescription(newText);
+    setShowSlashMenu(false);
+    updateCard(selectedCardId, { description: newText });
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextPos, nextPos);
+    }, 50);
+  };
+
+  const handleSelectSlashCommand = (cmd: SlashCommand) => {
+    handleInsertTemplate(cmd.insertText);
   };
 
   const handleSetCoverColor = async (color: string | null) => {
@@ -1604,6 +1628,83 @@ export const CardDetailModal: React.FC = () => {
                 <div className="relative">
                   {isEditingDescription || !description.trim() ? (
                     <>
+                      {/* Quick Insert Toolbar */}
+                      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                        <span className="text-[10px] font-semibold text-neutral-400 mr-0.5">แทรกด่วน:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('> 💡 **Tip:** เขียนข้อความสำคัญหรือคำแนะนำตรงนี้...\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-medium transition-colors border border-amber-500/20 cursor-pointer"
+                          title="แทรกกล่อง Tip สีทอง"
+                        >
+                          <Lightbulb size={11} className="text-amber-500" />
+                          <span>Tip</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('> ⚠️ **Warning:** ระบุข้อควรระวังหรือสิ่งที่ต้องตรวจสอบก่อนดำเนินการ...\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-medium transition-colors border border-rose-500/20 cursor-pointer"
+                          title="แทรกกล่อง Warning สีแดงส้ม"
+                        >
+                          <AlertTriangle size={11} className="text-rose-500" />
+                          <span>Warning</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('> ℹ️ **Note:** รายละเอียดประกอบหรือข้อมูลสำคัญ...\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 text-[11px] font-medium transition-colors border border-sky-500/20 cursor-pointer"
+                          title="แทรกกล่อง Note สีฟ้า"
+                        >
+                          <Info size={11} className="text-sky-500" />
+                          <span>Note</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('> ✅ **Success:** ผลลัพธ์ที่คาดหวังหรือเงื่อนไขปิดงาน...\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-medium transition-colors border border-emerald-500/20 cursor-pointer"
+                          title="แทรกกล่อง Success สีเขียว"
+                        >
+                          <CheckCircle2 size={11} className="text-emerald-500" />
+                          <span>Success</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('- [ ] รายการตรวจเช็คข้อที่ 1\n- [ ] รายการตรวจเช็คข้อที่ 2\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-medium transition-colors border border-emerald-500/20 cursor-pointer"
+                          title="แทรกรายการ To-do Checklist ที่คลิกติ๊กได้"
+                        >
+                          <CheckSquare size={11} className="text-emerald-500" />
+                          <span>Checklist</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('| หัวข้อ 1 | หัวข้อ 2 | สถานะ |\n| :--- | :--- | :--- |\n| ข้อมูล 1 | รายละเอียด | ✅ เสร็จสิ้น |\n| ข้อมูล 2 | รายละเอียด | ⏳ รอดำเนินการ |\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[11px] font-medium transition-colors border border-purple-500/20 cursor-pointer"
+                          title="แทรกตารางข้อมูล 3 คอลัมน์"
+                        >
+                          <Table size={11} className="text-purple-500" />
+                          <span>ตาราง</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('```typescript\n// เขียนโค้ดหรือสคริปต์ที่นี่\nconsole.log("EFL Workflow System");\n```\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-neutral-200/70 hover:bg-neutral-300/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-medium transition-colors border border-neutral-300/50 dark:border-neutral-700/60 cursor-pointer"
+                          title="แทรกบล็อกโค้ดพร้อมปุ่ม Copy"
+                        >
+                          <Code size={11} className="text-sky-500" />
+                          <span>Code</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertTemplate('## หัวข้อย่อย\n\n')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-[11px] font-medium transition-colors border border-indigo-500/20 cursor-pointer"
+                          title="แทรกหัวข้อย่อย H2"
+                        >
+                          <Heading2 size={11} className="text-indigo-500" />
+                          <span>Heading</span>
+                        </button>
+                      </div>
+
                       <textarea
                         ref={descriptionTextareaRef}
                         autoFocus={isEditingDescription}
@@ -1613,8 +1714,8 @@ export const CardDetailModal: React.FC = () => {
                           handleSaveBasic();
                         }}
                         placeholder="เขียนรายละเอียดงาน... วางลิงก์ Google Drive, Canva, Figma หรือพิมพ์ / เพื่อแทรก Callout, Checklist"
-                        rows={5}
-                        className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y leading-relaxed font-sans shadow-xs"
+                        rows={6}
+                        className="w-full text-xs p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y leading-relaxed font-sans shadow-xs"
                       />
 
                       {/* Slash Command Palette Popup */}
@@ -1623,7 +1724,7 @@ export const CardDetailModal: React.FC = () => {
                           query={slashQuery}
                           onSelect={handleSelectSlashCommand}
                           onClose={() => setShowSlashMenu(false)}
-                          position={{ top: 40, left: 10 }}
+                          position={{ top: 85, left: 10 }}
                         />
                       )}
                     </>
@@ -1633,15 +1734,21 @@ export const CardDetailModal: React.FC = () => {
                         setIsEditingDescription(true);
                         setTimeout(() => descriptionTextareaRef.current?.focus(), 50);
                       }}
-                      className="group relative w-full min-h-[90px] text-xs p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/70 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer shadow-xs"
+                      className="group relative w-full min-h-[90px] text-xs p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/70 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 transition-all cursor-pointer shadow-xs"
                       title="คลิกเพื่อแก้ไขรายละเอียด (Click to edit)"
                     >
-                      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="flex items-center gap-1 text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 px-2 py-0.5 rounded-md shadow-xs border border-neutral-200 dark:border-neutral-700">
-                          <Pencil size={10} /> แก้ไข
+                      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 px-2 py-0.5 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+                          <Pencil size={10} className="text-emerald-500" /> แก้ไข (Edit)
                         </span>
                       </div>
-                      <RenderedTextWithLinks text={description} />
+                      <RichMarkdownRenderer
+                        content={description}
+                        onUpdateContent={async (newDesc) => {
+                          setDescription(newDesc);
+                          await updateCard(selectedCardId, { description: newDesc });
+                        }}
+                      />
                     </div>
                   )}
 

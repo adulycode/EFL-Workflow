@@ -22,6 +22,19 @@ import { getDriveFileStream } from './services/googleDrive';
 dotenv.config();
 
 const app = express();
+app.disable('x-powered-by');
+
+// Stealth & Anti-Indexing Hardening
+app.use((req, res, next) => {
+  res.removeHeader('X-Powered-By');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
+  next();
+});
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send('User-agent: *\nDisallow: /\n');
+});
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
